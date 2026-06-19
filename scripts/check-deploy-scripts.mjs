@@ -13,6 +13,8 @@ const files = {
     "npm ci",
     "npx prisma db push",
     "npm run build",
+    "pm2 delete",
+    "cd \"$APP_ROOT/current\"",
     "pm2",
   ],
   "deploy/rollback.sh": [
