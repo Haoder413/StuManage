@@ -1,0 +1,302 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id                String   @id
+  name              String
+  kind              String   @default("real")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  users             User[]
+  students          Student[]
+  courses           Course[]
+  studentCourses    StudentCourse[]
+  exams             Exam[]
+  knowledgePoints   KnowledgePoint[]
+  kpProgress        StudentKpProgress[]
+  weakPoints        WeakPoint[]
+  reviewSchedules   ReviewSchedule[]
+  schedules         Schedule[]
+  attendance        Attendance[]
+  communicationLogs CommunicationLog[]
+  weakPointTags     WeakPointTag[]
+  lessonTags        LessonTag[]
+  resources         LearningResource[]
+  resourcePermissions ResourcePermission[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  name         String
+  phone        String?  @unique
+  email        String?  @unique
+  role         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  sessions     Session[]
+  parentStudents ParentStudent[]
+  uploadedResources LearningResource[]
+  resourcePermissions ResourcePermission[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ParentStudent {
+  id        String   @id @default(cuid())
+  parentId  String
+  studentId String
+  createdAt DateTime @default(now())
+  parent   User    @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+}
+
+model Student {
+  id               String   @id @default(cuid())
+  workspaceId      String   @default("default-real")
+  name             String
+  grade            String?
+  parentContact    String?
+  enrollmentDate   DateTime @default(now())
+  lessonFrequency  String?
+  tuition          Float?
+  totalLessonHours Int      @default(0)
+  remainingLessonHours Int  @default(0)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  studentCourses   StudentCourse[]
+  exams            Exam[]
+  kpProgress       StudentKpProgress[]
+  weakPoints       WeakPoint[]
+  schedules        Schedule[]
+  attendance       Attendance[]
+  communicationLogs CommunicationLog[]
+  parentLinks      ParentStudent[]
+}
+
+model Course {
+  id              String   @id @default(cuid())
+  workspaceId      String   @default("default-real")
+  name            String
+  description     String?
+  type            String   @default("fixed")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  studentCourses  StudentCourse[]
+  knowledgePoints KnowledgePoint[]
+}
+
+model StudentCourse {
+  id            String   @id @default(cuid())
+  workspaceId   String   @default("default-real")
+  studentId     String
+  courseId      String
+  startDate     DateTime @default(now())
+  status        String   @default("active")
+  customContent String?
+  createdAt     DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model Exam {
+  id        String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  studentId String
+  name      String
+  type      String   // entrance | monthly | quiz
+  score     Float
+  totalScore Float  @default(100)
+  date      DateTime @default(now())
+  notes     String?
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgePoint {
+  id        String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  courseId  String
+  name      String
+  parentId  String?
+  orderIndex Int     @default(0)
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent      KnowledgePoint?     @relation("Kptree", fields: [parentId], references: [id])
+  children    KnowledgePoint[]    @relation("Kptree")
+  studentProgress StudentKpProgress[]
+}
+
+model StudentKpProgress {
+  id                String   @id @default(cuid())
+  workspaceId       String   @default("default-real")
+  studentId         String
+  knowledgePointId  String
+  status            String   @default("not_started")
+  masteredAt        DateTime?
+  updatedAt         DateTime @updatedAt
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id])
+  student         Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  knowledgePoint  KnowledgePoint  @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+  @@unique([studentId, knowledgePointId])
+}
+
+model WeakPoint {
+  id                String   @id @default(cuid())
+  workspaceId       String   @default("default-real")
+  studentId         String
+  knowledgePointId  String?
+  description       String
+  status            String   @default("active")
+  masteredAt        DateTime?
+  createdAt         DateTime @default(now())
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id])
+  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewSchedules ReviewSchedule[]
+}
+
+model ReviewSchedule {
+  id             String    @id @default(cuid())
+  workspaceId    String    @default("default-real")
+  weakPointId    String
+  stage          Int       @default(1)
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime
+  status         String    @default("pending")
+  createdAt      DateTime  @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  weakPoint WeakPoint @relation(fields: [weakPointId], references: [id], onDelete: Cascade)
+}
+
+model Schedule {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default-real")
+  studentId   String
+  type        String   // fixed | flexible
+  dayOfWeek   Int?
+  startTime   String?
+  endTime     String?
+  date        DateTime?
+  startDate   DateTime?
+  endDate     DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attendance Attendance[]
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  scheduleId String
+  studentId  String
+  date       DateTime
+  status     String   // present | absent | makeup
+  notes      String?
+  lessonContent String?
+  lessonFeedback String?
+  contentTags String?
+  feedbackTags String?
+  weakPointTags String?
+  createdAt  DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model CommunicationLog {
+  id        String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  studentId String
+  date      DateTime @default(now())
+  method    String   // phone | wechat | in_person
+  content   String
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model WeakPointTag {
+  id        String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  name      String
+  category  String?
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, name])
+}
+
+model LessonTag {
+  id        String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  name      String
+  type      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, name, type])
+}
+
+model LearningResource {
+  id          String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  title       String
+  description String?
+  type        String
+  fileName    String
+  storedName  String
+  mimeType    String
+  extension   String
+  size        Int
+  grade       String?
+  courseId    String?
+  keywords    String?
+  uploadedById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  uploadedBy  User      @relation(fields: [uploadedById], references: [id])
+  permissions ResourcePermission[]
+}
+
+model ResourcePermission {
+  id          String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  resourceId  String
+  userId      String
+  canPreview  Boolean  @default(false)
+  canDownload Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id])
+  resource    LearningResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, userId])
+}
