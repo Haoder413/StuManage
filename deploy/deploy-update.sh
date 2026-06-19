@@ -43,11 +43,10 @@ npm run build
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current"
 
 if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
-  pm2 restart "$APP_NAME" --update-env
-else
-  cd "$APP_ROOT/current"
-  PORT="$PORT" pm2 start npm --name "$APP_NAME" -- start -- -p "$PORT"
+  pm2 delete "$APP_NAME"
 fi
+cd "$APP_ROOT/current"
+PORT="$PORT" pm2 start npm --name "$APP_NAME" -- start -- -p "$PORT"
 
 find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -5 | xargs -r rm -rf
 
