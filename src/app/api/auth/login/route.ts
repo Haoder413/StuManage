@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { createSession, ROLE_COOKIE } from "@/lib/auth";
 
+function getCookieSecure(request: NextRequest) {
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  return forwardedProto ? forwardedProto === "https" : request.nextUrl.protocol === "https:";
+}
+
 export async function POST(request: NextRequest) {
   const data = await request.json();
   const identifier = String(data.identifier || "").trim();
@@ -23,10 +28,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "账号或密码不正确" }, { status: 401 });
   }
 
-  await createSession(user.id);
+  const cookieSecure = getCookieSecure(request);
+  await createSession(user.id, cookieSecure);
   cookies().set(ROLE_COOKIE, user.role, {
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecure,
     path: "/",
   });
   const redirectTo = user.role === "parent" ? "/parent" : "/";
