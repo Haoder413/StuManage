@@ -20,6 +20,10 @@ const checks = [
     ok: login.includes("x-forwarded-proto"),
     message: "Login route should respect the proxy protocol header from Nginx.",
   },
+  {
+    ok: !login.includes("request.nextUrl.protocol"),
+    message: "Login route should not infer HTTPS from request.nextUrl.protocol in production.",
+  },
 ];
 
 const failed = checks.filter((check) => !check.ok);

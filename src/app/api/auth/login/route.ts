@@ -6,7 +6,8 @@ import { createSession, ROLE_COOKIE } from "@/lib/auth";
 
 function getCookieSecure(request: NextRequest) {
   const forwardedProto = request.headers.get("x-forwarded-proto");
-  return forwardedProto ? forwardedProto === "https" : request.nextUrl.protocol === "https:";
+  const forwardedSsl = request.headers.get("x-forwarded-ssl");
+  return forwardedProto === "https" || forwardedSsl === "on";
 }
 
 export async function POST(request: NextRequest) {
