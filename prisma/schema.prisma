@@ -32,6 +32,7 @@ model Workspace {
   resourcePermissions ResourcePermission[]
   resourceCoursePermissions ResourceCoursePermission[]
   learningLinks     LearningLink[]
+  parentScheduleItems ParentScheduleItem[]
 }
 
 model User {
@@ -52,6 +53,7 @@ model User {
   learningLinksAsTeacher LearningLink[] @relation("TeacherLearningLinks")
   uploadedResources LearningResource[]
   resourcePermissions ResourcePermission[]
+  parentScheduleItems ParentScheduleItem[]
 }
 
 model LearningLink {
@@ -74,6 +76,7 @@ model LearningLink {
   exams       Exam[]
   kpProgress  StudentKpProgress[]
   weakPoints  WeakPoint[]
+  parentScheduleItems ParentScheduleItem[]
 
   @@unique([parentId, studentId, teacherId, subject])
 }
@@ -122,6 +125,7 @@ model Student {
   communicationLogs CommunicationLog[]
   parentLinks      ParentStudent[]
   learningLinks    LearningLink[]
+  parentScheduleItems ParentScheduleItem[]
 }
 
 model Course {
@@ -291,6 +295,28 @@ model Attendance {
   learningLink LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
   schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model ParentScheduleItem {
+  id             String       @id @default(cuid())
+  workspaceId    String       @default("default-real")
+  parentId     String
+  studentId    String
+  learningLinkId String?
+  title          String
+  date           DateTime
+  startTime      String
+  endTime        String
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
+  parent         User         @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  learningLink   LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, parentId, date])
+  @@index([workspaceId, studentId, date])
 }
 
 model CommunicationLog {
