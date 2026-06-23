@@ -72,6 +72,34 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function formatParentItem(item: {
+  id: string;
+  studentId: string;
+  student: { name: string };
+  learningLinkId: string | null;
+  learningLink: { teacher: { name: string }; subject: string } | null;
+  title: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  notes: string | null;
+}) {
+  return {
+    id: item.id,
+    kind: "parent_item" as const,
+    studentId: item.studentId,
+    studentName: item.student.name,
+    learningLinkId: item.learningLinkId,
+    title: item.title,
+    date: item.date,
+    startTime: item.startTime,
+    endTime: item.endTime,
+    notes: item.notes,
+    teacherName: item.learningLink?.teacher.name,
+    subject: item.learningLink?.subject,
+  };
+}
+
 export async function GET() {
   const user = await requireParent();
   const links = await prisma.learningLink.findMany({
@@ -93,7 +121,7 @@ export async function GET() {
   const linkIds = links.map((link) => link.id);
   const scheduleFilters = [
     ...(studentIds.length > 0 ? [{ studentId: { in: studentIds } }] : []),
-    ...(courseIds.length > 0 ? [{ courseId: { in: courseIds } }] : []),
+    ...(courseIds.length > 0 ? [{ studentId: null, courseId: { in: courseIds } }] : []),
   ];
 
   const [schedules, parentItems] = await Promise.all([
@@ -146,23 +174,21 @@ export async function GET() {
   const teacherItems = schedules.flatMap((schedule) => {
     const matchingLinks = links.filter((link) => {
       if (schedule.studentId && schedule.studentId === link.studentId) return true;
-      return Boolean(schedule.courseId && schedule.courseId === link.courseId);
+      return Boolean(!schedule.studentId && schedule.courseId && schedule.courseId === link.courseId);
     });
 
     return matchingLinks.map((link) => ({
       id: `teacher_schedule:${schedule.id}:${link.id}`,
       kind: "teacher_schedule" as const,
-      readOnly: true,
       scheduleId: schedule.id,
       learningLinkId: link.id,
       studentId: link.studentId,
-      student: link.student,
-      teacher: link.teacher,
-      courseId: schedule.courseId,
-      course: schedule.course,
+      studentName: link.student.name,
+      teacherName: link.teacher.name,
       subject: link.subject,
-      type: schedule.type,
       title: schedule.course?.name || link.subject || "老师安排",
+      courseName: schedule.course?.name || null,
+      courseType: schedule.type,
       dayOfWeek: schedule.dayOfWeek,
       date: schedule.date,
       startTime: schedule.startTime,
@@ -179,23 +205,7 @@ export async function GET() {
     }));
   });
 
-  const personalItems = parentItems.map((item) => ({
-    id: item.id,
-    kind: "parent_item" as const,
-    readOnly: false,
-    parentId: item.parentId,
-    studentId: item.studentId,
-    student: item.student,
-    learningLinkId: item.learningLinkId,
-    learningLink: item.learningLink,
-    title: item.title,
-    date: item.date,
-    startTime: item.startTime,
-    endTime: item.endTime,
-    notes: item.notes,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-  }));
+  const personalItems = parentItems.map(formatParentItem);
 
   return NextResponse.json({
     links,
@@ -244,7 +254,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ kind: "parent_item", readOnly: false, ...item }, { status: 201 });
+  return NextResponse.json(formatParentItem(item), { status: 201 });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -299,7 +309,7 @@ export async function PATCH(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ kind: "parent_item", readOnly: false, ...item });
+  return NextResponse.json(formatParentItem(item));
 }
 
 export async function DELETE(request: NextRequest) {
