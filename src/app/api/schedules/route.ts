@@ -6,7 +6,19 @@ export async function GET() {
   const user = await requireTeacherLike();
   const schedules = await prisma.schedule.findMany({
     where: { workspaceId: user.workspaceId },
-    include: { student: true, attendance: true },
+    include: {
+      student: true,
+      course: {
+        include: {
+          studentCourses: {
+            where: { status: "active" },
+            include: { student: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
+      attendance: true,
+    },
     orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
   });
   return NextResponse.json(schedules);
@@ -18,7 +30,8 @@ export async function POST(request: NextRequest) {
   const schedule = await prisma.schedule.create({
     data: {
       workspaceId: user.workspaceId,
-      studentId: data.studentId,
+      studentId: data.studentId || null,
+      courseId: data.courseId || null,
       type: data.type,
       dayOfWeek: data.dayOfWeek ?? null,
       startTime: data.startTime || null,
@@ -26,7 +39,19 @@ export async function POST(request: NextRequest) {
       date: data.date ? new Date(data.date) : null,
       notes: data.notes || null,
     },
-    include: { student: true, attendance: true },
+    include: {
+      student: true,
+      course: {
+        include: {
+          studentCourses: {
+            where: { status: "active" },
+            include: { student: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
+      attendance: true,
+    },
   });
   return NextResponse.json(schedule, { status: 201 });
 }
@@ -37,7 +62,8 @@ export async function PATCH(request: NextRequest) {
   await prisma.schedule.updateMany({
     where: { id: data.id, workspaceId: user.workspaceId },
     data: {
-      studentId: data.studentId,
+      studentId: data.studentId || null,
+      courseId: data.courseId || null,
       type: data.type,
       dayOfWeek: data.dayOfWeek ?? null,
       startTime: data.startTime || null,
@@ -48,7 +74,19 @@ export async function PATCH(request: NextRequest) {
   });
   const schedule = await prisma.schedule.findFirst({
     where: { id: data.id, workspaceId: user.workspaceId },
-    include: { student: true, attendance: true },
+    include: {
+      student: true,
+      course: {
+        include: {
+          studentCourses: {
+            where: { status: "active" },
+            include: { student: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
+      attendance: true,
+    },
   });
   if (!schedule) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json(schedule);

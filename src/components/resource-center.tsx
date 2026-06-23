@@ -11,6 +11,8 @@ type ResourceItem = {
   title: string;
   description: string | null;
   type: string;
+  subject: string | null;
+  resourceKind: string;
   fileName: string;
   extension: string;
   size: number;
@@ -19,32 +21,33 @@ type ResourceItem = {
   workspaceId: string;
   canPreview: boolean;
   canDownload: boolean;
-  locked: boolean;
-  permissions?: { userId: string; canPreview: boolean; canDownload: boolean }[];
+  courseIds?: string[];
+  coursePermissions?: { courseId: string }[];
 };
 
-type ControlledUser = {
+type CourseOption = {
   id: string;
   name: string;
-  phone: string | null;
-  role: string;
+  workspaceId: string;
 };
 
 export function ResourceCenter({
   role,
-  controlledUsers = [],
   workspaces = [],
+  courses = [],
 }: {
   role: string;
-  controlledUsers?: ControlledUser[];
   workspaces?: { id: string; name: string }[];
+  courses?: CourseOption[];
 }) {
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [query, setQuery] = useState("");
-  const [type, setType] = useState("all");
+  const [gradeFilter, setGradeFilter] = useState("all");
+  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [resourceKindFilter, setResourceKindFilter] = useState("all");
   const [message, setMessage] = useState("");
   const canUpload = role === "admin" || role === "teacher";
-  const canGrant = role === "admin";
+  const canGrant = role === "admin" || role === "teacher";
 
   useEffect(() => {
     loadResources();
@@ -53,7 +56,9 @@ export function ResourceCenter({
   async function loadResources() {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
-    if (type !== "all") params.set("type", type);
+    if (gradeFilter !== "all") params.set("grade", gradeFilter);
+    if (subjectFilter !== "all") params.set("subject", subjectFilter);
+    if (resourceKindFilter !== "all") params.set("resourceKind", resourceKindFilter);
     const res = await fetch(`/api/resources?${params.toString()}`);
     if (res.ok) setResources(await res.json());
   }
@@ -73,13 +78,14 @@ export function ResourceCenter({
     await loadResources();
   }
 
-  async function savePermission(resourceId: string, userId: string, canPreview: boolean, canDownload: boolean) {
+  async function savePermission(resourceId: string, courseIds: string[]) {
     await fetch("/api/resource-permissions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resourceId, userId, canPreview, canDownload }),
+      body: JSON.stringify({ resourceId, courseIds }),
     });
     setMessage("授权已保存");
+    await loadResources();
   }
 
   const title = useMemo(() => role === "parent" || role === "demo" ? "搜索资料" : "资料管理", [role]);
@@ -102,14 +108,16 @@ export function ResourceCenter({
                   </SelectContent>
                 </Select>
               )}
-              <Select name="type" defaultValue="paper">
+              <Select name="resourceKind" defaultValue="paper">
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="paper">试卷</SelectItem>
                   <SelectItem value="animation">动画</SelectItem>
+                  <SelectItem value="material">资料</SelectItem>
                 </SelectContent>
               </Select>
               <Input name="grade" placeholder="年级" />
+              <Input name="subject" placeholder="科目" />
               <Input name="keywords" placeholder="关键词" />
               <Input name="file" type="file" accept=".pdf,.doc,.docx,.html,.htm" required />
               <Input name="description" placeholder="说明" className={role === "admin" ? "md:col-span-4" : "md:col-span-5"} />
@@ -122,14 +130,33 @@ export function ResourceCenter({
       <Card>
         <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
         <CardContent>
-          <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_100px]">
+          <div className="mb-4 grid gap-3 md:grid-cols-[1fr_140px_140px_160px_100px]">
             <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、说明、年级、关键词" />
-            <Select value={type} onValueChange={setType}>
+            <Select value={gradeFilter} onValueChange={setGradeFilter}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="all">全部年级</SelectItem>
+                <SelectItem value="小五">小五</SelectItem>
+                <SelectItem value="小六">小六</SelectItem>
+                <SelectItem value="初一">初一</SelectItem>
+                <SelectItem value="初二">初二</SelectItem>
+                <SelectItem value="初三">初三</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部科目</SelectItem>
+                <SelectItem value="数学">数学</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={resourceKindFilter} onValueChange={setResourceKindFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部资料属性</SelectItem>
                 <SelectItem value="paper">试卷</SelectItem>
                 <SelectItem value="animation">动画</SelectItem>
+                <SelectItem value="material">资料</SelectItem>
               </SelectContent>
             </Select>
             <Button type="button" onClick={loadResources}>搜索</Button>
@@ -148,11 +175,10 @@ export function ResourceCenter({
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-slate-900">{resource.title}</h3>
-                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">{resource.type === "paper" ? "试卷" : "动画"}</span>
-                      {resource.locked && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">上锁</span>}
+                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">{resourceKindLabel(resource.resourceKind)}</span>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{resource.description || resource.fileName}</p>
-                    <p className="mt-1 text-xs text-slate-400">{resource.grade || "未设置年级"} · {resource.keywords || "无关键词"} · {formatSize(resource.size)}</p>
+                    <p className="mt-1 text-xs text-slate-400">{resource.grade || "未设置年级"} · {resource.subject || "未设置科目"} · {resource.keywords || "无关键词"} · {formatSize(resource.size)}</p>
                   </div>
                   <div className="flex gap-2">
                     {resource.canPreview ? (
@@ -172,20 +198,15 @@ export function ResourceCenter({
                   </div>
                 </div>
 
-                {canGrant && controlledUsers.length > 0 && (
+                {canGrant && courses.length > 0 && (
                   <div className="border-t p-4 pt-3">
-                    <p className="mb-2 text-xs font-semibold text-slate-500">授权</p>
-                    <div className="grid gap-2">
-                      {controlledUsers.map((user) => (
-                        <PermissionRow
-                          key={user.id}
-                          resourceId={resource.id}
-                          user={user}
-                          permission={resource.permissions?.find((permission) => permission.userId === user.id)}
-                          onSave={savePermission}
-                        />
-                      ))}
-                    </div>
+                    <p className="mb-2 text-xs font-semibold text-slate-500">授权课程</p>
+                    <CourseGrantPanel
+                      resourceId={resource.id}
+                      courses={courses.filter((course) => course.workspaceId === resource.workspaceId)}
+                      selectedCourseIds={resource.courseIds || resource.coursePermissions?.map((permission) => permission.courseId) || []}
+                      onSave={savePermission}
+                    />
                   </div>
                 )}
               </div>
@@ -215,7 +236,7 @@ function ResourceThumbnail({ resource }: { resource: ResourceItem }) {
     return (
       <div className="aspect-[16/9] border-b bg-slate-100 p-4">
         <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 text-sm font-semibold text-slate-400">
-          上锁
+          无预览权限
         </div>
       </div>
     );
@@ -233,36 +254,48 @@ function ResourceThumbnail({ resource }: { resource: ResourceItem }) {
   );
 }
 
-function PermissionRow({
+function CourseGrantPanel({
   resourceId,
-  user,
-  permission,
+  courses,
+  selectedCourseIds,
   onSave,
 }: {
   resourceId: string;
-  user: ControlledUser;
-  permission?: { canPreview: boolean; canDownload: boolean };
-  onSave: (resourceId: string, userId: string, canPreview: boolean, canDownload: boolean) => void;
+  courses: CourseOption[];
+  selectedCourseIds: string[];
+  onSave: (resourceId: string, courseIds: string[]) => void;
 }) {
-  const [canPreview, setCanPreview] = useState(Boolean(permission?.canPreview));
-  const [canDownload, setCanDownload] = useState(Boolean(permission?.canDownload));
+  const [selectedIds, setSelectedCourseIds] = useState(selectedCourseIds);
+
+  useEffect(() => {
+    setSelectedCourseIds(selectedCourseIds);
+  }, [selectedCourseIds.join("|")]);
+
+  function toggleCourse(courseId: string, checked: boolean) {
+    setSelectedCourseIds((current) =>
+      checked ? Array.from(new Set([...current, courseId])) : current.filter((id) => id !== courseId)
+    );
+  }
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-      <span className="text-slate-700">{user.name} · {user.role === "demo" ? "演示" : "家长"}</span>
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1 text-xs text-slate-500">
-          <input checked={canPreview} onChange={(event) => setCanPreview(event.target.checked)} type="checkbox" />
-          预览
-        </label>
-        <label className="flex items-center gap-1 text-xs text-slate-500">
-          <input checked={canDownload} onChange={(event) => setCanDownload(event.target.checked)} type="checkbox" />
-          下载
-        </label>
-        <button className="text-xs font-semibold text-sky-600" onClick={() => onSave(resourceId, user.id, canPreview, canDownload)} type="button">
-          保存
-        </button>
+    <div className="space-y-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+      <div className="grid gap-2">
+        {courses.length === 0 ? (
+          <p className="text-xs text-slate-400">该资料所在工作区暂无课程</p>
+        ) : courses.map((course) => (
+          <label key={course.id} className="flex items-center gap-2 text-xs text-slate-600">
+            <input
+              checked={selectedIds.includes(course.id)}
+              onChange={(event) => toggleCourse(course.id, event.target.checked)}
+              type="checkbox"
+            />
+            {course.name}
+          </label>
+        ))}
       </div>
+      <button className="text-xs font-semibold text-sky-600" onClick={() => onSave(resourceId, selectedIds)} type="button">
+        保存授权
+      </button>
     </div>
   );
 }
@@ -271,4 +304,10 @@ function formatSize(size: number) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function resourceKindLabel(resourceKind: string) {
+  if (resourceKind === "animation") return "动画";
+  if (resourceKind === "material") return "资料";
+  return "试卷";
 }

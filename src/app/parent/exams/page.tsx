@@ -1,13 +1,24 @@
 import { requireParent } from "@/lib/auth";
 import { getParentStudents } from "@/lib/parent-data";
+import { getParentLearningLinks, learningLinkLabel } from "@/lib/learning-links";
 import { ParentExamChart } from "@/components/parent-exam-chart";
+import { ParentExamSubmissionForm } from "@/components/parent-exam-submission-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const examTypeLabel: Record<string, string> = { entrance: "摸底", monthly: "阶段测试", quiz: "随堂小测" };
 
 export default async function ParentExamsPage() {
   const user = await requireParent();
-  const parentStudents = await getParentStudents(user);
+  const [parentStudents, learningLinks] = await Promise.all([
+    getParentStudents(user),
+    getParentLearningLinks(user),
+  ]);
+  const learningLinkOptions = learningLinks.map((link) => ({
+    id: link.id,
+    learningLinkId: link.id,
+    studentId: link.studentId,
+    label: learningLinkLabel(link),
+  }));
 
   return (
     <div>
@@ -16,9 +27,18 @@ export default async function ParentExamsPage() {
         <p className="mt-1 text-sm text-slate-500">查看考试、测验和平均得分率</p>
       </div>
 
+      <Card className="mb-6">
+        <CardHeader><CardTitle>提交成绩</CardTitle></CardHeader>
+        <CardContent>
+          <ParentExamSubmissionForm learningLinks={learningLinkOptions} />
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4">
         {parentStudents.map(({ student }) => {
-          const exams = [...student.exams].sort((a, b) => a.date.getTime() - b.date.getTime());
+          const officialExams = student.exams.filter((exam) => exam.reviewStatus === "approved");
+          const pendingExams = student.exams.filter((exam) => exam.reviewStatus === "pending_review" || exam.reviewStatus === "rejected");
+          const exams = [...officialExams].sort((a, b) => a.date.getTime() - b.date.getTime());
           const formal = exams.filter((exam) => exam.type !== "quiz");
           const quizzes = exams.filter((exam) => exam.type === "quiz");
           const scores = exams.map((exam) => Math.round((exam.score / exam.totalScore) * 100));
@@ -77,6 +97,23 @@ export default async function ParentExamsPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>家长提交记录</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {pendingExams.length === 0 ? <p className="text-sm text-slate-400">暂无待审核或被驳回成绩</p> : pendingExams.map((exam) => (
+                      <div key={exam.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                        <div>
+                          <p className="font-semibold text-slate-800">{exam.name}</p>
+                          <p className="text-xs text-slate-400">{exam.date.toLocaleDateString("zh-CN")} · {exam.reviewStatus === "pending_review" ? "待审核 pending_review" : `已驳回：${exam.rejectionReason || "未填写原因"}`}</p>
+                        </div>
+                        <p className="font-bold text-slate-900">{exam.score}/{exam.totalScore}</p>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

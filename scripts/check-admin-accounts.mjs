@@ -3,8 +3,11 @@ import { readFileSync } from "node:fs";
 const files = {
   "prisma/seed.ts": ["phone: \"admin\"", "role: \"admin\"", "admin123"],
   "src/lib/auth.ts": ["export async function requireAdmin", "user.role !== \"admin\"", "user.role !== \"admin\" && user.role !== \"teacher\" && user.role !== \"demo\""],
-  "src/components/sidebar.tsx": ["账号管理", "/accounts", "useEffect"],
-  "src/app/accounts/page.tsx": ["requireAdmin", "AccountManager", "账号管理"],
+  "src/app/layout.tsx": ["getCurrentUser", "initialRole"],
+  "src/components/app-shell.tsx": ["initialRole", "<Sidebar initialRole={initialRole} />"],
+  "src/components/sidebar.tsx": ["账号与学习关系", "/accounts", "adminOnly", "initialRole"],
+  "src/app/api/account/me/route.ts": ["getCurrentUser", "role", "workspaceId"],
+  "src/app/accounts/page.tsx": ["requireAdmin", "AccountManager", "账号与学习关系"],
   "src/app/accounts/account-manager.tsx": ["parentStudentIds", "保存账号", "重置密码", "可见学生"],
   "src/app/api/accounts/route.ts": ["requireAdmin", "hashPassword", "parentStudents", "deleteMany", "createMany"],
 };

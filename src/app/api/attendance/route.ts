@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
+import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const schedule = await prisma.schedule.findFirst({
+    where: { id: String(data.scheduleId || ""), workspaceId: user.workspaceId },
+    include: {
+      course: {
+        include: {
+          studentCourses: { where: { status: "active" }, select: { studentId: true } },
+        },
+      },
+    },
+  });
+  if (!schedule) return NextResponse.json({ error: "schedule not found" }, { status: 404 });
+  if (schedule.courseId && !schedule.course?.studentCourses.some((item) => item.studentId === data.studentId)) {
+    return NextResponse.json({ error: "student is not in this course" }, { status: 400 });
+  }
+
+  const learningLink = data.learningLinkId
+    ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
+    : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
   const date = new Date(data.date);
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
@@ -14,6 +33,7 @@ export async function POST(request: NextRequest) {
   const existing = await prisma.attendance.findFirst({
     where: {
       workspaceId: user.workspaceId,
+      learningLinkId: learningLink?.id || null,
       scheduleId: data.scheduleId,
       studentId: data.studentId,
       date: { gte: startOfDay, lt: endOfDay },

@@ -27,7 +27,7 @@ export default async function DashboardPage() {
           { type: "flexible", date: { gte: today, lt: tomorrow } },
         ],
       },
-      include: { student: true },
+      include: { student: true, course: true },
       take: 10,
     }),
   ]);
@@ -94,7 +94,7 @@ export default async function DashboardPage() {
                   <span className="bg-[#1a1a2e]/5 text-[#1a1a2e]/60 px-1.5 py-0.5 rounded text-xs font-medium">
                     {s.startTime || "待定"}{s.endTime ? `-${s.endTime}` : ""}
                   </span>
-                  <span className="text-[#1a1a2e]/70">{s.student.name}</span>
+                  <span className="text-[#1a1a2e]/70">{s.course?.name || s.student?.name || "未知课程"}</span>
                 </div>
               ))}
             </div>

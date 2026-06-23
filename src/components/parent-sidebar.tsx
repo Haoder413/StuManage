@@ -11,6 +11,7 @@ const parentNavItems = [
   { href: "/parent/exams", label: "成绩记录", icon: "📝" },
   { href: "/parent/progress", label: "学习进度", icon: "📈" },
   { href: "/parent/resources", label: "资料中心", icon: "📁" },
+  { href: "/parent/settings", label: "账号设置", icon: "⚙" },
 ];
 
 export function ParentSidebar() {

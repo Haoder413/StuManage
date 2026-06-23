@@ -16,6 +16,7 @@ model Workspace {
   users             User[]
   students          Student[]
   courses           Course[]
+  courseScheduleTimes CourseScheduleTime[]
   studentCourses    StudentCourse[]
   exams             Exam[]
   knowledgePoints   KnowledgePoint[]
@@ -29,6 +30,8 @@ model Workspace {
   lessonTags        LessonTag[]
   resources         LearningResource[]
   resourcePermissions ResourcePermission[]
+  resourceCoursePermissions ResourceCoursePermission[]
+  learningLinks     LearningLink[]
 }
 
 model User {
@@ -38,14 +41,41 @@ model User {
   phone        String?  @unique
   email        String?  @unique
   role         String
+  teachingSubject String?
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   workspace    Workspace @relation(fields: [workspaceId], references: [id])
   sessions     Session[]
   parentStudents ParentStudent[]
+  learningLinksAsParent LearningLink[] @relation("ParentLearningLinks")
+  learningLinksAsTeacher LearningLink[] @relation("TeacherLearningLinks")
   uploadedResources LearningResource[]
   resourcePermissions ResourcePermission[]
+}
+
+model LearningLink {
+  id          String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  parentId    String
+  studentId   String
+  teacherId   String
+  courseId    String?
+  subject     String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  parent      User      @relation("ParentLearningLinks", fields: [parentId], references: [id], onDelete: Cascade)
+  teacher     User      @relation("TeacherLearningLinks", fields: [teacherId], references: [id], onDelete: Cascade)
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course      Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  attendance  Attendance[]
+  exams       Exam[]
+  kpProgress  StudentKpProgress[]
+  weakPoints  WeakPoint[]
+
+  @@unique([parentId, studentId, teacherId, subject])
 }
 
 model Session {
@@ -91,6 +121,7 @@ model Student {
   attendance       Attendance[]
   communicationLogs CommunicationLog[]
   parentLinks      ParentStudent[]
+  learningLinks    LearningLink[]
 }
 
 model Course {
@@ -99,11 +130,30 @@ model Course {
   name            String
   description     String?
   type            String   @default("fixed")
+  defaultCapacity Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   workspace Workspace @relation(fields: [workspaceId], references: [id])
   studentCourses  StudentCourse[]
+  scheduleTimes   CourseScheduleTime[]
+  schedules       Schedule[]
   knowledgePoints KnowledgePoint[]
+  learningLinks   LearningLink[]
+  resourcePermissions ResourceCoursePermission[]
+}
+
+model CourseScheduleTime {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("default-real")
+  courseId    String
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  orderIndex  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
 
 model StudentCourse {
@@ -123,6 +173,7 @@ model StudentCourse {
 model Exam {
   id        String   @id @default(cuid())
   workspaceId String  @default("default-real")
+  learningLinkId String?
   studentId String
   name      String
   type      String   // entrance | monthly | quiz
@@ -130,8 +181,14 @@ model Exam {
   totalScore Float  @default(100)
   date      DateTime @default(now())
   notes     String?
+  reviewStatus String @default("approved")
+  submittedById String?
+  reviewedById String?
+  reviewedAt DateTime?
+  rejectionReason String?
   createdAt DateTime @default(now())
   workspace Workspace @relation(fields: [workspaceId], references: [id])
+  learningLink LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
 
@@ -153,20 +210,23 @@ model KnowledgePoint {
 model StudentKpProgress {
   id                String   @id @default(cuid())
   workspaceId       String   @default("default-real")
+  learningLinkId    String?
   studentId         String
   knowledgePointId  String
   status            String   @default("not_started")
   masteredAt        DateTime?
   updatedAt         DateTime @updatedAt
   workspace       Workspace      @relation(fields: [workspaceId], references: [id])
+  learningLink    LearningLink?  @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
   student         Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
   knowledgePoint  KnowledgePoint  @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
-  @@unique([studentId, knowledgePointId])
+  @@unique([learningLinkId, knowledgePointId])
 }
 
 model WeakPoint {
   id                String   @id @default(cuid())
   workspaceId       String   @default("default-real")
+  learningLinkId    String?
   studentId         String
   knowledgePointId  String?
   description       String
@@ -174,6 +234,7 @@ model WeakPoint {
   masteredAt        DateTime?
   createdAt         DateTime @default(now())
   workspace       Workspace       @relation(fields: [workspaceId], references: [id])
+  learningLink    LearningLink?   @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
   student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   reviewSchedules ReviewSchedule[]
 }
@@ -194,7 +255,8 @@ model ReviewSchedule {
 model Schedule {
   id          String   @id @default(cuid())
   workspaceId String   @default("default-real")
-  studentId   String
+  studentId   String?
+  courseId    String?
   type        String   // fixed | flexible
   dayOfWeek   Int?
   startTime   String?
@@ -205,13 +267,15 @@ model Schedule {
   notes       String?
   createdAt   DateTime @default(now())
   workspace Workspace @relation(fields: [workspaceId], references: [id])
-  student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student    Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course     Course?     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attendance Attendance[]
 }
 
 model Attendance {
   id         String   @id @default(cuid())
   workspaceId String  @default("default-real")
+  learningLinkId String?
   scheduleId String
   studentId  String
   date       DateTime
@@ -224,6 +288,7 @@ model Attendance {
   weakPointTags String?
   createdAt  DateTime @default(now())
   workspace Workspace @relation(fields: [workspaceId], references: [id])
+  learningLink LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
   schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
@@ -269,6 +334,8 @@ model LearningResource {
   title       String
   description String?
   type        String
+  subject     String?
+  resourceKind String @default("paper")
   fileName    String
   storedName  String
   mimeType    String
@@ -283,6 +350,21 @@ model LearningResource {
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   uploadedBy  User      @relation(fields: [uploadedById], references: [id])
   permissions ResourcePermission[]
+  coursePermissions ResourceCoursePermission[]
+}
+
+model ResourceCoursePermission {
+  id          String   @id @default(cuid())
+  workspaceId String  @default("default-real")
+  resourceId  String
+  courseId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id])
+  resource    LearningResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, courseId])
 }
 
 model ResourcePermission {

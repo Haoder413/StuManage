@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, requireCurrentUser } from "@/lib/auth";
-import { canAccessResource, canManageResources } from "@/lib/resource-access";
+import { requireCurrentUser } from "@/lib/auth";
+import { canAccessResource, canManageResources, getVisibleResourceWhere } from "@/lib/resource-access";
 import { saveUploadedResourceFile } from "@/lib/resource-storage";
 
 // LearningResource records describe uploaded papers and HTML animations.
@@ -15,16 +15,23 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim().toLowerCase() || "";
   const type = searchParams.get("type") || "";
+  const grade = searchParams.get("grade") || "";
+  const subject = searchParams.get("subject") || "";
+  const resourceKind = searchParams.get("resourceKind") || type || "";
   const workspaceId = user.role === "admin" ? searchParams.get("workspaceId") || "" : user.workspaceId;
+  const visibleWhere = canManageResources(user) ? {} : getVisibleResourceWhere(user);
 
   const resources = await prisma.learningResource.findMany({
     where: {
+      ...visibleWhere,
       ...(workspaceId ? { workspaceId } : {}),
-      ...(type ? { type } : {}),
+      ...(resourceKind ? { resourceKind } : {}),
+      ...(grade ? { grade } : {}),
+      ...(subject ? { subject } : {}),
     },
     include: {
       uploadedBy: { select: { name: true } },
-      permissions: true,
+      coursePermissions: { select: { courseId: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -47,6 +54,8 @@ export async function GET(request: NextRequest) {
       title: resource.title,
       description: resource.description,
       type: resource.type,
+      subject: resource.subject,
+      resourceKind: resource.resourceKind,
       fileName: resource.fileName,
       mimeType: resource.mimeType,
       extension: resource.extension,
@@ -58,8 +67,8 @@ export async function GET(request: NextRequest) {
       createdAt: resource.createdAt,
       canPreview,
       canDownload,
-      locked: !canPreview && !canDownload,
-      permissions: canManageResources(user) ? resource.permissions : undefined,
+      courseIds: canManageResources(user) ? resource.coursePermissions.map((permission) => permission.courseId) : undefined,
+      coursePermissions: canManageResources(user) ? resource.coursePermissions : undefined,
     };
   }));
 
@@ -79,6 +88,7 @@ export async function POST(request: NextRequest) {
   }
 
   const saved = await saveUploadedResourceFile(file);
+  const resourceKind = String(formData.get("resourceKind") || formData.get("type") || "paper");
   const workspaceId = user.role === "admin"
     ? String(formData.get("workspaceId") || user.workspaceId)
     : user.workspaceId;
@@ -87,7 +97,9 @@ export async function POST(request: NextRequest) {
       workspaceId,
       title: String(formData.get("title") || file.name).trim(),
       description: normalizeText(formData.get("description")),
-      type: String(formData.get("type") || "paper"),
+      type: resourceKind === "animation" ? "animation" : "paper",
+      subject: normalizeText(formData.get("subject")) || user.teachingSubject || null,
+      resourceKind,
       fileName: file.name,
       storedName: saved.storedName,
       mimeType: saved.mimeType,

@@ -32,6 +32,13 @@ interface WeakPoint {
   reviewSchedules: ReviewSchedule[];
 }
 
+interface WeakPointTag {
+  id: string;
+  name: string;
+  category: string | null;
+  source?: "library" | "student";
+}
+
 interface ReviewSchedule {
   id: string;
   stage: number;
@@ -177,6 +184,12 @@ export default function StudentProgressDetailPage() {
     await refreshWeakPoints();
   }
 
+  function selectWeakPointTag(name: string) {
+    setNewWeakDesc(name);
+    setShowTagManager(false);
+    setShowSuggestions(false);
+  }
+
   if (loading) return <div className="p-6"><div className="flex items-center gap-3 mb-2">
         <Link href="/progress"><Button variant="outline" size="sm">← 返回</Button></Link>
       </div>
@@ -194,6 +207,22 @@ export default function StudentProgressDetailPage() {
   const progressPct = totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0;
 
   const allReviewWeakPoints = [...weakPoints, ...historyWeakPoints];
+  const allWeakPointTagOptions: WeakPointTag[] = (() => {
+    const names = new Set<string>();
+    const merged: WeakPointTag[] = [];
+    tags.forEach((tag) => {
+      if (!tag.name || names.has(tag.name)) return;
+      names.add(tag.name);
+      merged.push({ ...tag, source: "library" });
+    });
+    allReviewWeakPoints.forEach((point) => {
+      const name = point.description.trim();
+      if (!name || names.has(name)) return;
+      names.add(name);
+      merged.push({ id: `weak-point-${point.id}`, name, category: "已有薄弱点", source: "student" });
+    });
+    return merged;
+  })();
   const pendingReviewCount = allReviewWeakPoints.filter((wp) =>
     wp.reviewSchedules?.some((rs) => rs.status === "pending")
   ).length;
@@ -439,7 +468,7 @@ export default function StudentProgressDetailPage() {
       <Dialog open={showTagManager} onOpenChange={setShowTagManager}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-gray-900">🏷️ 管理薄弱点标签</DialogTitle>
+            <DialogTitle className="text-lg font-semibold text-gray-900">🏷️ 选择薄弱点标签</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Add new tag form */}
@@ -455,19 +484,21 @@ export default function StudentProgressDetailPage() {
             </div>
             {/* Tag list */}
             <div className="max-h-60 overflow-y-auto space-y-1 border rounded-lg p-2">
-              {tags.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">暂无标签</p>
+              {allWeakPointTagOptions.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">暂无薄弱点标签</p>
               ) : (
-                tags.map(t => (
+                allWeakPointTagOptions.map(t => (
                   <div key={t.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50">
-                    <div>
+                    <button type="button" className="flex-1 text-left" onClick={() => selectWeakPointTag(t.name)}>
                       <span className="text-sm font-medium text-gray-700">{t.name}</span>
                       {t.category && <span className="text-xs text-gray-400 ml-2">({t.category})</span>}
-                    </div>
-                    <button className="text-red-400 hover:text-red-600 text-sm" onClick={async () => {
-                      await fetch(`/api/weak-point-tags?id=${t.id}`, { method: "DELETE" });
-                      setTags(prev => prev.filter(x => x.id !== t.id));
-                    }}>删除</button>
+                    </button>
+                    {t.source !== "student" && (
+                      <button className="text-red-400 hover:text-red-600 text-sm" onClick={async () => {
+                        await fetch(`/api/weak-point-tags?id=${t.id}`, { method: "DELETE" });
+                        setTags(prev => prev.filter(x => x.id !== t.id));
+                      }}>删除</button>
+                    )}
                   </div>
                 ))
               )}

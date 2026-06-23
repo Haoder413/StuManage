@@ -16,6 +16,7 @@ function hashPassword(password: string) {
 async function main() {
   // Clean existing data
   await prisma.session.deleteMany();
+  await prisma.resourceCoursePermission.deleteMany();
   await prisma.resourcePermission.deleteMany();
   await prisma.learningResource.deleteMany();
   await prisma.parentStudent.deleteMany();
@@ -51,12 +52,13 @@ async function main() {
       passwordHash: hashPassword("admin123"),
     },
   });
-  await prisma.user.create({
+  const teacherUser = await prisma.user.create({
     data: {
       workspaceId: realWorkspace.id,
       name: "老师",
       phone: "teacher",
       role: "teacher",
+      teachingSubject: "数学",
       passwordHash: hashPassword("teacher123"),
     },
   });
@@ -215,6 +217,19 @@ async function main() {
     });
   }
 
+  const learningLinksByStudentIdx = new Map<number, string>();
+  const zhangSanMathLink = await prisma.learningLink.create({
+    data: {
+      workspaceId: realWorkspace.id,
+      parentId: parentUser.id,
+      studentId: students[0].id,
+      teacherId: teacherUser.id,
+      courseId: course1.id,
+      subject: "数学",
+    },
+  });
+  learningLinksByStudentIdx.set(0, zhangSanMathLink.id);
+
   // ==========================================
   // Exams
   // ==========================================
@@ -264,11 +279,16 @@ async function main() {
     await prisma.exam.create({
       data: {
         studentId: students[e.studentIdx].id,
+        learningLinkId: learningLinksByStudentIdx.get(e.studentIdx),
         name: e.name,
         type: e.type,
         score: e.score,
         totalScore: 100,
         date: new Date(e.date),
+        reviewStatus: "approved",
+        submittedById: teacherUser.id,
+        reviewedById: teacherUser.id,
+        reviewedAt: new Date(e.date),
       },
     });
   }
@@ -287,6 +307,7 @@ async function main() {
       await prisma.studentKpProgress.create({
         data: {
           studentId: students[studentIdx].id,
+          learningLinkId: learningLinksByStudentIdx.get(studentIdx),
           knowledgePointId: kp.id,
           status,
           masteredAt: status === "mastered" ? new Date() : null,
@@ -304,6 +325,7 @@ async function main() {
       await prisma.studentKpProgress.create({
         data: {
           studentId: students[studentIdx].id,
+          learningLinkId: learningLinksByStudentIdx.get(studentIdx),
           knowledgePointId: kp.id,
           status,
           masteredAt: status === "mastered" ? new Date() : null,
@@ -341,6 +363,7 @@ async function main() {
     const wp = await prisma.weakPoint.create({
       data: {
         studentId: students[w.studentIdx].id,
+        learningLinkId: learningLinksByStudentIdx.get(w.studentIdx),
         description: w.desc,
         status: w.mastered ? "mastered" : "active",
         masteredAt: w.mastered ? new Date() : null,
@@ -431,6 +454,7 @@ async function main() {
               where: { studentId: students[s.studentIdx].id, type: "fixed", dayOfWeek: s.dayOfWeek },
             }))!.id,
             studentId: students[s.studentIdx].id,
+            learningLinkId: learningLinksByStudentIdx.get(s.studentIdx),
             date,
             status,
             notes: status === "absent" ? "请假" : status === "makeup" ? "补课" : null,

@@ -4,9 +4,9 @@ const files = {
   "prisma/schema.prisma": [
     "model LearningResource",
     "model ResourcePermission",
+    "model ResourceCoursePermission",
     "uploadedById",
-    "canPreview",
-    "canDownload",
+    "coursePermissions",
   ],
   "src/lib/resource-storage.ts": [
     "RESOURCE_UPLOAD_DIR",
@@ -22,7 +22,7 @@ const files = {
     "FormData",
     "saveUploadedResourceFile",
     "LearningResource",
-    "locked",
+    "coursePermissions",
   ],
   "src/app/api/resources/[id]/file/route.ts": [
     "canAccessResource",
@@ -31,11 +31,9 @@ const files = {
     "attachment",
   ],
   "src/app/api/resource-permissions/route.ts": [
-    "requireAdmin",
+    "requireTeacherLike",
     "resourceId",
-    "userId",
-    "canPreview",
-    "canDownload",
+    "courseIds",
   ],
   "src/app/resources/page.tsx": [
     "资料中心",
@@ -47,13 +45,12 @@ const files = {
     "ResourceCenter",
   ],
   "src/components/resource-center.tsx": [
-    "上锁",
     "ResourceThumbnail",
     "sandbox=\"allow-scripts\"",
     "aspect-[16/9]",
     "预览",
     "下载",
-    "授权",
+    "授权课程",
     "试卷",
     "动画",
   ],

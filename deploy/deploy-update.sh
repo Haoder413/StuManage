@@ -7,6 +7,7 @@ REPO_URL="${REPO_URL:-}"
 BRANCH="${BRANCH:-main}"
 PORT="${PORT:-3001}"
 RUN_SEED="${RUN_SEED:-0}"
+KEEP_BACKUPS="${KEEP_BACKUPS:-15}"
 
 if [ -z "$REPO_URL" ]; then
   echo "Please set REPO_URL first."
@@ -21,6 +22,7 @@ mkdir -p "$APP_ROOT/releases" "$SHARED_DIR/storage/resources" "$APP_ROOT/backups
 
 if [ -f "$SHARED_DIR/dev.db" ]; then
   cp "$SHARED_DIR/dev.db" "$APP_ROOT/backups/dev-$TIMESTAMP.db"
+  find "$APP_ROOT/backups" -maxdepth 1 -type f -name "dev-*.db" -print | sort -r | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f
 fi
 
 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$RELEASE_DIR"

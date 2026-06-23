@@ -20,6 +20,14 @@ interface StudentInfo {
   totalLessonHours: number;
   remainingLessonHours: number;
   notes: string | null;
+  courseId: string;
+}
+
+interface CourseOption {
+  id: string;
+  name: string;
+  type: string;
+  scheduleTimes: { dayOfWeek: number; startTime: string; endTime: string }[];
 }
 
 interface CommunicationLog {
@@ -40,9 +48,11 @@ function methodLabel(method: string) {
 
 export function StudentDetailEditor({
   initialStudent,
+  courses,
   initialLogs,
 }: {
   initialStudent: StudentInfo;
+  courses: CourseOption[];
   initialLogs: CommunicationLog[];
 }) {
   const [student, setStudent] = useState(initialStudent);
@@ -60,6 +70,7 @@ export function StudentDetailEditor({
     totalLessonHours: initialStudent.totalLessonHours?.toString() || "0",
     remainingLessonHours: initialStudent.remainingLessonHours?.toString() || "0",
     notes: initialStudent.notes || "",
+    courseId: initialStudent.courseId || "none",
   });
 
   const [logForm, setLogForm] = useState({
@@ -79,6 +90,7 @@ export function StudentDetailEditor({
       totalLessonHours: student.totalLessonHours?.toString() || "0",
       remainingLessonHours: student.remainingLessonHours?.toString() || "0",
       notes: student.notes || "",
+      courseId: student.courseId || "none",
     });
     setShowStudentDialog(true);
   }
@@ -111,6 +123,7 @@ export function StudentDetailEditor({
         totalLessonHours: updated.totalLessonHours,
         remainingLessonHours: updated.remainingLessonHours,
         notes: updated.notes,
+        courseId: updated.studentCourses?.[0]?.courseId || "none",
       });
       setShowStudentDialog(false);
     }
@@ -152,6 +165,7 @@ export function StudentDetailEditor({
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">学费</span><span className="text-[#1a1a2e]/70">{student.tuition ? `¥${student.tuition.toFixed(2)}` : "-"}</span></div>
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">总课时</span><span className="text-[#1a1a2e]/70">{student.totalLessonHours}</span></div>
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">剩余课时</span><span className="text-[#1a1a2e]/70">{student.remainingLessonHours}</span></div>
+            <div className="flex justify-between gap-4"><span className="text-[#1a1a2e]/40">所属课程</span><span className="text-[#1a1a2e]/70 text-right">{courses.find(course => course.id === student.courseId)?.name || "-"}</span></div>
             <div className="flex justify-between gap-4"><span className="text-[#1a1a2e]/40">备注</span><span className="text-[#1a1a2e]/70 text-right">{student.notes || "-"}</span></div>
           </CardContent>
         </Card>
@@ -213,6 +227,25 @@ export function StudentDetailEditor({
             <div>
               <Label className="text-xs text-gray-500">剩余课时</Label>
               <Input type="number" min="0" value={studentForm.remainingLessonHours} onChange={e => setStudentForm(prev => ({ ...prev, remainingLessonHours: e.target.value }))} />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs text-gray-500">选择课程</Label>
+              <Select value={studentForm.courseId} onValueChange={courseId => setStudentForm(prev => ({ ...prev, courseId }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">暂不选择课程</SelectItem>
+                  {courses.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.name}（{course.type === "fixed" ? "固定课程" : "定制课程"}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {studentForm.courseId !== "none" && (
+                <p className="mt-1 text-xs text-[#1a1a2e]/40">
+                  {courses.find(course => course.id === studentForm.courseId)?.scheduleTimes.map((time) => `周${["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} ${time.startTime}-${time.endTime}`).join("、") || "暂无课程时间"}
+                </p>
+              )}
             </div>
             <div className="col-span-2">
               <Label className="text-xs text-gray-500">备注</Label>
