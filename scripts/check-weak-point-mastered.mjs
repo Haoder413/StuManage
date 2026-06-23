@@ -12,5 +12,8 @@ assert.match(pageSource, /if \(res\.ok\) await refreshWeakPoints\(\)/, "weak poi
 assert.match(pageSource, /historyWeakPoints/, "student progress page should keep historical weak points");
 assert.match(pageSource, /薄弱点复习/, "student progress page should show one unified weak point review tab");
 assert.match(pageSource, /reviewFilter/, "student progress page should filter weak point review records in one place");
+assert.match(pageSource, /allWeakPointTagOptions/, "student progress tag picker should combine library tags and student weak points");
+assert.match(pageSource, /已有薄弱点/, "student progress tag picker should label options sourced from existing student weak points");
+assert.match(pageSource, /selectWeakPointTag/, "student progress tag picker should fill the weak point description from the selected tag");
 assert.doesNotMatch(pageSource, /key: "review" as const/, "student progress page should not keep a separate review tab");
 assert.doesNotMatch(pageSource, /key: "history" as const/, "student progress page should not keep a separate history tab");

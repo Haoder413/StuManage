@@ -15,6 +15,7 @@ export default function NewExamPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [type, setType] = useState("quiz");
   const [scores, setScores] = useState<Record<string, { score: string; total: string }>>({});
+  const [weakPoints, setWeakPoints] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/students").then((r) => r.json()).then(setStudents);
@@ -30,16 +31,22 @@ export default function NewExamPage() {
     for (const student of students) {
       const s = scores[student.id];
       if (s?.score) {
+        const weakPointDescriptions = (weakPoints[student.id] || "")
+          .split(/[，,\n]/)
+          .map((item) => item.trim())
+          .filter(Boolean);
         await fetch("/api/exams", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             studentId: student.id,
+            learningLinkId: student.learningLinkId || null,
             name: examName,
             type,
             score: parseFloat(s.score),
             totalScore: parseFloat(s.total) || 100,
             date: new Date(examDate).toISOString(),
+            weakPointDescriptions,
           }),
         });
       }
@@ -54,6 +61,10 @@ export default function NewExamPage() {
       ...prev,
       [studentId]: { ...prev[studentId] || { score: "", total: "100" }, [field]: value },
     }));
+  }
+
+  function updateWeakPoints(studentId: string, value: string) {
+    setWeakPoints((prev) => ({ ...prev, [studentId]: value }));
   }
 
   return (
@@ -93,6 +104,7 @@ export default function NewExamPage() {
                       <th className="p-2 text-left font-medium">学生</th>
                       <th className="p-2 text-left font-medium w-24">得分</th>
                       <th className="p-2 text-left font-medium w-24">满分</th>
+                      <th className="p-2 text-left font-medium">关联薄弱点</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -115,6 +127,13 @@ export default function NewExamPage() {
                             placeholder="满分"
                             value={scores[s.id]?.total || "100"}
                             onChange={(e) => updateScore(s.id, "total", e.target.value)}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <Input
+                            placeholder="多个薄弱点用逗号隔开"
+                            value={weakPoints[s.id] || ""}
+                            onChange={(e) => updateWeakPoints(s.id, e.target.value)}
                           />
                         </td>
                       </tr>

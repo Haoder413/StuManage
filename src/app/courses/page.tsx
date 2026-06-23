@@ -9,7 +9,7 @@ export default async function CoursesPage() {
   const user = await requireTeacherLike();
   const courses = await prisma.course.findMany({
     where: { workspaceId: user.workspaceId },
-    include: { knowledgePoints: true, studentCourses: true },
+    include: { knowledgePoints: true, studentCourses: true, scheduleTimes: { orderBy: { orderIndex: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -36,6 +36,11 @@ export default async function CoursesPage() {
                 <Badge variant={c.type === "fixed" ? "default" : "secondary"} className="whitespace-nowrap">
                   {c.type === "fixed" ? "固定课程" : "定制课程"}
                 </Badge>
+              </div>
+              <div className="mb-4 min-h-8 text-xs text-gray-400">
+                {c.scheduleTimes.length > 0
+                  ? c.scheduleTimes.map((time) => `周${["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} ${time.startTime}-${time.endTime}`).join("、")
+                  : "暂无固定时间"}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-blue-50/50 rounded-lg p-3">

@@ -32,12 +32,18 @@ function formatDateInput(date: Date) {
 }
 
 interface Schedule {
-  id: string; studentId: string; type: string;
+  id: string; studentId: string | null; courseId: string | null; type: string;
   dayOfWeek: number | null; startTime: string | null; endTime: string | null;
   date: string | null; notes: string | null;
-  student: { id: string; name: string; grade: string | null };
+  student: { id: string; name: string; grade: string | null } | null;
+  course: {
+    id: string;
+    name: string;
+    type: string;
+    studentCourses: { student: { id: string; name: string; grade: string | null } }[];
+  } | null;
   attendance: {
-    id: string; status: string; date: string;
+    id: string; studentId: string; status: string; date: string;
     lessonContent: string | null; lessonFeedback: string | null;
     contentTags: string | null; feedbackTags: string | null; weakPointTags: string | null;
   }[];
@@ -45,6 +51,7 @@ interface Schedule {
 interface Student { id: string; name: string; grade: string | null; }
 interface LessonTag { id: string; name: string; type: "content" | "feedback"; }
 interface WeakPointTag { id: string; name: string; category: string | null; }
+interface WeakPoint { id: string; description: string; }
 interface PendingAttendance {
   scheduleId: string;
   studentId: string;
@@ -61,6 +68,24 @@ function parseTags(value: string | null | undefined) {
   } catch {
     return [];
   }
+}
+
+function mergeWeakPointTags(tags: WeakPointTag[], weakPoints: WeakPoint[]) {
+  const names = new Set(tags.map((tag) => tag.name));
+  const merged = [...tags];
+  weakPoints.forEach((point) => {
+    const name = point.description.trim();
+    if (!name || names.has(name)) return;
+    names.add(name);
+    merged.push({ id: `weak-point-${point.id}`, name, category: "已有薄弱点" });
+  });
+  return merged;
+}
+
+function displayName(schedule: Schedule) {
+  return schedule.course?.type === "fixed"
+    ? schedule.course.name
+    : schedule.student?.name || "未知学生";
 }
 
 function TagChips({
@@ -159,13 +184,18 @@ function WeakPointTagChips({
       <div className="flex flex-wrap gap-1.5">
         {filteredTags.map((tag) => {
           const active = selected.includes(tag.name);
+          const generatedFromWeakPoint = tag.id.startsWith("weak-point-");
           return (
             <span key={tag.id} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500"}`}>
               <button type="button" onClick={() => onToggle(tag.name)}>
                 {tag.name}{tag.category && <span className="ml-1 text-gray-300">{tag.category}</span>}
               </button>
-              <button type="button" className="text-gray-300 hover:text-blue-500" onClick={() => onRename(tag)}>✎</button>
-              <button type="button" className="text-gray-300 hover:text-red-500" onClick={() => onDelete(tag)}>×</button>
+              {!generatedFromWeakPoint && (
+                <>
+                  <button type="button" className="text-gray-300 hover:text-blue-500" onClick={() => onRename(tag)}>✎</button>
+                  <button type="button" className="text-gray-300 hover:text-red-500" onClick={() => onDelete(tag)}>×</button>
+                </>
+              )}
             </span>
           );
         })}
@@ -181,6 +211,7 @@ export default function SchedulePage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [lessonTags, setLessonTags] = useState<LessonTag[]>([]);
   const [weakPointTags, setWeakPointTags] = useState<WeakPointTag[]>([]);
+  const [reviewWeakPointTags, setReviewWeakPointTags] = useState<WeakPointTag[]>([]);
   const [selectedDate, setSelectedDate] = useState(today);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
@@ -197,6 +228,7 @@ export default function SchedulePage() {
   const [formNotes, setFormNotes] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [pendingAttendance, setPendingAttendance] = useState<PendingAttendance | null>(null);
+  const [courseAttendanceStudentId, setCourseAttendanceStudentId] = useState<string | null>(null);
   const [selectedWeakPointTags, setSelectedWeakPointTags] = useState<string[]>([]);
   const [selectedContentTags, setSelectedContentTags] = useState<string[]>([]);
   const [selectedFeedbackTags, setSelectedFeedbackTags] = useState<string[]>([]);
@@ -211,6 +243,7 @@ export default function SchedulePage() {
       setSchedules(scheds); setStudents(studs); setLoading(false);
       setLessonTags(tags);
       setWeakPointTags(weakTags);
+      setReviewWeakPointTags(weakTags);
     });
   }, []);
 
@@ -262,7 +295,7 @@ export default function SchedulePage() {
     setShowForm(true);
   }
   function openEditForm(s: Schedule) {
-    setEditingId(s.id); setFormStudentId(s.studentId);
+    setEditingId(s.id); setFormStudentId(s.studentId || "");
     setFormType(s.type); setFormDay(String(s.dayOfWeek ?? 1));
     setFormDate(s.date ? formatDateInput(new Date(s.date)) : formatDateInput(selectedDate));
     setFormStart(s.startTime || "09:00"); setFormEnd(s.endTime || "10:00");
@@ -308,23 +341,44 @@ export default function SchedulePage() {
       const att = await res.json();
       setSchedules(prev => prev.map(s => {
         if (s.id !== scheduleId) return s;
-        const otherAttendance = s.attendance.filter(a => a.id !== att.id && !isSameDay(new Date(a.date), date));
+        const otherAttendance = s.attendance.filter(a =>
+          a.id !== att.id && !(a.studentId === att.studentId && isSameDay(new Date(a.date), date))
+        );
         return { ...s, attendance: [...otherAttendance, att] };
       }));
     }
   }
 
-  function openAttendanceReview(schedule: Schedule, status: "present" | "makeup", existing?: Schedule["attendance"][number]) {
+  async function loadStudentWeakPointTags(studentId: string) {
+    try {
+      const res = await fetch(`/api/weak-points?studentId=${studentId}`);
+      if (!res.ok) return;
+      const studentWeakPoints: WeakPoint[] = await res.json();
+      setReviewWeakPointTags(mergeWeakPointTags(weakPointTags, studentWeakPoints));
+    } catch {}
+  }
+
+  async function openAttendanceReview(
+    schedule: Schedule,
+    status: "present" | "makeup",
+    existing?: Schedule["attendance"][number],
+    student?: { id: string; name: string }
+  ) {
+    const targetStudentId = student?.id || schedule.studentId || "";
+    const targetStudentName = student?.name || schedule.student?.name || "未知学生";
+    setCourseAttendanceStudentId(schedule.courseId ? targetStudentId : null);
     setPendingAttendance({
       scheduleId: schedule.id,
-      studentId: schedule.studentId,
-      studentName: schedule.student?.name || "未知学生",
+      studentId: targetStudentId,
+      studentName: targetStudentName,
       status,
     });
-    setSelectedWeakPointTags([]);
+    setSelectedWeakPointTags(parseTags(existing?.weakPointTags));
     setSelectedContentTags(parseTags(existing?.contentTags));
     setSelectedFeedbackTags(parseTags(existing?.feedbackTags));
+    setReviewWeakPointTags(weakPointTags);
     setShowReviewForm(true);
+    await loadStudentWeakPointTags(targetStudentId);
   }
 
   async function submitAttendanceReview() {
@@ -354,6 +408,7 @@ export default function SchedulePage() {
     }
     setShowReviewForm(false);
     setPendingAttendance(null);
+    setCourseAttendanceStudentId(null);
   }
 
   function toggleTag(name: string, kind: "content" | "feedback") {
@@ -422,6 +477,7 @@ export default function SchedulePage() {
     if (res.ok) {
       const tag = await res.json();
       setWeakPointTags(prev => [...prev, tag]);
+      setReviewWeakPointTags(prev => [...prev, tag]);
       setSelectedWeakPointTags(prev => [...prev, tag.name]);
     }
   }
@@ -437,6 +493,7 @@ export default function SchedulePage() {
     if (res.ok) {
       const updated = await res.json();
       setWeakPointTags(prev => prev.map(item => item.id === updated.id ? updated : item));
+      setReviewWeakPointTags(prev => prev.map(item => item.id === updated.id ? updated : item));
       setSelectedWeakPointTags(prev => prev.map(item => item === tag.name ? updated.name : item));
     }
   }
@@ -446,6 +503,7 @@ export default function SchedulePage() {
     const res = await fetch(`/api/weak-point-tags?id=${tag.id}`, { method: "DELETE" });
     if (res.ok) {
       setWeakPointTags(prev => prev.filter(item => item.id !== tag.id));
+      setReviewWeakPointTags(prev => prev.filter(item => item.id !== tag.id));
       setSelectedWeakPointTags(prev => prev.filter(item => item !== tag.name));
     }
   }
@@ -514,7 +572,7 @@ export default function SchedulePage() {
                     {weekDays.map((d, di) => {
                       const ds = getSchedulesForDayAtHour(d, hour); const sel = isSameDay(d, selectedDate);
                       return <button key={di} onClick={() => setSelectedDate(d)} className={`min-h-[36px] border-b border-gray-100 px-1 py-0.5 text-left hover:bg-gray-50/50 ${sel ? 'bg-blue-50/30' : ''}`}>
-                        {ds.map((s, si) => <div key={si} className="bg-blue-100 text-blue-700 text-[10px] font-medium rounded px-1 py-0.5 mb-0.5 truncate leading-tight">{s.student?.name}{s.startTime && <span className="text-blue-400 ml-0.5">{s.startTime}</span>}</div>)}
+                        {ds.map((s, si) => <div key={si} className="bg-blue-100 text-blue-700 text-[10px] font-medium rounded px-1 py-0.5 mb-0.5 truncate leading-tight">{displayName(s)}{s.startTime && <span className="text-blue-400 ml-0.5">{s.startTime}</span>}</div>)}
                       </button>;
                     })}
                   </div>
@@ -539,13 +597,14 @@ export default function SchedulePage() {
             : selectedSchedules.length === 0 ? <p className="text-sm text-gray-400 text-center py-8">暂无课程安排</p>
             : <div className="space-y-2">
                 {selectedSchedules.map((s, idx) => {
-                  const todayAtt = s.attendance.find(a => isSameDay(new Date(a.date), selectedDate));
+                  const todayAtt = s.studentId ? s.attendance.find(a => a.studentId === s.studentId && isSameDay(new Date(a.date), selectedDate)) : undefined;
+                  const isCourseSchedule = s.course?.type === "fixed";
                   return (
                     <div key={idx} className="border border-gray-100 rounded-lg p-3 hover:border-gray-200 transition-colors">
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-semibold text-gray-900">{s.student?.name || "未知"}</p>
+                        <p className="text-sm font-semibold text-gray-900">{displayName(s)}</p>
                         <div className="flex gap-1">
-                          <button onClick={() => openEditForm(s)} className="text-[10px] text-gray-400 hover:text-blue-500">✎</button>
+                          {!isCourseSchedule && <button onClick={() => openEditForm(s)} className="text-[10px] text-gray-400 hover:text-blue-500">✎</button>}
                           <button onClick={() => handleDelete(s.id)} className="text-[10px] text-gray-400 hover:text-red-500">✕</button>
                         </div>
                       </div>
@@ -554,20 +613,50 @@ export default function SchedulePage() {
                         <span className="ml-1.5">{s.type === "fixed" ? "🔄 固定" : "📌 临时"}</span>
                       </p>
                       {s.notes && <p className="text-[10px] text-gray-400 mt-0.5">{s.notes}</p>}
-                      {/* Attendance buttons */}
-                      <div className="flex gap-1.5 mt-2 pt-2 border-t border-gray-50">
-                        {["present", "absent", "makeup"].map(st => {
-                          const labels: Record<string, string> = { present: "✅ 出勤", absent: "❌ 请假", makeup: "🔄 补课" };
-                          const active = todayAtt?.status === st;
-                          return (
-                            <button key={st}
-                              onClick={() => st === "absent" ? handleAttendance(s.id, s.studentId, selectedDate, st) : openAttendanceReview(s, st as "present" | "makeup", todayAtt)}
-                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${active ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"}`}>
-                              {labels[st]}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {isCourseSchedule ? (
+                        <div className="mt-2 space-y-2 border-t border-gray-50 pt-2">
+                          {s.course?.studentCourses.length === 0 ? (
+                            <p className="text-[10px] text-gray-400">暂无选课学生</p>
+                          ) : s.course?.studentCourses.map(({ student }) => {
+                            const studentAtt = s.attendance.find(a => a.studentId === student.id && isSameDay(new Date(a.date), selectedDate));
+                            return (
+                              <div key={student.id} className="rounded-md bg-gray-50/60 px-2 py-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-medium text-gray-700">{student.name}</span>
+                                  <span className="text-[10px] text-gray-400">{student.grade || "未设置"}</span>
+                                </div>
+                                <div className="mt-1 flex gap-1.5">
+                                  {["present", "absent", "makeup"].map(st => {
+                                    const labels: Record<string, string> = { present: "出勤", absent: "请假", makeup: "补课" };
+                                    const active = studentAtt?.status === st;
+                                    return (
+                                      <button key={st}
+                                        onClick={() => st === "absent" ? handleAttendance(s.id, student.id, selectedDate, st) : openAttendanceReview(s, st as "present" | "makeup", studentAtt, student)}
+                                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${active ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600 hover:bg-white"}`}>
+                                        {labels[st]}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex gap-1.5 mt-2 pt-2 border-t border-gray-50">
+                          {["present", "absent", "makeup"].map(st => {
+                            const labels: Record<string, string> = { present: "✅ 出勤", absent: "❌ 请假", makeup: "🔄 补课" };
+                            const active = todayAtt?.status === st;
+                            return (
+                              <button key={st}
+                                onClick={() => s.studentId && (st === "absent" ? handleAttendance(s.id, s.studentId, selectedDate, st) : openAttendanceReview(s, st as "present" | "makeup", todayAtt))}
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${active ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"}`}>
+                                {labels[st]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -682,7 +771,7 @@ export default function SchedulePage() {
               <Label className="text-xs text-gray-500">薄弱点</Label>
               <div className="mt-1">
                 <WeakPointTagChips
-                  tags={weakPointTags}
+                  tags={reviewWeakPointTags}
                   selected={selectedWeakPointTags}
                   onToggle={(name) => toggleWeakPointTag(name)}
                   onCreate={createWeakPointTag}

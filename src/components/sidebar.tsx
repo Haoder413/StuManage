@@ -13,23 +13,32 @@ const navItems = [
   { href: "/progress", label: "学习进度", icon: "📈" },
   { href: "/schedule", label: "排课考勤", icon: "📅" },
   { href: "/resources", label: "资料中心", icon: "📁" },
+  { href: "/accounts", label: "账号与学习关系", icon: "🔐", adminOnly: true },
 ];
 
 const bottomItems = [
   { href: "/reports", label: "报表导出", icon: "📋" },
   { href: "/communication", label: "沟通记录", icon: "💬" },
+  { href: "/settings", label: "系统设置", icon: "⚙" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ initialRole }: { initialRole: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(initialRole);
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     if (saved === "true") setCollapsed(true);
-    setRole(document.cookie.split("; ").find((item) => item.startsWith("student_management_role="))?.split("=")[1] || null);
+    const cookieRole = document.cookie.split("; ").find((item) => item.startsWith("student_management_role="))?.split("=")[1] || null;
+    if (cookieRole) setRole(cookieRole);
+    fetch("/api/account/me")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.role) setRole(data.role);
+      })
+      .catch(() => {});
   }, []);
 
   if (pathname.startsWith("/login") || pathname.startsWith("/parent")) return null;
@@ -71,7 +80,7 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 px-2 space-y-0.5">
-        {navItems.map((item) => {
+        {navItems.filter((item) => !item.adminOnly || role === "admin").map((item) => {
           const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
           return (
             <Link
@@ -124,26 +133,6 @@ export function Sidebar() {
             </Link>
           );
         })}
-
-        {role === "admin" && (
-          <Link
-            href="/accounts"
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap",
-              collapsed && "justify-center px-2",
-              pathname.startsWith("/accounts")
-                ? "bg-sky-500/10 text-sky-600 border border-sky-500/15"
-                : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            )}
-            title={collapsed ? "账号管理" : undefined}
-          >
-            <span className="text-base shrink-0">⚙</span>
-            <span className={cn(
-              "transition-all duration-200",
-              collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
-            )}>账号管理</span>
-          </Link>
-        )}
 
         {/* Toggle button */}
         <button

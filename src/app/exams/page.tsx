@@ -7,12 +7,16 @@ import { PageHeader } from "@/components/page-header";
 interface Exam {
   id: string;
   studentId: string;
+  learningLinkId: string | null;
   name: string;
   type: string;
   score: number;
   totalScore: number;
   date: string;
+  reviewStatus: string;
+  rejectionReason?: string | null;
   student: { id: string; name: string; grade: string | null };
+  learningLink?: { teacher?: { name: string }; parent?: { name: string }; subject: string } | null;
 }
 
 interface StudentStats {
@@ -33,14 +37,17 @@ interface Student {
 
 export default function ExamsPage() {
   const [studentStats, setStudentStats] = useState<StudentStats[]>([]);
+  const [pendingExams, setPendingExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/students").then(r => r.json()),
       fetch("/api/exams?groupBy=student").then(r => r.json()),
+      fetch("/api/exams?reviewStatus=pending_review").then(r => r.json()),
     ])
-      .then(([students, exams]: [Student[], Exam[]]) => {
+      .then(([students, exams, pending]: [Student[], Exam[], Exam[]]) => {
+        setPendingExams(pending);
         const grouped: Record<string, Exam[]> = {};
         exams.forEach(e => {
           if (!grouped[e.studentId]) grouped[e.studentId] = [];
@@ -76,11 +83,52 @@ export default function ExamsPage() {
       });
   }, []);
 
+  async function reviewExam(examId: string, action: "approve" | "reject") {
+    const weakPointText = action === "approve" ? window.prompt("关联薄弱点，多个用逗号分隔", "") || "" : "";
+    const rejectionReason = action === "reject" ? window.prompt("请输入驳回原因", "成绩信息需要更正") || "成绩信息需要更正" : "";
+    const weakPointDescriptions = weakPointText
+      .split(/[，,\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const res = await fetch("/api/exams/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ examId, action, weakPointDescriptions, rejectionReason }),
+    });
+    if (res.ok) {
+      setPendingExams((current) => current.filter((exam) => exam.id !== examId));
+    }
+  }
+
   if (loading) return <div className="p-6"><PageHeader title="成绩管理" description="加载中..." /></div>;
 
   return (
     <div>
       <PageHeader title="成绩管理" description="查看每位学生的成绩曲线和分析" />
+      <div className="glass-card rounded-xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-gray-900">待审核成绩</h2>
+          <span className="text-xs text-gray-400">{pendingExams.length} 条</span>
+        </div>
+        {pendingExams.length === 0 ? (
+          <p className="text-sm text-gray-400">暂无待审核成绩</p>
+        ) : (
+          <div className="space-y-2">
+            {pendingExams.map((exam) => (
+              <div key={exam.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm">
+                <div>
+                  <p className="font-semibold text-gray-900">{exam.student.name} · {exam.name} · {exam.score}/{exam.totalScore}</p>
+                  <p className="text-xs text-gray-400">{new Date(exam.date).toLocaleDateString("zh-CN")} · {exam.learningLink?.subject || "数学"} · {exam.learningLink?.parent?.name || "家长提交"} · {exam.reviewStatus}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => reviewExam(exam.id, "approve")} className="rounded-md bg-green-500 px-3 py-1.5 text-xs font-semibold text-white" type="button">通过</button>
+                  <button onClick={() => reviewExam(exam.id, "reject")} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600" type="button">驳回</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {studentStats.map((s) => {
           const trendLabel = s.trend === "up" ? "上升" : s.trend === "down" ? "下降" : s.trend === "flat" ? "持平" : "暂无";

@@ -42,6 +42,13 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_URL="$REPO_URL" BRANCH="$BRANCH" APP_ROOT="$APP_ROOT" APP_NAME="$APP_NAME" PORT="$PORT" bash "$SCRIPT_DIR/deploy-update.sh"
 
+cat > "/etc/cron.d/$APP_NAME-backup" <<CRON
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 3 * * * root APP_ROOT=$APP_ROOT KEEP_BACKUPS=15 bash $APP_ROOT/current/deploy/backup-db.sh >> $APP_ROOT/backups/backup.log 2>&1
+CRON
+chmod 0644 "/etc/cron.d/$APP_NAME-backup"
+
 cat > "/etc/nginx/sites-available/$APP_NAME" <<NGINX
 server {
     listen 80;

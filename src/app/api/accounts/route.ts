@@ -24,6 +24,8 @@ export async function GET() {
       include: {
         workspace: true,
         parentStudents: { include: { student: true } },
+        learningLinksAsParent: { include: { student: true, teacher: true, course: true } },
+        learningLinksAsTeacher: { include: { student: true, parent: true, course: true } },
       },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     }),
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
       phone: cleanOptional(data.phone),
       email: cleanOptional(data.email),
       role,
+      teachingSubject: role === "teacher" ? cleanOptional(data.teachingSubject) || "数学" : null,
       passwordHash: hashPassword(String(data.password || "123456")),
       parentStudents: visibleStudentIds.length > 0
         ? {
@@ -65,6 +68,8 @@ export async function POST(request: NextRequest) {
     include: {
       workspace: true,
       parentStudents: { include: { student: true } },
+      learningLinksAsParent: { include: { student: true, teacher: true, course: true } },
+      learningLinksAsTeacher: { include: { student: true, parent: true, course: true } },
     },
   });
 
@@ -94,6 +99,7 @@ export async function PATCH(request: NextRequest) {
       phone: cleanOptional(data.phone),
       email: cleanOptional(data.email),
       role,
+      teachingSubject: role === "teacher" ? cleanOptional(data.teachingSubject) || "数学" : null,
       passwordHash: data.password ? hashPassword(String(data.password)) : undefined,
       parentStudents: {
         deleteMany: {},
@@ -109,6 +115,8 @@ export async function PATCH(request: NextRequest) {
     include: {
       workspace: true,
       parentStudents: { include: { student: true } },
+      learningLinksAsParent: { include: { student: true, teacher: true, course: true } },
+      learningLinksAsTeacher: { include: { student: true, parent: true, course: true } },
     },
   });
 

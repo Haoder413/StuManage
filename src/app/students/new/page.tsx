@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface Course {
   id: string;
   name: string;
+  type: string;
+  scheduleTimes?: { dayOfWeek: number; startTime: string; endTime: string }[];
 }
 
 export default function NewStudentPage() {
@@ -18,7 +20,6 @@ export default function NewStudentPage() {
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState("none");
-  const [dayOfWeek, setDayOfWeek] = useState("1");
 
   useEffect(() => {
     fetch("/api/courses")
@@ -40,9 +41,6 @@ export default function NewStudentPage() {
       tuition: form.get("tuition") ? parseFloat(form.get("tuition") as string) : null,
       notes: form.get("notes") as string,
       courseId: courseId === "none" ? null : courseId,
-      dayOfWeek: courseId === "none" ? null : Number(dayOfWeek),
-      startTime: courseId === "none" ? null : form.get("startTime") as string,
-      endTime: courseId === "none" ? null : form.get("endTime") as string,
     };
     try {
       const res = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -69,27 +67,15 @@ export default function NewStudentPage() {
                 <SelectContent>
                   <SelectItem value="none">暂不选择课程</SelectItem>
                   {courses.map((course) => (
-                    <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
+                    <SelectItem key={course.id} value={course.id}>{course.name}（{course.type === "fixed" ? "固定课程" : "定制课程"}）</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             {courseId !== "none" && (
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <Label>固定星期</Label>
-                  <Select name="dayOfWeek" value={dayOfWeek} onValueChange={setDayOfWeek}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {[["1", "周一"], ["2", "周二"], ["3", "周三"], ["4", "周四"], ["5", "周五"], ["6", "周六"], ["0", "周日"]].map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div><Label htmlFor="startTime">开始时间</Label><Input id="startTime" name="startTime" type="time" defaultValue="09:00" /></div>
-                <div><Label htmlFor="endTime">结束时间</Label><Input id="endTime" name="endTime" type="time" defaultValue="10:00" /></div>
-              </div>
+              <p className="rounded-lg border border-[#1a1a2e]/10 px-3 py-2 text-xs text-[#1a1a2e]/50">
+                {courses.find(course => course.id === courseId)?.scheduleTimes?.map((time) => `周${["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} ${time.startTime}-${time.endTime}`).join("、") || "该课程暂无固定时间"}
+              </p>
             )}
             <div><Label htmlFor="notes">备注</Label><textarea id="notes" name="notes" className="flex min-h-[80px] w-full rounded-md border border-[#1a1a2e]/10 bg-white/50 px-3 py-2 text-sm" /></div>
             <div className="flex gap-3">

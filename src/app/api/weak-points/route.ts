@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getNextReviewDate } from "@/lib/review-scheduler";
 import { requireTeacherLike } from "@/lib/auth";
+import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 
 export async function GET(request: NextRequest) {
   const user = await requireTeacherLike();
   const { searchParams } = new URL(request.url);
   const studentId = searchParams.get("studentId");
+  const learningLinkId = searchParams.get("learningLinkId");
   const statusParam = searchParams.get("status");
   const statusFilter = statusParam === "history" ? { not: "active" } : "active";
-  const where = studentId ? { workspaceId: user.workspaceId, studentId, status: statusFilter } : { workspaceId: user.workspaceId, status: statusFilter };
+  const where = studentId
+    ? { workspaceId: user.workspaceId, studentId, ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter }
+    : { workspaceId: user.workspaceId, ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter };
   const weakPoints = await prisma.weakPoint.findMany({
     where,
     include: {
@@ -23,9 +27,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const learningLink = data.learningLinkId
+    ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
+    : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
   const weakPoint = await prisma.weakPoint.create({
     data: {
       workspaceId: user.workspaceId,
+      learningLinkId: learningLink?.id || null,
       studentId: data.studentId,
       knowledgePointId: data.knowledgePointId || null,
       description: data.description,
