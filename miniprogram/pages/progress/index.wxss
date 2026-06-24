@@ -1,0 +1,102 @@
+.header {
+  margin-bottom: 28rpx;
+}
+
+.student-name,
+.section-title {
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin: 28rpx 0;
+}
+
+.progress-track {
+  flex: 1;
+  height: 16rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #e2e8f0;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: #22c55e;
+}
+
+.progress-text {
+  color: #22c55e;
+  font-size: 28rpx;
+  font-weight: 800;
+}
+
+.stats {
+  display: flex;
+  gap: 16rpx;
+}
+
+.stat {
+  flex: 1;
+  padding: 20rpx;
+  border-radius: 16rpx;
+  background: #f1f5f9;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.stat-label,
+.row-sub {
+  color: #64748b;
+  font-size: 24rpx;
+}
+
+.point-row,
+.weak-row {
+  padding: 20rpx 0;
+  border-top: 1rpx solid #f1f5f9;
+}
+
+.point-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.point-name,
+.row-title {
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.status {
+  flex-shrink: 0;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.mastered {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.learning {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.not_started {
+  background: #f1f5f9;
+  color: #64748b;
+}
