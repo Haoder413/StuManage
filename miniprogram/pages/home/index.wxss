@@ -1,0 +1,62 @@
+.header {
+  margin-bottom: 28rpx;
+}
+
+.student-name {
+  font-size: 36rpx;
+  font-weight: 800;
+}
+
+.stats {
+  display: flex;
+  gap: 20rpx;
+  margin: 28rpx 0;
+}
+
+.stat {
+  flex: 1;
+  padding: 24rpx;
+  border-radius: 16rpx;
+  background: #f1f5f9;
+}
+
+.stat-value {
+  font-size: 42rpx;
+  font-weight: 800;
+  color: #0284c7;
+}
+
+.stat-label,
+.row-sub {
+  color: #64748b;
+  font-size: 24rpx;
+}
+
+.section-title {
+  margin-bottom: 18rpx;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.list-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 18rpx 0;
+  border-top: 1rpx solid #f1f5f9;
+}
+
+.vertical-row {
+  display: block;
+}
+
+.row-title {
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.score {
+  color: #0284c7;
+  font-size: 30rpx;
+  font-weight: 800;
+}

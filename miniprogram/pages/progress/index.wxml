@@ -1,0 +1,53 @@
+<view class="page">
+  <view class="header">
+    <view class="title">学习进度</view>
+    <view class="subtitle">知识点掌握和薄弱点复习</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="card muted">加载中...</view>
+  <view wx:elif="{{students.length === 0}}" class="card muted">暂无学习进度</view>
+
+  <block wx:for="{{students}}" wx:key="id">
+    <view class="card">
+      <view class="student-name">{{item.name}}</view>
+      <view class="progress-row">
+        <view class="progress-track">
+          <view class="progress-fill" style="width: {{item.progressPercent}}%;"></view>
+        </view>
+        <view class="progress-text">{{item.progressPercent}}%</view>
+      </view>
+      <view class="stats">
+        <view class="stat">
+          <view class="stat-value">{{item.totalKps}}</view>
+          <view class="stat-label">知识点</view>
+        </view>
+        <view class="stat">
+          <view class="stat-value">{{item.masteredCount}}</view>
+          <view class="stat-label">已掌握</view>
+        </view>
+        <view class="stat">
+          <view class="stat-value">{{item.weakPoints.length}}</view>
+          <view class="stat-label">薄弱点</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">知识点</view>
+      <view wx:if="{{item.knowledgePoints.length === 0}}" class="muted">暂无知识点</view>
+      <view wx:for="{{item.knowledgePoints}}" wx:key="id" wx:for-item="kp" class="point-row">
+        <view class="point-name">{{kp.name}}</view>
+        <view class="status {{kp.status}}">{{kp.statusText}}</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">当前薄弱点</view>
+      <view wx:if="{{item.weakPoints.length === 0}}" class="muted">暂无薄弱点</view>
+      <view wx:for="{{item.weakPoints}}" wx:key="id" wx:for-item="point" class="weak-row">
+        <view class="row-title">{{point.description}}</view>
+        <view class="row-sub">{{point.nextReviewText}}</view>
+      </view>
+    </view>
+  </block>
+</view>

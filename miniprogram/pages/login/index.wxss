@@ -1,0 +1,39 @@
+.login-page {
+  padding-top: 96rpx;
+}
+
+.login-hero {
+  margin-bottom: 48rpx;
+}
+
+.form-card {
+  padding-top: 36rpx;
+}
+
+.field-label {
+  margin: 24rpx 0 12rpx;
+  color: #475569;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.input {
+  height: 88rpx;
+  box-sizing: border-box;
+  padding: 0 24rpx;
+  border: 1rpx solid #e2e8f0;
+  border-radius: 16rpx;
+  background: #f8fafc;
+  font-size: 30rpx;
+}
+
+.login-button {
+  margin-top: 36rpx;
+}
+
+.message {
+  margin-top: 24rpx;
+  color: #ef4444;
+  font-size: 26rpx;
+  text-align: center;
+}

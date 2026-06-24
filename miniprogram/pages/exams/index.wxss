@@ -1,0 +1,51 @@
+.header {
+  margin-bottom: 28rpx;
+}
+
+.student-row,
+.exam-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.student-name {
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.average {
+  color: #0284c7;
+  font-size: 40rpx;
+  font-weight: 800;
+}
+
+.exam-row {
+  padding: 22rpx 0;
+  border-top: 1rpx solid #f1f5f9;
+}
+
+.row-title {
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.row-sub,
+.percent {
+  color: #64748b;
+  font-size: 24rpx;
+}
+
+.score-box {
+  text-align: right;
+}
+
+.score {
+  font-size: 28rpx;
+  font-weight: 800;
+}
+
+.empty {
+  margin-top: 24rpx;
+}
