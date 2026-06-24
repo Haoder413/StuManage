@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { requireParent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -21,6 +22,29 @@ function startOfDay(date: Date) {
   const normalized = new Date(date);
   normalized.setHours(0, 0, 0, 0);
   return normalized;
+}
+
+function parseLocalCalendarDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  return startOfDay(date);
+}
+
+function formatLocalCalendarDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function ensureParentOwnsStudent(user: ParentUser, studentId: string) {
@@ -63,7 +87,10 @@ function normalizeTime(value: unknown, fallback: string) {
 
 function normalizeDate(value: unknown) {
   if (!value) return null;
-  const date = new Date(String(value));
+  const dateValue = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return parseLocalCalendarDate(dateValue);
+
+  const date = new Date(dateValue);
   if (Number.isNaN(date.getTime())) return null;
   return startOfDay(date);
 }
@@ -91,7 +118,7 @@ function formatParentItem(item: {
     studentName: item.student.name,
     learningLinkId: item.learningLinkId,
     title: item.title,
-    date: item.date,
+    date: formatLocalCalendarDate(item.date),
     startTime: item.startTime,
     endTime: item.endTime,
     notes: item.notes,
@@ -119,9 +146,24 @@ export async function GET() {
   const studentIds = [...new Set(links.map((link) => link.studentId))];
   const courseIds = [...new Set(links.map((link) => link.courseId).filter((id): id is string => Boolean(id)))];
   const linkIds = links.map((link) => link.id);
-  const scheduleFilters = [
-    ...(studentIds.length > 0 ? [{ studentId: { in: studentIds } }] : []),
+  const activeLinkCountByStudent = new Map<string, number>();
+  const studentCoursePairs = new Map<string, { studentId: string; courseId: string }>();
+
+  for (const link of links) {
+    activeLinkCountByStudent.set(link.studentId, (activeLinkCountByStudent.get(link.studentId) || 0) + 1);
+    if (link.courseId) {
+      studentCoursePairs.set(`${link.studentId}:${link.courseId}`, {
+        studentId: link.studentId,
+        courseId: link.courseId,
+      });
+    }
+  }
+
+  const singleLinkStudentIds = studentIds.filter((studentId) => activeLinkCountByStudent.get(studentId) === 1);
+  const scheduleFilters: Prisma.ScheduleWhereInput[] = [
     ...(courseIds.length > 0 ? [{ studentId: null, courseId: { in: courseIds } }] : []),
+    ...[...studentCoursePairs.values()].map(({ studentId, courseId }) => ({ studentId, courseId })),
+    ...(singleLinkStudentIds.length > 0 ? [{ studentId: { in: singleLinkStudentIds }, courseId: null }] : []),
   ];
 
   const [schedules, parentItems] = await Promise.all([
@@ -173,8 +215,13 @@ export async function GET() {
 
   const teacherItems = schedules.flatMap((schedule) => {
     const matchingLinks = links.filter((link) => {
-      if (schedule.studentId && schedule.studentId === link.studentId) return true;
-      return Boolean(!schedule.studentId && schedule.courseId && schedule.courseId === link.courseId);
+      if (!schedule.studentId) {
+        return Boolean(schedule.courseId && schedule.courseId === link.courseId);
+      }
+
+      if (schedule.studentId !== link.studentId) return false;
+      if (schedule.courseId) return schedule.courseId === link.courseId;
+      return activeLinkCountByStudent.get(schedule.studentId) === 1;
     });
 
     return matchingLinks.map((link) => ({
@@ -318,13 +365,14 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return jsonError("missing id", 400);
 
-  await prisma.parentScheduleItem.deleteMany({
+  const result = await prisma.parentScheduleItem.deleteMany({
     where: {
       id,
       workspaceId: user.workspaceId,
       parentId: user.id,
     },
   });
+  if (result.count === 0) return jsonError("not found", 404);
 
   return NextResponse.json({ success: true });
 }
