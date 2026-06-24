@@ -21,16 +21,6 @@ const REPEAT_DAY_OPTIONS = [
   { value: 6, label: "周六" },
   { value: 0, label: "周日" },
 ];
-const SCHEDULE_ICON_OPTIONS = [
-  { key: "math", label: "数学", icon: "算", className: "border-sky-200 bg-sky-50 text-sky-700" },
-  { key: "english", label: "英语", icon: "英", className: "border-violet-200 bg-violet-50 text-violet-700" },
-  { key: "homework", label: "作业", icon: "写", className: "border-amber-200 bg-amber-50 text-amber-700" },
-  { key: "reading", label: "阅读", icon: "读", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  { key: "music", label: "音乐", icon: "乐", className: "border-rose-200 bg-rose-50 text-rose-700" },
-  { key: "sports", label: "运动", icon: "动", className: "border-lime-200 bg-lime-50 text-lime-700" },
-  { key: "other", label: "其他", icon: "课", className: "border-slate-200 bg-slate-50 text-slate-700" },
-];
-
 type LearningLinkOption = {
   id: string;
   studentId: string;
@@ -79,7 +69,7 @@ export type CalendarItem =
       studentName: string;
       learningLinkId: string | null;
       seriesId: string | null;
-      iconKey: string;
+      subjectLabel: string;
       seriesEndDate: string | null;
       repeatDays: number[];
       title: string;
@@ -101,7 +91,7 @@ type FormState = {
   startTime: string;
   endTime: string;
   notes: string;
-  iconKey: string;
+  subjectLabel: string;
   repeatDays: number[];
   seriesEndDate: string;
 };
@@ -113,7 +103,7 @@ const emptyForm: FormState = {
   startTime: "09:00",
   endTime: "10:00",
   notes: "",
-  iconKey: "other",
+  subjectLabel: "其他",
   repeatDays: [],
   seriesEndDate: "",
 };
@@ -162,6 +152,15 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     [weekStart]
   );
   const selectedItems = useMemo(() => getItemsForDate(items, selectedDate), [items, selectedDate]);
+  const subjectOptions = useMemo(
+    () => Array.from(new Set(
+      items
+        .filter((item): item is Extract<CalendarItem, { kind: "parent_item" }> => item.kind === "parent_item")
+        .map((item) => item.subjectLabel.trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, "zh-Hans-CN")),
+    [items]
+  );
   const viewTitle =
     viewMode === "month"
       ? `${year}年 ${MONTH_NAMES[month]}`
@@ -200,7 +199,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
       startTime: item.startTime,
       endTime: item.endTime,
       notes: item.notes || "",
-      iconKey: item.iconKey || "other",
+      subjectLabel: item.subjectLabel || "其他",
       repeatDays: item.repeatDays || [],
       seriesEndDate: item.seriesEndDate || "",
     });
@@ -220,7 +219,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
       startTime: form.startTime,
       endTime: form.endTime,
       notes: form.notes,
-      iconKey: form.iconKey,
+      subjectLabel: form.subjectLabel.trim() || "其他",
       repeatDays: form.repeatDays,
       seriesEndDate: form.seriesEndDate,
     };
@@ -428,12 +427,12 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
       </div>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="flex max-h-[85vh] max-w-sm flex-col">
           <DialogHeader>
             <DialogTitle>{editingId ? "编辑个人安排" : "新增个人安排"}</DialogTitle>
             <DialogDescription className="sr-only">填写孩子的个人课程安排，仅当前家长账号可见。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 pt-2">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pt-2 pr-1">
             <div>
               <Label className="text-xs text-gray-500">学习关系</Label>
               <Select value={form.learningLinkId} onValueChange={(value) => updateForm("learningLinkId", value)}>
@@ -450,22 +449,30 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
               <Input value={form.title} onChange={(event) => updateForm("title", event.target.value)} placeholder="例如：完成数学练习" />
             </div>
             <div>
-              <Label className="text-xs text-gray-500">小卡片</Label>
-              <div className="mt-2 grid grid-cols-4 gap-2">
-                {SCHEDULE_ICON_OPTIONS.map((option) => {
-                  const active = form.iconKey === option.key;
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => updateForm("iconKey", option.key)}
-                      className={`rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${active ? option.className : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"}`}
-                    >
-                      <span className="mr-1">{option.icon}</span>{option.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <Label className="text-xs text-gray-500">科目</Label>
+              <Input
+                value={form.subjectLabel}
+                onChange={(event) => updateForm("subjectLabel", event.target.value)}
+                placeholder="例如：数学、钢琴、篮球"
+                maxLength={20}
+              />
+              {subjectOptions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {subjectOptions.slice(0, 10).map((subject) => {
+                    const active = form.subjectLabel.trim() === subject;
+                    return (
+                      <button
+                        key={subject}
+                        type="button"
+                        onClick={() => updateForm("subjectLabel", subject)}
+                        className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${active ? "border-sky-200 bg-sky-50 text-sky-700" : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"}`}
+                      >
+                        {subject}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div>
               <Label className="text-xs text-gray-500">开始日期</Label>
@@ -509,10 +516,10 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
               <Label className="text-xs text-gray-500">备注</Label>
               <Textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} placeholder="可选" />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>取消</Button>
-              <Button size="sm" onClick={savePersonalItem} disabled={!form.learningLinkId || !form.title.trim() || !form.date || (form.repeatDays.length > 0 && !form.seriesEndDate)}>保存</Button>
-            </div>
+          </div>
+          <div className="flex shrink-0 justify-end gap-2 border-t border-gray-100 pt-3">
+            <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>取消</Button>
+            <Button size="sm" onClick={savePersonalItem} disabled={!form.learningLinkId || !form.title.trim() || !form.date || (form.repeatDays.length > 0 && !form.seriesEndDate)}>保存</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -538,22 +545,23 @@ function ScheduleDetail({
   const status = attendance ? attendanceStatusLabel(attendance.status) : futureWithoutAttendance ? "待上课" : "暂无考勤";
   const lessonContent = attendance?.lessonContent || "待老师课后填写";
   const feedback = attendance?.lessonFeedback || "待老师课后填写";
-  const iconOption = item.kind === "parent_item" ? getIconOption(item.iconKey) : null;
+  const subjectLabel = item.kind === "parent_item" ? normalizeSubjectLabel(item.subjectLabel) : "";
 
   return (
     <div className="rounded-lg border border-gray-100 p-3 transition-colors hover:border-gray-200">
       <div className="mb-1 flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            {iconOption && (
-              <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-[11px] font-bold ${iconOption.className}`}>
-                {iconOption.icon}
+            {item.kind === "parent_item" && (
+              <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-[11px] font-bold ${getSubjectClass(subjectLabel)}`}>
+                {getSubjectInitial(subjectLabel)}
               </span>
             )}
             <p className="text-sm font-semibold text-gray-900">{item.title || (item.kind === "teacher_schedule" ? "老师安排" : "个人安排")}</p>
           </div>
           <p className="mt-0.5 text-[11px] text-gray-400">
             {item.kind === "teacher_schedule" ? "老师安排" : "个人安排"} · {item.studentName}
+            {item.kind === "parent_item" ? ` · ${subjectLabel}` : ""}
             {item.subject ? ` · ${item.subject}` : ""}
           </p>
         </div>
@@ -600,11 +608,11 @@ function CalendarItemPill({ item, showTime = false }: { item: CalendarItem; show
     );
   }
 
-  const iconOption = getIconOption(item.iconKey);
+  const subjectLabel = normalizeSubjectLabel(item.subjectLabel);
   return (
-    <div className={`flex items-center gap-1 truncate rounded border px-1 py-0.5 text-[10px] font-medium leading-tight ${iconOption.className}`}>
-      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white/70 text-[9px] font-bold">{iconOption.icon}</span>
-      <span className="truncate">{item.title}</span>
+    <div className={`flex items-center gap-1 truncate rounded border px-1 py-0.5 text-[10px] font-medium leading-tight ${getSubjectClass(subjectLabel)}`}>
+      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white/70 text-[9px] font-bold">{getSubjectInitial(subjectLabel)}</span>
+      <span className="truncate">{subjectLabel} · {item.title}</span>
       {showTime && item.startTime && <span className="shrink-0 opacity-75">{item.startTime}</span>}
     </div>
   );
@@ -717,8 +725,28 @@ function attendanceStatusLabel(status: string) {
   return status || "暂无考勤";
 }
 
-function getIconOption(iconKey: string | null | undefined) {
-  return SCHEDULE_ICON_OPTIONS.find((option) => option.key === iconKey) || SCHEDULE_ICON_OPTIONS[SCHEDULE_ICON_OPTIONS.length - 1];
+const SUBJECT_CARD_CLASSES = [
+  "border-sky-200 bg-sky-50 text-sky-700",
+  "border-violet-200 bg-violet-50 text-violet-700",
+  "border-amber-200 bg-amber-50 text-amber-700",
+  "border-emerald-200 bg-emerald-50 text-emerald-700",
+  "border-rose-200 bg-rose-50 text-rose-700",
+  "border-lime-200 bg-lime-50 text-lime-700",
+  "border-slate-200 bg-slate-50 text-slate-700",
+];
+
+function normalizeSubjectLabel(value: string | null | undefined) {
+  return value?.trim().slice(0, 20) || "其他";
+}
+
+function getSubjectInitial(subjectLabel: string) {
+  return normalizeSubjectLabel(subjectLabel).slice(0, 1);
+}
+
+function getSubjectClass(subjectLabel: string) {
+  const normalized = normalizeSubjectLabel(subjectLabel);
+  const hash = Array.from(normalized).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return SUBJECT_CARD_CLASSES[hash % SUBJECT_CARD_CLASSES.length];
 }
 
 function formatRepeatRule(repeatDays: number[], seriesEndDate: string | null) {

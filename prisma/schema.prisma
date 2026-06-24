@@ -305,6 +305,7 @@ model ParentScheduleItem {
   learningLinkId String?
   seriesId       String?
   iconKey        String       @default("other")
+  subjectLabel   String       @default("其他")
   seriesEndDate  DateTime?
   repeatDays     String?
   title          String
