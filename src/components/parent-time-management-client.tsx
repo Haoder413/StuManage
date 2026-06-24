@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -381,6 +381,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{editingId ? "编辑个人安排" : "新增个人安排"}</DialogTitle>
+            <DialogDescription className="sr-only">填写孩子的个人课程安排，仅当前家长账号可见。</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
             <div>
