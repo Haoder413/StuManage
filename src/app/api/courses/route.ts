@@ -32,6 +32,13 @@ export async function POST(request: NextRequest) {
           Number.isInteger(item.dayOfWeek) && item.dayOfWeek >= 0 && item.dayOfWeek <= 6 && item.startTime && item.endTime
         )
     : [];
+  const studentIds: string[] = Array.isArray(data.studentIds)
+    ? Array.from(new Set(
+        data.studentIds
+          .filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0)
+          .map((id: string) => id.trim())
+      ))
+    : [];
 
   const course = await prisma.$transaction(async (tx) => {
     const created = await tx.course.create({
@@ -57,6 +64,48 @@ export async function POST(request: NextRequest) {
           endTime: time.endTime,
         })),
       });
+    }
+
+    if (studentIds.length > 0) {
+      const students = await tx.student.findMany({
+        where: { workspaceId: user.workspaceId, id: { in: studentIds } },
+        select: { id: true },
+      });
+      const validStudentIds = students.map((student) => student.id);
+
+      if (validStudentIds.length > 0) {
+        await tx.studentCourse.updateMany({
+          where: { workspaceId: user.workspaceId, studentId: { in: validStudentIds }, status: "active" },
+          data: { status: "inactive" },
+        });
+        await tx.schedule.deleteMany({
+          where: { workspaceId: user.workspaceId, studentId: { in: validStudentIds }, courseId: { not: null } },
+        });
+        await tx.studentCourse.createMany({
+          data: validStudentIds.map((studentId) => ({
+            workspaceId: user.workspaceId,
+            studentId,
+            courseId: created.id,
+            status: "active",
+          })),
+        });
+
+        if (type === "custom" && scheduleTimes.length > 0) {
+          await tx.schedule.createMany({
+            data: validStudentIds.flatMap((studentId) =>
+              scheduleTimes.map((time: { dayOfWeek: number; startTime: string; endTime: string }) => ({
+                workspaceId: user.workspaceId,
+                studentId,
+                courseId: created.id,
+                type: "fixed",
+                dayOfWeek: time.dayOfWeek,
+                startTime: time.startTime,
+                endTime: time.endTime,
+              }))
+            ),
+          });
+        }
+      }
     }
 
     return created;
