@@ -33,6 +33,7 @@ model Workspace {
   resourceCoursePermissions ResourceCoursePermission[]
   learningLinks     LearningLink[]
   parentScheduleItems ParentScheduleItem[]
+  parentScheduleSubjects ParentScheduleSubject[]
 }
 
 model User {
@@ -54,6 +55,7 @@ model User {
   uploadedResources LearningResource[]
   resourcePermissions ResourcePermission[]
   parentScheduleItems ParentScheduleItem[]
+  parentScheduleSubjects ParentScheduleSubject[]
 }
 
 model LearningLink {
@@ -323,6 +325,21 @@ model ParentScheduleItem {
   @@index([workspaceId, parentId, date])
   @@index([workspaceId, studentId, date])
   @@index([workspaceId, parentId, seriesId])
+}
+
+model ParentScheduleSubject {
+  id          String    @id @default(cuid())
+  workspaceId String    @default("default-real")
+  parentId    String
+  name        String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  parent      User      @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, parentId, name])
+  @@index([workspaceId, parentId, isActive])
 }
 
 model CommunicationLog {

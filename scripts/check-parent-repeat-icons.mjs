@@ -2,10 +2,18 @@ import { readFileSync } from "node:fs";
 
 const checks = {
   "prisma/schema.prisma": [
+    "model ParentScheduleSubject",
     "seriesId",
     "subjectLabel",
     "seriesEndDate",
     "repeatDays",
+  ],
+  "src/app/api/parent/schedule-subjects/route.ts": [
+    "export async function GET",
+    "export async function POST",
+    "export async function PATCH",
+    "export async function DELETE",
+    "parentScheduleSubject",
   ],
   "src/app/api/parent/schedule-items/route.ts": [
     "createParentScheduleItems",
@@ -18,6 +26,10 @@ const checks = {
   ],
   "src/components/parent-time-management-client.tsx": [
     "subjectOptions",
+    "showSubjectManager",
+    "saveSubject",
+    "deleteSubject",
+    "编辑科目",
     "repeatDays",
     "seriesEndDate",
     "toggleRepeatDay",

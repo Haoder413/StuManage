@@ -96,6 +96,12 @@ type FormState = {
   seriesEndDate: string;
 };
 
+type SubjectOption = {
+  id: string;
+  name: string;
+  source: "managed" | "schedule";
+};
+
 const emptyForm: FormState = {
   learningLinkId: "",
   title: "",
@@ -116,7 +122,11 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
   const [items, setItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showSubjectManager, setShowSubjectManager] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([]);
+  const [editingSubjectName, setEditingSubjectName] = useState<string | null>(null);
+  const [subjectDraft, setSubjectDraft] = useState("");
   const [form, setForm] = useState<FormState>({
     ...emptyForm,
     learningLinkId: learningLinks[0]?.id || "",
@@ -126,14 +136,20 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetch("/api/parent/schedule-items")
-      .then((response) => response.json())
-      .then((data: { items?: CalendarItem[] }) => {
+    Promise.all([
+      fetch("/api/parent/schedule-items").then((response) => response.json()),
+      fetch("/api/parent/schedule-subjects").then((response) => response.json()),
+    ])
+      .then(([itemData, subjectData]: [{ items?: CalendarItem[] }, { subjects?: SubjectOption[] }]) => {
         if (!alive) return;
-        setItems(Array.isArray(data.items) ? data.items : []);
+        setItems(Array.isArray(itemData.items) ? itemData.items : []);
+        setSubjectOptions(normalizeSubjectOptions(subjectData.subjects));
       })
       .catch(() => {
-        if (alive) setItems([]);
+        if (alive) {
+          setItems([]);
+          setSubjectOptions([{ id: "default:other", name: "其他", source: "managed" }]);
+        }
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -152,15 +168,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     [weekStart]
   );
   const selectedItems = useMemo(() => getItemsForDate(items, selectedDate), [items, selectedDate]);
-  const subjectOptions = useMemo(
-    () => Array.from(new Set(
-      items
-        .filter((item): item is Extract<CalendarItem, { kind: "parent_item" }> => item.kind === "parent_item")
-        .map((item) => item.subjectLabel.trim())
-        .filter(Boolean)
-    )).sort((a, b) => a.localeCompare(b, "zh-Hans-CN")),
-    [items]
-  );
+  const selectedSubjectExists = subjectOptions.some((subject) => subject.name === form.subjectLabel.trim());
   const viewTitle =
     viewMode === "month"
       ? `${year}年 ${MONTH_NAMES[month]}`
@@ -179,11 +187,64 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     }));
   }
 
+  function startAddSubject() {
+    setEditingSubjectName(null);
+    setSubjectDraft("");
+  }
+
+  function startEditSubject(subjectName: string) {
+    setEditingSubjectName(subjectName);
+    setSubjectDraft(subjectName);
+  }
+
+  async function saveSubject() {
+    const name = normalizeSubjectLabel(subjectDraft);
+    if (!name) return;
+    const response = await fetch("/api/parent/schedule-subjects", {
+      method: editingSubjectName ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editingSubjectName ? { oldName: editingSubjectName, name } : { name }),
+    });
+    if (!response.ok) return;
+    const savedSubject: SubjectOption = await response.json();
+    setSubjectOptions((current) => normalizeSubjectOptions([
+      ...current.filter((subject) => subject.name !== editingSubjectName && subject.name !== savedSubject.name),
+      savedSubject,
+    ]));
+    if (editingSubjectName) {
+      setItems((current) => current.map((item) => (
+        item.kind === "parent_item" && item.subjectLabel === editingSubjectName
+          ? { ...item, subjectLabel: savedSubject.name }
+          : item
+      )));
+      setForm((current) => ({
+        ...current,
+        subjectLabel: current.subjectLabel === editingSubjectName ? savedSubject.name : current.subjectLabel,
+      }));
+    } else if (!selectedSubjectExists) {
+      updateForm("subjectLabel", savedSubject.name);
+    }
+    setEditingSubjectName(null);
+    setSubjectDraft("");
+  }
+
+  async function deleteSubject(subjectName: string) {
+    if (!confirm(`确定从可选科目中删除「${subjectName}」？已有安排会保留原科目。`)) return;
+    const response = await fetch(`/api/parent/schedule-subjects?name=${encodeURIComponent(subjectName)}`, { method: "DELETE" });
+    if (!response.ok) return;
+    setSubjectOptions((current) => normalizeSubjectOptions(current.filter((subject) => subject.name !== subjectName)));
+    if (form.subjectLabel === subjectName) {
+      setForm((current) => ({ ...current, subjectLabel: subjectOptions.find((subject) => subject.name !== subjectName)?.name || "其他" }));
+    }
+    if (editingSubjectName === subjectName) startAddSubject();
+  }
+
   function openAddForm(date = selectedDate) {
     setEditingId(null);
     setForm({
       ...emptyForm,
       learningLinkId: learningLinks[0]?.id || "",
+      subjectLabel: subjectOptions[0]?.name || "其他",
       date: formatDateInput(date),
     });
     setShowForm(true);
@@ -208,7 +269,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
 
   async function savePersonalItem() {
     const selectedLink = learningLinks.find((link) => link.id === form.learningLinkId);
-    if (!selectedLink || !form.title.trim() || !form.date) return;
+    if (!selectedLink || !form.title.trim() || !form.date || !selectedSubjectExists) return;
 
     const body = {
       ...(editingId ? { id: editingId } : {}),
@@ -449,31 +510,88 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
               <Input value={form.title} onChange={(event) => updateForm("title", event.target.value)} placeholder="例如：完成数学练习" />
             </div>
             <div>
-              <Label className="text-xs text-gray-500">科目</Label>
-              <Input
-                value={form.subjectLabel}
-                onChange={(event) => updateForm("subjectLabel", event.target.value)}
-                placeholder="例如：数学、钢琴、篮球"
-                maxLength={20}
-              />
-              {subjectOptions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {subjectOptions.slice(0, 10).map((subject) => {
-                    const active = form.subjectLabel.trim() === subject;
-                    return (
-                      <button
-                        key={subject}
-                        type="button"
-                        onClick={() => updateForm("subjectLabel", subject)}
-                        className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${active ? "border-sky-200 bg-sky-50 text-sky-700" : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"}`}
-                      >
-                        {subject}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-gray-500">科目</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    startAddSubject();
+                    setShowSubjectManager(true);
+                  }}
+                  className="text-[11px] font-semibold text-blue-500 hover:text-blue-600"
+                >
+                  编辑科目
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {subjectOptions.map((subject) => {
+                  const active = form.subjectLabel.trim() === subject.name;
+                  return (
+                    <button
+                      key={subject.id}
+                      type="button"
+                      onClick={() => updateForm("subjectLabel", subject.name)}
+                      className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${active ? "border-sky-200 bg-sky-50 text-sky-700" : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"}`}
+                    >
+                      {subject.name}
+                    </button>
+                  );
+                })}
+                {subjectOptions.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      startAddSubject();
+                      setShowSubjectManager(true);
+                    }}
+                    className="rounded-full border border-dashed border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-400"
+                  >
+                    + 添加科目
+                  </button>
+                )}
+              </div>
             </div>
+            <Dialog open={showSubjectManager} onOpenChange={setShowSubjectManager}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>编辑科目</DialogTitle>
+                  <DialogDescription className="sr-only">管理当前家长自己的个人安排科目。</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={subjectDraft}
+                      onChange={(event) => setSubjectDraft(event.target.value)}
+                      placeholder="科目名称"
+                      maxLength={20}
+                    />
+                    <Button size="sm" onClick={saveSubject}>{editingSubjectName ? "保存" : "新增"}</Button>
+                  </div>
+                  {editingSubjectName && (
+                    <button type="button" onClick={startAddSubject} className="text-[11px] font-semibold text-gray-400 hover:text-gray-600">
+                      取消编辑
+                    </button>
+                  )}
+                  <div className="space-y-2">
+                    {subjectOptions.map((subject) => {
+                      const active = editingSubjectName === subject.name;
+                      return (
+                        <div key={subject.id} className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${active ? "border-blue-200 bg-blue-50" : "border-gray-100"}`}>
+                          <span className="font-medium text-gray-700">{subject.name}</span>
+                          <div className="flex gap-2 text-xs">
+                            <button type="button" onClick={() => startEditSubject(subject.name)} className="font-semibold text-blue-500 hover:text-blue-600">改名</button>
+                            <button type="button" onClick={() => deleteSubject(subject.name)} className="font-semibold text-red-400 hover:text-red-500">删除</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {subjectOptions.length === 0 && (
+                      <p className="rounded-md bg-gray-50 px-3 py-3 text-center text-xs text-gray-400">暂无科目</p>
+                    )}
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
             <div>
               <Label className="text-xs text-gray-500">开始日期</Label>
               <Input type="date" value={form.date} onChange={(event) => updateForm("date", event.target.value)} />
@@ -519,7 +637,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
           </div>
           <div className="flex shrink-0 justify-end gap-2 border-t border-gray-100 pt-3">
             <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>取消</Button>
-            <Button size="sm" onClick={savePersonalItem} disabled={!form.learningLinkId || !form.title.trim() || !form.date || (form.repeatDays.length > 0 && !form.seriesEndDate)}>保存</Button>
+            <Button size="sm" onClick={savePersonalItem} disabled={!form.learningLinkId || !form.title.trim() || !form.date || !selectedSubjectExists || (form.repeatDays.length > 0 && !form.seriesEndDate)}>保存</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -747,6 +865,21 @@ function getSubjectClass(subjectLabel: string) {
   const normalized = normalizeSubjectLabel(subjectLabel);
   const hash = Array.from(normalized).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return SUBJECT_CARD_CLASSES[hash % SUBJECT_CARD_CLASSES.length];
+}
+
+function normalizeSubjectOptions(subjects: SubjectOption[] | undefined) {
+  if (!Array.isArray(subjects)) return [];
+  const byName = new Map<string, SubjectOption>();
+  for (const subject of subjects) {
+    const name = normalizeSubjectLabel(subject.name);
+    if (!name || byName.has(name)) continue;
+    byName.set(name, {
+      id: subject.id || `subject:${name}`,
+      name,
+      source: subject.source === "schedule" ? "schedule" : "managed",
+    });
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
 }
 
 function formatRepeatRule(repeatDays: number[], seriesEndDate: string | null) {
