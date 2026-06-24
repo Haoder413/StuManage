@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const parentNavItems = [
   { href: "/parent", label: "孩子首页", icon: "👧" },
-  { href: "/parent/lessons", label: "上课记录", icon: "📘" },
+  { href: "/parent/lessons", label: "时间管理", icon: "📅" },
   { href: "/parent/exams", label: "成绩记录", icon: "📝" },
   { href: "/parent/progress", label: "学习进度", icon: "📈" },
   { href: "/parent/resources", label: "资料中心", icon: "📁" },
