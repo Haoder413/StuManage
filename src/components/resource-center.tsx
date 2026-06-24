@@ -96,6 +96,9 @@ export function ResourceCenter({
         <Card>
           <CardHeader><CardTitle>上传资料</CardTitle></CardHeader>
           <CardContent>
+            <p className="mb-4 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800">
+              上传说明：知识点动画、自编习题、学习笔记均由网站备案持有人（管理员账号）独立创作发布。
+            </p>
             <form onSubmit={uploadResource} className="grid gap-3 md:grid-cols-6">
               <Input name="title" placeholder="标题" className="md:col-span-2" required />
               {role === "admin" && (
