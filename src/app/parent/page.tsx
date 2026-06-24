@@ -9,7 +9,7 @@ export default async function ParentPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">孩子首页</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">孩子首页</h1>
         <p className="mt-1 text-sm text-slate-500">孩子概览、最近上课、最近成绩和课程安排</p>
       </div>
 
@@ -21,7 +21,7 @@ export default async function ParentPage() {
 
           return (
             <section key={student.id} className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
                 <Card>
                   <CardHeader className="p-4"><CardTitle className="!text-sm text-slate-500">学生</CardTitle></CardHeader>
                   <CardContent className="p-4 pt-0">

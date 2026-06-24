@@ -30,19 +30,21 @@ export function ParentExamChart({ exams }: { exams: ParentExamChartItem[] }) {
       {sorted.length < 2 ? (
         <div className="flex h-64 items-center justify-center text-sm text-gray-400">至少需要两次成绩才能显示曲线图</div>
       ) : (
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#999" }} angle={-20} textAnchor="end" height={60} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#999" }} label={{ value: "得分率 %", angle: -90, position: "left", offset: 10, style: { fontSize: 12, fill: "#999" } }} />
-              <Tooltip formatter={(value: number) => value != null ? `${value}%` : "-"} labelFormatter={(label) => `考试: ${label}`} />
-              <Legend />
-              <ReferenceLine y={average} stroke="#94a3b8" strokeDasharray="5 5" label={{ value: `均分 ${average}%`, position: "right", style: { fontSize: 11, fill: "#94a3b8" } }} />
-              <Line connectNulls type="linear" dataKey="formalScore" name="正式考试" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 5, fill: "#3b82f6", stroke: "#fff", strokeWidth: 2 }} />
-              <Line connectNulls type="linear" dataKey="quizScore" name="随堂小测" stroke="#f59e0b" strokeDasharray="6 3" strokeWidth={2.5} dot={{ r: 5, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }} />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div className="h-72 min-w-[520px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#999" }} angle={-20} textAnchor="end" height={60} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#999" }} label={{ value: "得分率 %", angle: -90, position: "left", offset: 10, style: { fontSize: 12, fill: "#999" } }} />
+                <Tooltip formatter={(value: number) => value != null ? `${value}%` : "-"} labelFormatter={(label) => `考试: ${label}`} />
+                <Legend />
+                <ReferenceLine y={average} stroke="#94a3b8" strokeDasharray="5 5" label={{ value: `均分 ${average}%`, position: "right", style: { fontSize: 11, fill: "#94a3b8" } }} />
+                <Line connectNulls type="linear" dataKey="formalScore" name="正式考试" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 5, fill: "#3b82f6", stroke: "#fff", strokeWidth: 2 }} />
+                <Line connectNulls type="linear" dataKey="quizScore" name="随堂小测" stroke="#f59e0b" strokeDasharray="6 3" strokeWidth={2.5} dot={{ r: 5, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
     </div>

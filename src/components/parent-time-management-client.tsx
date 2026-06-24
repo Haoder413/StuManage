@@ -368,7 +368,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
       />
 
       <div className="flex flex-col gap-6 xl:flex-row">
-        <div className="glass-card flex-1 rounded-xl p-5">
+        <div className="glass-card min-w-0 flex-1 rounded-xl p-4 md:p-5">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <button onClick={goToToday} className="rounded-lg border border-gray-200/50 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-100/50 hover:text-gray-800">
@@ -393,7 +393,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
                   <div key={name} className="py-1.5 text-center text-[11px] font-semibold tracking-wide text-gray-400">{name}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 border-l border-t border-gray-100">
+              <div className="grid grid-cols-7 overflow-hidden border-l border-t border-gray-100">
                 {calendarDays.map((day, index) => {
                   const dayItems = getItemsForDate(items, day.date);
                   const selected = isSameDay(day.date, selectedDate);
@@ -402,7 +402,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
                     <button
                       key={`${day.date.toISOString()}-${index}`}
                       onClick={() => chooseDate(day.date)}
-                      className={`relative min-h-[76px] border-b border-r border-gray-100 p-1.5 text-left transition-colors ${day.currentMonth ? "text-gray-700" : "text-gray-300"} ${selected ? "bg-blue-50/60" : "hover:bg-gray-50/50"}`}
+                      className={`relative min-h-[58px] border-b border-r border-gray-100 p-1 text-left transition-colors md:min-h-[76px] md:p-1.5 ${day.currentMonth ? "text-gray-700" : "text-gray-300"} ${selected ? "bg-blue-50/60" : "hover:bg-gray-50/50"}`}
                     >
                       <span className={`mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${todayDate ? "bg-blue-500 font-bold text-white" : ""} ${selected && !todayDate ? "bg-gray-200 font-semibold" : "font-medium"}`}>
                         {day.day}
@@ -420,43 +420,45 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
             </>
           ) : (
             <div className="max-h-[520px] overflow-auto">
-              <div className="sticky top-0 z-10 grid grid-cols-[50px_repeat(7,1fr)] bg-white/90 backdrop-blur">
-                <div className="py-1 pr-2 text-right text-[10px] text-gray-300" />
-                {weekDays.map((date) => {
-                  const selected = isSameDay(date, selectedDate);
-                  const todayDate = isToday(date);
-                  return (
-                    <button key={date.toISOString()} onClick={() => chooseDate(date)} className={`rounded-t-lg py-1.5 text-center ${selected ? "bg-blue-50/60" : ""}`}>
-                      <div className="text-[10px] font-semibold text-gray-400">{DAY_NAMES[date.getDay()]}</div>
-                      <div className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm ${todayDate ? "bg-blue-500 font-bold text-white" : ""} ${selected && !todayDate ? "bg-gray-200 font-semibold" : ""}`}>
-                        {date.getDate()}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="grid grid-cols-[50px_repeat(7,1fr)] gap-px bg-gray-50">
-                {HOURS.map((hour) => (
-                  <div key={hour} className="contents">
-                    <div className="sticky left-0 bg-white py-3 pr-2 text-right text-[10px] text-gray-400">{hour}:00</div>
-                    {weekDays.map((date) => {
-                      const hourItems = getItemsForDate(items, date).filter((item) => item.startTime && Number(item.startTime.split(":")[0]) === hour);
-                      return (
-                        <button key={`${date.toISOString()}-${hour}`} onClick={() => chooseDate(date)} className={`min-h-[36px] border-b border-gray-100 px-1 py-0.5 text-left hover:bg-gray-50/50 ${isSameDay(date, selectedDate) ? "bg-blue-50/30" : ""}`}>
-                          {hourItems.map((item) => (
-                            <CalendarItemPill key={item.id} item={item} showTime />
-                          ))}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+              <div className="min-w-[680px]">
+                <div className="sticky top-0 z-10 grid grid-cols-[50px_repeat(7,1fr)] bg-white/90 backdrop-blur">
+                  <div className="py-1 pr-2 text-right text-[10px] text-gray-300" />
+                  {weekDays.map((date) => {
+                    const selected = isSameDay(date, selectedDate);
+                    const todayDate = isToday(date);
+                    return (
+                      <button key={date.toISOString()} onClick={() => chooseDate(date)} className={`rounded-t-lg py-1.5 text-center ${selected ? "bg-blue-50/60" : ""}`}>
+                        <div className="text-[10px] font-semibold text-gray-400">{DAY_NAMES[date.getDay()]}</div>
+                        <div className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm ${todayDate ? "bg-blue-500 font-bold text-white" : ""} ${selected && !todayDate ? "bg-gray-200 font-semibold" : ""}`}>
+                          {date.getDate()}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-[50px_repeat(7,1fr)] gap-px bg-gray-50">
+                  {HOURS.map((hour) => (
+                    <div key={hour} className="contents">
+                      <div className="sticky left-0 bg-white py-3 pr-2 text-right text-[10px] text-gray-400">{hour}:00</div>
+                      {weekDays.map((date) => {
+                        const hourItems = getItemsForDate(items, date).filter((item) => item.startTime && Number(item.startTime.split(":")[0]) === hour);
+                        return (
+                          <button key={`${date.toISOString()}-${hour}`} onClick={() => chooseDate(date)} className={`min-h-[36px] border-b border-gray-100 px-1 py-0.5 text-left hover:bg-gray-50/50 ${isSameDay(date, selectedDate) ? "bg-blue-50/30" : ""}`}>
+                            {hourItems.map((item) => (
+                              <CalendarItemPill key={item.id} item={item} showTime />
+                            ))}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="glass-card w-full shrink-0 self-start rounded-xl p-5 xl:w-80">
+        <div className="glass-card w-full shrink-0 self-start rounded-xl p-4 md:p-5 xl:w-80">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex-1 text-center">
               <div className="text-3xl font-bold text-gray-900">{selectedDate.getDate()}</div>
