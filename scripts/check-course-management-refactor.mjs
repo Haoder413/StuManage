@@ -23,6 +23,7 @@ const schedulesApi = read("src/app/api/schedules/route.ts");
 const schedulePage = read("src/app/schedule/page.tsx");
 const studentEditor = read("src/app/students/[id]/student-detail-editor.tsx");
 const courseDetailPage = read("src/app/courses/[id]/page.tsx");
+const newCoursePage = read("src/app/courses/new/page.tsx");
 
 assertIncludes(schema, "model CourseScheduleTime", "CourseScheduleTime model");
 assertIncludes(schema, "defaultCapacity Int?", "Course.defaultCapacity");
@@ -37,5 +38,8 @@ assertIncludes(studentEditor, "选择课程", "student course selector");
 assertIncludes(coursesApi, "export async function DELETE", "course delete API");
 assertIncludes(coursesApi, "deleteMany({ where: { id, workspaceId: user.workspaceId } })", "workspace-scoped course deletion");
 assertIncludes(courseDetailPage, "DeleteCourseButton", "course detail delete button");
+assertIncludes(coursesApi, "studentIds", "course creation studentIds handling");
+assertIncludes(newCoursePage, "selectedStudentIds", "new course selected student state");
+assertIncludes(newCoursePage, "选择学生", "new course student selector");
 
 console.log("course management refactor checks passed");

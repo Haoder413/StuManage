@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,34 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
+interface Student {
+  id: string;
+  name: string;
+  grade: string | null;
+}
+
 export default function NewCoursePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [type, setType] = useState("fixed");
   const [defaultCapacity, setDefaultCapacity] = useState("");
   const [scheduleTimes, setScheduleTimes] = useState([{ dayOfWeek: "1", startTime: "09:00", endTime: "10:00" }]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/students")
+      .then((res) => res.json())
+      .then(setStudents)
+      .catch(() => setStudents([]));
+  }, []);
+
+  function handleTypeChange(value: string) {
+    setType(value);
+    if (value === "custom") {
+      setSelectedStudentIds(prev => prev.slice(0, 1));
+    }
+  }
 
   function updateScheduleTime(index: number, field: "dayOfWeek" | "startTime" | "endTime", value: string) {
     setScheduleTimes(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
@@ -28,6 +50,13 @@ export default function NewCoursePage() {
     setScheduleTimes(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
   }
 
+  function toggleStudent(studentId: string) {
+    setSelectedStudentIds(prev => {
+      if (type === "custom") return prev.includes(studentId) ? [] : [studentId];
+      return prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId];
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -37,6 +66,7 @@ export default function NewCoursePage() {
       description: form.get("description") as string,
       type,
       defaultCapacity: type === "custom" ? 1 : defaultCapacity ? Number(defaultCapacity) : null,
+      studentIds: type === "custom" ? selectedStudentIds.slice(0, 1) : selectedStudentIds,
       scheduleTimes: scheduleTimes.map((item) => ({
         dayOfWeek: Number(item.dayOfWeek),
         startTime: item.startTime,
@@ -72,7 +102,7 @@ export default function NewCoursePage() {
             </div>
             <div>
               <Label>类型</Label>
-              <Select value={type} onValueChange={setType}>
+              <Select value={type} onValueChange={handleTypeChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="fixed">固定课程</SelectItem>
@@ -92,6 +122,32 @@ export default function NewCoursePage() {
                 disabled={type === "custom"}
                 placeholder="固定课程可填写班级人数"
               />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>选择学生</Label>
+                {selectedStudentIds.length > 0 && <span className="text-xs text-[#1a1a2e]/40">已选 {selectedStudentIds.length} 人</span>}
+              </div>
+              {students.length === 0 ? (
+                <p className="rounded-lg border border-[#1a1a2e]/10 px-3 py-2 text-sm text-[#1a1a2e]/40">暂无学生可选</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {students.map((student) => {
+                    const active = selectedStudentIds.includes(student.id);
+                    return (
+                      <button
+                        key={student.id}
+                        type="button"
+                        onClick={() => toggleStudent(student.id)}
+                        className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${active ? "border-[#e07a5f] bg-[#e07a5f]/10 text-[#e07a5f]" : "border-[#1a1a2e]/10 text-[#1a1a2e]/60 hover:bg-white/70"}`}
+                      >
+                        {student.name}{student.grade ? ` · ${student.grade}` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {type === "custom" && <p className="text-xs text-[#1a1a2e]/40">定制课程默认 1 人，只能选择一个学生。</p>}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">

@@ -303,6 +303,10 @@ model ParentScheduleItem {
   parentId     String
   studentId    String
   learningLinkId String?
+  seriesId       String?
+  iconKey        String       @default("other")
+  seriesEndDate  DateTime?
+  repeatDays     String?
   title          String
   date           DateTime
   startTime      String
@@ -317,6 +321,7 @@ model ParentScheduleItem {
 
   @@index([workspaceId, parentId, date])
   @@index([workspaceId, studentId, date])
+  @@index([workspaceId, parentId, seriesId])
 }
 
 model CommunicationLog {

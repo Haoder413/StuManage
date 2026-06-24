@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { requireParent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -7,6 +8,8 @@ type ParentUser = {
   id: string;
   workspaceId: string;
 };
+
+const ICON_KEYS = new Set(["math", "english", "homework", "reading", "music", "sports", "other"]);
 
 function parseTags(value: string | null) {
   if (!value) return [];
@@ -95,6 +98,34 @@ function normalizeDate(value: unknown) {
   return startOfDay(date);
 }
 
+function normalizeIconKey(value: unknown) {
+  const key = String(value || "other");
+  return ICON_KEYS.has(key) ? key : "other";
+}
+
+function parseRepeatDays(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map((item) => Number(item))))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .sort((a, b) => a - b);
+}
+
+function buildRepeatDates(startDate: Date, endDate: Date, repeatDays: number[]) {
+  const repeatDaySet = new Set(repeatDays);
+  const dates: Date[] = [];
+  const cursor = startOfDay(startDate);
+  const end = startOfDay(endDate);
+
+  while (cursor <= end) {
+    if (repeatDaySet.has(cursor.getDay())) {
+      dates.push(new Date(cursor));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
+}
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -105,6 +136,10 @@ function formatParentItem(item: {
   student: { name: string };
   learningLinkId: string | null;
   learningLink: { teacher: { name: string }; subject: string } | null;
+  seriesId: string | null;
+  iconKey: string;
+  seriesEndDate: Date | null;
+  repeatDays: string | null;
   title: string;
   date: Date;
   startTime: string;
@@ -117,6 +152,10 @@ function formatParentItem(item: {
     studentId: item.studentId,
     studentName: item.student.name,
     learningLinkId: item.learningLinkId,
+    seriesId: item.seriesId,
+    iconKey: item.iconKey,
+    seriesEndDate: item.seriesEndDate ? formatLocalCalendarDate(item.seriesEndDate) : null,
+    repeatDays: parseTags(item.repeatDays).map((day) => Number(day)).filter((day) => Number.isInteger(day)),
     title: item.title,
     date: formatLocalCalendarDate(item.date),
     startTime: item.startTime,
@@ -125,6 +164,108 @@ function formatParentItem(item: {
     teacherName: item.learningLink?.teacher.name,
     subject: item.learningLink?.subject,
   };
+}
+
+async function createParentScheduleItems({
+  user,
+  studentId,
+  learningLinkId,
+  title,
+  date,
+  startTime,
+  endTime,
+  notes,
+  iconKey,
+  repeatDays,
+  seriesEndDate,
+}: {
+  user: ParentUser;
+  studentId: string;
+  learningLinkId: string | null;
+  title: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  notes: string | null;
+  iconKey: string;
+  repeatDays: number[];
+  seriesEndDate: Date | null;
+}) {
+  if (repeatDays.length === 0) {
+    return prisma.parentScheduleItem.create({
+      data: {
+        workspaceId: user.workspaceId,
+        parentId: user.id,
+        studentId,
+        learningLinkId,
+        seriesId: null,
+        iconKey,
+        seriesEndDate: null,
+        repeatDays: null,
+        title,
+        date,
+        startTime,
+        endTime,
+        notes,
+      },
+      include: {
+        student: true,
+        learningLink: {
+          include: {
+            teacher: { select: { id: true, name: true, teachingSubject: true } },
+            course: true,
+          },
+        },
+      },
+    }).then((item) => [item]);
+  }
+
+  if (!seriesEndDate) {
+    throw new Error("series end date required");
+  }
+  if (seriesEndDate < date) {
+    throw new Error("series end date before start date");
+  }
+
+  const dates = buildRepeatDates(date, seriesEndDate, repeatDays);
+  if (dates.length === 0) {
+    throw new Error("repeat dates empty");
+  }
+
+  const seriesId = randomUUID();
+  const repeatDaysSnapshot = JSON.stringify(repeatDays.map(String));
+  const items = await prisma.$transaction(
+    dates.map((itemDate) =>
+      prisma.parentScheduleItem.create({
+        data: {
+          workspaceId: user.workspaceId,
+          parentId: user.id,
+          studentId,
+          learningLinkId,
+          seriesId,
+          iconKey,
+          seriesEndDate,
+          repeatDays: repeatDaysSnapshot,
+          title,
+          date: itemDate,
+          startTime,
+          endTime,
+          notes,
+        },
+        include: {
+          student: true,
+          learningLink: {
+            include: {
+              teacher: { select: { id: true, name: true, teachingSubject: true } },
+              course: true,
+            },
+          },
+        },
+      })
+    )
+  );
+
+  return items;
 }
 
 export async function GET() {
@@ -266,9 +407,17 @@ export async function POST(request: NextRequest) {
   const title = typeof data.title === "string" ? data.title.trim() : "";
   const date = normalizeDate(data.date);
   const studentId = String(data.studentId || "");
+  const repeatDays = parseRepeatDays(data.repeatDays);
+  const seriesEndDate = repeatDays.length > 0 ? normalizeDate(data.seriesEndDate) : null;
+  const iconKey = normalizeIconKey(data.iconKey);
+  const startTime = normalizeTime(data.startTime, "00:00");
+  const endTime = normalizeTime(data.endTime, "23:59");
+  const notes = typeof data.notes === "string" && data.notes.trim() ? data.notes.trim() : null;
 
   if (!title) return jsonError("missing title", 400);
   if (!date) return jsonError("missing date", 400);
+  if (repeatDays.length > 0 && !seriesEndDate) return jsonError("missing series end date", 400);
+  if (seriesEndDate && seriesEndDate < date) return jsonError("series end date cannot be before start date", 400);
   const parentStudent = await ensureParentOwnsStudent(user, studentId);
   if (!parentStudent) return jsonError("student not found", 403);
 
@@ -278,30 +427,25 @@ export async function POST(request: NextRequest) {
     return jsonError("learning link not found", 403);
   }
 
-  const item = await prisma.parentScheduleItem.create({
-    data: {
-      workspaceId: user.workspaceId,
-      parentId: user.id,
+  try {
+    const items = await createParentScheduleItems({
+      user,
       studentId,
       learningLinkId,
       title,
       date,
-      startTime: normalizeTime(data.startTime, "00:00"),
-      endTime: normalizeTime(data.endTime, "23:59"),
-      notes: typeof data.notes === "string" && data.notes.trim() ? data.notes.trim() : null,
-    },
-    include: {
-      student: true,
-      learningLink: {
-        include: {
-          teacher: { select: { id: true, name: true, teachingSubject: true } },
-          course: true,
-        },
-      },
-    },
-  });
+      startTime,
+      endTime,
+      notes,
+      iconKey,
+      repeatDays,
+      seriesEndDate,
+    });
 
-  return NextResponse.json(formatParentItem(item), { status: 201 });
+    return NextResponse.json(items.map(formatParentItem), { status: 201 });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "failed to create schedule items", 400);
+  }
 }
 
 export async function PATCH(request: NextRequest) {
@@ -311,10 +455,15 @@ export async function PATCH(request: NextRequest) {
   const title = typeof data.title === "string" ? data.title.trim() : "";
   const date = normalizeDate(data.date);
   const studentId = String(data.studentId || "");
+  const repeatDays = parseRepeatDays(data.repeatDays);
+  const seriesEndDate = repeatDays.length > 0 ? normalizeDate(data.seriesEndDate) : null;
+  const iconKey = normalizeIconKey(data.iconKey);
 
   if (!id) return jsonError("missing id", 400);
   if (!title) return jsonError("missing title", 400);
   if (!date) return jsonError("missing date", 400);
+  if (repeatDays.length > 0 && !seriesEndDate) return jsonError("missing series end date", 400);
+  if (seriesEndDate && seriesEndDate < date) return jsonError("series end date cannot be before start date", 400);
 
   const existing = await prisma.parentScheduleItem.findFirst({
     where: {
@@ -334,29 +483,117 @@ export async function PATCH(request: NextRequest) {
     return jsonError("learning link not found", 403);
   }
 
-  const item = await prisma.parentScheduleItem.update({
-    where: { id: existing.id },
-    data: {
-      studentId,
-      learningLinkId,
-      title,
-      date,
-      startTime: normalizeTime(data.startTime, existing.startTime),
-      endTime: normalizeTime(data.endTime, existing.endTime),
-      notes: typeof data.notes === "string" && data.notes.trim() ? data.notes.trim() : null,
-    },
-    include: {
-      student: true,
-      learningLink: {
-        include: {
-          teacher: { select: { id: true, name: true, teachingSubject: true } },
-          course: true,
+  const startTime = normalizeTime(data.startTime, existing.startTime);
+  const endTime = normalizeTime(data.endTime, existing.endTime);
+  const notes = typeof data.notes === "string" && data.notes.trim() ? data.notes.trim() : null;
+
+  if (!existing.seriesId && repeatDays.length === 0) {
+    const item = await prisma.parentScheduleItem.update({
+      where: { id: existing.id },
+      data: {
+        studentId,
+        learningLinkId,
+        seriesId: null,
+        iconKey,
+        seriesEndDate: null,
+        repeatDays: null,
+        title,
+        date,
+        startTime,
+        endTime,
+        notes,
+      },
+      include: {
+        student: true,
+        learningLink: {
+          include: {
+            teacher: { select: { id: true, name: true, teachingSubject: true } },
+            course: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  return NextResponse.json(formatParentItem(item));
+    return NextResponse.json([formatParentItem(item)]);
+  }
+
+  try {
+    const deleteWhere = existing.seriesId
+      ? { workspaceId: user.workspaceId, parentId: user.id, seriesId: existing.seriesId }
+      : { workspaceId: user.workspaceId, parentId: user.id, id: existing.id };
+    const items = await prisma.$transaction(async (tx) => {
+      await tx.parentScheduleItem.deleteMany({ where: deleteWhere });
+      if (repeatDays.length === 0) {
+        const item = await tx.parentScheduleItem.create({
+          data: {
+            workspaceId: user.workspaceId,
+            parentId: user.id,
+            studentId,
+            learningLinkId,
+            seriesId: null,
+            iconKey,
+            seriesEndDate: null,
+            repeatDays: null,
+            title,
+            date,
+            startTime,
+            endTime,
+            notes,
+          },
+          include: {
+            student: true,
+            learningLink: {
+              include: {
+                teacher: { select: { id: true, name: true, teachingSubject: true } },
+                course: true,
+              },
+            },
+          },
+        });
+        return [item];
+      }
+
+      if (!seriesEndDate) throw new Error("series end date required");
+      const dates = buildRepeatDates(date, seriesEndDate, repeatDays);
+      if (dates.length === 0) throw new Error("repeat dates empty");
+      const seriesId = randomUUID();
+      const repeatDaysSnapshot = JSON.stringify(repeatDays.map(String));
+      const created = [];
+      for (const itemDate of dates) {
+        created.push(await tx.parentScheduleItem.create({
+          data: {
+            workspaceId: user.workspaceId,
+            parentId: user.id,
+            studentId,
+            learningLinkId,
+            seriesId,
+            iconKey,
+            seriesEndDate,
+            repeatDays: repeatDaysSnapshot,
+            title,
+            date: itemDate,
+            startTime,
+            endTime,
+            notes,
+          },
+          include: {
+            student: true,
+            learningLink: {
+              include: {
+                teacher: { select: { id: true, name: true, teachingSubject: true } },
+                course: true,
+              },
+            },
+          },
+        }));
+      }
+      return created;
+    });
+
+    return NextResponse.json(items.map(formatParentItem));
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "failed to update schedule items", 400);
+  }
 }
 
 export async function DELETE(request: NextRequest) {
@@ -365,14 +602,21 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return jsonError("missing id", 400);
 
-  const result = await prisma.parentScheduleItem.deleteMany({
+  const existing = await prisma.parentScheduleItem.findFirst({
     where: {
       id,
       workspaceId: user.workspaceId,
       parentId: user.id,
     },
   });
+  if (!existing) return jsonError("not found", 404);
+
+  const result = await prisma.parentScheduleItem.deleteMany({
+    where: existing.seriesId
+      ? { workspaceId: user.workspaceId, parentId: user.id, seriesId: existing.seriesId }
+      : { id, workspaceId: user.workspaceId, parentId: user.id },
+  });
   if (result.count === 0) return jsonError("not found", 404);
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, deletedCount: result.count });
 }

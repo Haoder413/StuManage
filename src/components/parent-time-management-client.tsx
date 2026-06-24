@@ -12,6 +12,24 @@ import { Textarea } from "@/components/ui/textarea";
 const DAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"];
 const MONTH_NAMES = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
 const HOURS = Array.from({ length: 14 }, (_, index) => index + 8);
+const REPEAT_DAY_OPTIONS = [
+  { value: 1, label: "周一" },
+  { value: 2, label: "周二" },
+  { value: 3, label: "周三" },
+  { value: 4, label: "周四" },
+  { value: 5, label: "周五" },
+  { value: 6, label: "周六" },
+  { value: 0, label: "周日" },
+];
+const SCHEDULE_ICON_OPTIONS = [
+  { key: "math", label: "数学", icon: "算", className: "border-sky-200 bg-sky-50 text-sky-700" },
+  { key: "english", label: "英语", icon: "英", className: "border-violet-200 bg-violet-50 text-violet-700" },
+  { key: "homework", label: "作业", icon: "写", className: "border-amber-200 bg-amber-50 text-amber-700" },
+  { key: "reading", label: "阅读", icon: "读", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  { key: "music", label: "音乐", icon: "乐", className: "border-rose-200 bg-rose-50 text-rose-700" },
+  { key: "sports", label: "运动", icon: "动", className: "border-lime-200 bg-lime-50 text-lime-700" },
+  { key: "other", label: "其他", icon: "课", className: "border-slate-200 bg-slate-50 text-slate-700" },
+];
 
 type LearningLinkOption = {
   id: string;
@@ -60,6 +78,10 @@ export type CalendarItem =
       studentId: string;
       studentName: string;
       learningLinkId: string | null;
+      seriesId: string | null;
+      iconKey: string;
+      seriesEndDate: string | null;
+      repeatDays: number[];
       title: string;
       date: string;
       startTime: string;
@@ -79,6 +101,9 @@ type FormState = {
   startTime: string;
   endTime: string;
   notes: string;
+  iconKey: string;
+  repeatDays: number[];
+  seriesEndDate: string;
 };
 
 const emptyForm: FormState = {
@@ -88,6 +113,9 @@ const emptyForm: FormState = {
   startTime: "09:00",
   endTime: "10:00",
   notes: "",
+  iconKey: "other",
+  repeatDays: [],
+  seriesEndDate: "",
 };
 
 export function ParentTimeManagementClient({ title, learningLinks }: { title: string; learningLinks: LearningLinkOption[] }) {
@@ -143,6 +171,15 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function toggleRepeatDay(day: number) {
+    setForm((current) => ({
+      ...current,
+      repeatDays: current.repeatDays.includes(day)
+        ? current.repeatDays.filter((item) => item !== day)
+        : [...current.repeatDays, day].sort((a, b) => a - b),
+    }));
+  }
+
   function openAddForm(date = selectedDate) {
     setEditingId(null);
     setForm({
@@ -163,6 +200,9 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
       startTime: item.startTime,
       endTime: item.endTime,
       notes: item.notes || "",
+      iconKey: item.iconKey || "other",
+      repeatDays: item.repeatDays || [],
+      seriesEndDate: item.seriesEndDate || "",
     });
     setShowForm(true);
   }
@@ -180,6 +220,9 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
       startTime: form.startTime,
       endTime: form.endTime,
       notes: form.notes,
+      iconKey: form.iconKey,
+      repeatDays: form.repeatDays,
+      seriesEndDate: form.seriesEndDate,
     };
     const response = await fetch("/api/parent/schedule-items", {
       method: editingId ? "PATCH" : "POST",
@@ -188,21 +231,33 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     });
 
     if (!response.ok) return;
-    const saved: CalendarItem = await response.json();
-    setItems((current) =>
-      editingId
-        ? current.map((item) => (item.kind === "parent_item" && item.id === editingId ? saved : item))
-        : [...current, saved]
-    );
+    const savedItems: CalendarItem[] = await response.json();
+    setItems((current) => {
+      if (!editingId) return [...current, ...savedItems];
+      const editingItem = current.find((item) => item.kind === "parent_item" && item.id === editingId);
+      return [
+        ...current.filter((item) => {
+          if (item.kind !== "parent_item") return true;
+          if (!editingItem || editingItem.kind !== "parent_item") return item.id !== editingId;
+          return editingItem.seriesId ? item.seriesId !== editingItem.seriesId : item.id !== editingId;
+        }),
+        ...savedItems,
+      ];
+    });
     setShowForm(false);
     setEditingId(null);
   }
 
-  async function deletePersonalItem(id: string) {
-    if (!confirm("确定删除这个个人安排？")) return;
-    const response = await fetch(`/api/parent/schedule-items?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  async function deletePersonalItem(item: CalendarItem) {
+    if (item.kind !== "parent_item") return;
+    const message = item.seriesId ? "确定删除这一整组重复安排？" : "确定删除这个个人安排？";
+    if (!confirm(message)) return;
+    const response = await fetch(`/api/parent/schedule-items?id=${encodeURIComponent(item.id)}`, { method: "DELETE" });
     if (response.ok) {
-      setItems((current) => current.filter((item) => !(item.kind === "parent_item" && item.id === id)));
+      setItems((current) => current.filter((currentItem) => {
+        if (currentItem.kind !== "parent_item") return true;
+        return item.seriesId ? currentItem.seriesId !== item.seriesId : currentItem.id !== item.id;
+      }));
     }
   }
 
@@ -294,9 +349,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
                       </span>
                       <div className="space-y-1">
                         {dayItems.slice(0, 2).map((item) => (
-                          <div key={item.id} className={`truncate rounded px-1 py-0.5 text-[10px] font-medium ${item.kind === "teacher_schedule" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
-                            {item.kind === "teacher_schedule" ? "老师安排" : "个人安排"} · {item.title}
-                          </div>
+                          <CalendarItemPill key={item.id} item={item} />
                         ))}
                         {dayItems.length > 2 && <div className="px-1 text-[10px] font-semibold text-blue-500">+{dayItems.length - 2}</div>}
                       </div>
@@ -331,10 +384,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
                       return (
                         <button key={`${date.toISOString()}-${hour}`} onClick={() => chooseDate(date)} className={`min-h-[36px] border-b border-gray-100 px-1 py-0.5 text-left hover:bg-gray-50/50 ${isSameDay(date, selectedDate) ? "bg-blue-50/30" : ""}`}>
                           {hourItems.map((item) => (
-                            <div key={item.id} className={`mb-0.5 truncate rounded px-1 py-0.5 text-[10px] font-medium leading-tight ${item.kind === "teacher_schedule" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
-                              {item.title}
-                              <span className={item.kind === "teacher_schedule" ? "ml-0.5 text-blue-400" : "ml-0.5 text-emerald-500"}>{item.startTime}</span>
-                            </div>
+                            <CalendarItemPill key={item.id} item={item} showTime />
                           ))}
                         </button>
                       );
@@ -368,7 +418,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
                     item={item}
                     selectedDate={selectedDate}
                     onEdit={() => openEditForm(item)}
-                    onDelete={() => item.kind === "parent_item" && deletePersonalItem(item.id)}
+                    onDelete={() => item.kind === "parent_item" && deletePersonalItem(item)}
                   />
                 ))}
               </div>
@@ -400,9 +450,51 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
               <Input value={form.title} onChange={(event) => updateForm("title", event.target.value)} placeholder="例如：完成数学练习" />
             </div>
             <div>
-              <Label className="text-xs text-gray-500">日期</Label>
+              <Label className="text-xs text-gray-500">小卡片</Label>
+              <div className="mt-2 grid grid-cols-4 gap-2">
+                {SCHEDULE_ICON_OPTIONS.map((option) => {
+                  const active = form.iconKey === option.key;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => updateForm("iconKey", option.key)}
+                      className={`rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${active ? option.className : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"}`}
+                    >
+                      <span className="mr-1">{option.icon}</span>{option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">开始日期</Label>
               <Input type="date" value={form.date} onChange={(event) => updateForm("date", event.target.value)} />
             </div>
+            <div>
+              <Label className="text-xs text-gray-500">每周重复</Label>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {REPEAT_DAY_OPTIONS.map((day) => {
+                  const active = form.repeatDays.includes(day.value);
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleRepeatDay(day.value)}
+                      className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${active ? "border-sky-200 bg-sky-50 text-sky-700" : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"}`}
+                    >
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {form.repeatDays.length > 0 && (
+              <div>
+                <Label className="text-xs text-gray-500">截止日期</Label>
+                <Input type="date" value={form.seriesEndDate} onChange={(event) => updateForm("seriesEndDate", event.target.value)} />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-gray-500">开始时间</Label>
@@ -419,7 +511,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>取消</Button>
-              <Button size="sm" onClick={savePersonalItem} disabled={!form.learningLinkId || !form.title.trim() || !form.date}>保存</Button>
+              <Button size="sm" onClick={savePersonalItem} disabled={!form.learningLinkId || !form.title.trim() || !form.date || (form.repeatDays.length > 0 && !form.seriesEndDate)}>保存</Button>
             </div>
           </div>
         </DialogContent>
@@ -446,12 +538,20 @@ function ScheduleDetail({
   const status = attendance ? attendanceStatusLabel(attendance.status) : futureWithoutAttendance ? "待上课" : "暂无考勤";
   const lessonContent = attendance?.lessonContent || "待老师课后填写";
   const feedback = attendance?.lessonFeedback || "待老师课后填写";
+  const iconOption = item.kind === "parent_item" ? getIconOption(item.iconKey) : null;
 
   return (
     <div className="rounded-lg border border-gray-100 p-3 transition-colors hover:border-gray-200">
       <div className="mb-1 flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-gray-900">{item.title || (item.kind === "teacher_schedule" ? "老师安排" : "个人安排")}</p>
+          <div className="flex items-center gap-2">
+            {iconOption && (
+              <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-[11px] font-bold ${iconOption.className}`}>
+                {iconOption.icon}
+              </span>
+            )}
+            <p className="text-sm font-semibold text-gray-900">{item.title || (item.kind === "teacher_schedule" ? "老师安排" : "个人安排")}</p>
+          </div>
           <p className="mt-0.5 text-[11px] text-gray-400">
             {item.kind === "teacher_schedule" ? "老师安排" : "个人安排"} · {item.studentName}
             {item.subject ? ` · ${item.subject}` : ""}
@@ -480,7 +580,32 @@ function ScheduleDetail({
           <TeacherTagList label="薄弱点" tags={attendance?.weakPointTags} emptyText="暂无关联薄弱点" />
         </div>
       )}
+      {item.kind === "parent_item" && item.seriesId && (
+        <p className="mt-2 rounded-md bg-slate-50 px-2 py-1 text-[11px] text-gray-500">
+          {formatRepeatRule(item.repeatDays, item.seriesEndDate)}
+        </p>
+      )}
       {item.notes && <p className="mt-2 text-[11px] text-gray-500">{item.notes}</p>}
+    </div>
+  );
+}
+
+function CalendarItemPill({ item, showTime = false }: { item: CalendarItem; showTime?: boolean }) {
+  if (item.kind === "teacher_schedule") {
+    return (
+      <div className="truncate rounded bg-blue-100 px-1 py-0.5 text-[10px] font-medium leading-tight text-blue-700">
+        老师安排 · {item.title}
+        {showTime && item.startTime && <span className="ml-0.5 text-blue-400">{item.startTime}</span>}
+      </div>
+    );
+  }
+
+  const iconOption = getIconOption(item.iconKey);
+  return (
+    <div className={`flex items-center gap-1 truncate rounded border px-1 py-0.5 text-[10px] font-medium leading-tight ${iconOption.className}`}>
+      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white/70 text-[9px] font-bold">{iconOption.icon}</span>
+      <span className="truncate">{item.title}</span>
+      {showTime && item.startTime && <span className="shrink-0 opacity-75">{item.startTime}</span>}
     </div>
   );
 }
@@ -590,4 +715,16 @@ function attendanceStatusLabel(status: string) {
   if (status === "makeup") return "补课";
   if (status === "absent") return "请假";
   return status || "暂无考勤";
+}
+
+function getIconOption(iconKey: string | null | undefined) {
+  return SCHEDULE_ICON_OPTIONS.find((option) => option.key === iconKey) || SCHEDULE_ICON_OPTIONS[SCHEDULE_ICON_OPTIONS.length - 1];
+}
+
+function formatRepeatRule(repeatDays: number[], seriesEndDate: string | null) {
+  const labels = repeatDays
+    .map((day) => REPEAT_DAY_OPTIONS.find((option) => option.value === day)?.label)
+    .filter(Boolean);
+  if (labels.length === 0) return "";
+  return `每${labels.join("、")}，至 ${seriesEndDate || "未设置截止日期"}`;
 }
