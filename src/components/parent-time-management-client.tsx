@@ -443,7 +443,8 @@ function ScheduleDetail({
     : null;
   const futureWithoutAttendance = item.kind === "teacher_schedule" && !attendance && startOfDay(selectedDate) >= startOfDay(new Date());
   const status = attendance ? attendanceStatusLabel(attendance.status) : futureWithoutAttendance ? "待上课" : "暂无考勤";
-  const feedback = attendance?.lessonFeedback || (futureWithoutAttendance ? "待老师课后填写" : "暂无老师反馈");
+  const lessonContent = attendance?.lessonContent || "待老师课后填写";
+  const feedback = attendance?.lessonFeedback || "待老师课后填写";
 
   return (
     <div className="rounded-lg border border-gray-100 p-3 transition-colors hover:border-gray-200">
@@ -467,12 +468,39 @@ function ScheduleDetail({
         {item.kind === "teacher_schedule" && <span className="ml-1.5">{item.courseType === "fixed" ? "🔄 固定" : "📌 临时"}</span>}
       </p>
       {item.kind === "teacher_schedule" && (
-        <div className="mt-2 space-y-1 rounded-md bg-blue-50/60 p-2 text-[11px] text-blue-700">
-          <p>{item.teacherName} · {status}</p>
-          <p>{feedback}</p>
+        <div className="mt-2 space-y-2 rounded-md bg-blue-50/60 p-2 text-[11px] text-blue-700">
+          <div className="space-y-0.5">
+            <p>{item.teacherName} · {status}</p>
+            <p><span className="font-semibold">上课内容：</span>{lessonContent}</p>
+            <p><span className="font-semibold">上课反馈：</span>{feedback}</p>
+          </div>
+          <TeacherTagList label="内容标签" tags={attendance?.contentTags} emptyText="暂无标签" />
+          <TeacherTagList label="反馈标签" tags={attendance?.feedbackTags} emptyText="暂无标签" />
+          <TeacherTagList label="薄弱点" tags={attendance?.weakPointTags} emptyText="暂无关联薄弱点" />
         </div>
       )}
       {item.notes && <p className="mt-2 text-[11px] text-gray-500">{item.notes}</p>}
+    </div>
+  );
+}
+
+function TeacherTagList({ label, tags, emptyText }: { label: string; tags?: string[] | null; emptyText: string }) {
+  const visibleTags = Array.isArray(tags) ? tags.filter((tag) => tag.trim()) : [];
+
+  return (
+    <div>
+      <p className="mb-1 font-semibold">{label}</p>
+      {visibleTags.length === 0 ? (
+        <p className="text-blue-500/70">{emptyText}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {visibleTags.map((tag) => (
+            <span key={tag} className="rounded-full border border-blue-200/70 bg-white/70 px-1.5 py-0.5 text-[10px] text-blue-700">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
