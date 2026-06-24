@@ -9,8 +9,6 @@ type ParentUser = {
   workspaceId: string;
 };
 
-const ICON_KEYS = new Set(["math", "english", "homework", "reading", "music", "sports", "other"]);
-
 function parseTags(value: string | null) {
   if (!value) return [];
   try {
@@ -98,9 +96,9 @@ function normalizeDate(value: unknown) {
   return startOfDay(date);
 }
 
-function normalizeIconKey(value: unknown) {
-  const key = String(value || "other");
-  return ICON_KEYS.has(key) ? key : "other";
+function normalizeSubjectLabel(value: unknown) {
+  const label = typeof value === "string" ? value.trim() : "";
+  return label.slice(0, 20) || "其他";
 }
 
 function parseRepeatDays(value: unknown) {
@@ -137,7 +135,7 @@ function formatParentItem(item: {
   learningLinkId: string | null;
   learningLink: { teacher: { name: string }; subject: string } | null;
   seriesId: string | null;
-  iconKey: string;
+  subjectLabel: string;
   seriesEndDate: Date | null;
   repeatDays: string | null;
   title: string;
@@ -153,7 +151,7 @@ function formatParentItem(item: {
     studentName: item.student.name,
     learningLinkId: item.learningLinkId,
     seriesId: item.seriesId,
-    iconKey: item.iconKey,
+    subjectLabel: item.subjectLabel,
     seriesEndDate: item.seriesEndDate ? formatLocalCalendarDate(item.seriesEndDate) : null,
     repeatDays: parseTags(item.repeatDays).map((day) => Number(day)).filter((day) => Number.isInteger(day)),
     title: item.title,
@@ -175,7 +173,7 @@ async function createParentScheduleItems({
   startTime,
   endTime,
   notes,
-  iconKey,
+  subjectLabel,
   repeatDays,
   seriesEndDate,
 }: {
@@ -187,7 +185,7 @@ async function createParentScheduleItems({
   startTime: string;
   endTime: string;
   notes: string | null;
-  iconKey: string;
+  subjectLabel: string;
   repeatDays: number[];
   seriesEndDate: Date | null;
 }) {
@@ -199,7 +197,7 @@ async function createParentScheduleItems({
         studentId,
         learningLinkId,
         seriesId: null,
-        iconKey,
+        subjectLabel,
         seriesEndDate: null,
         repeatDays: null,
         title,
@@ -243,7 +241,7 @@ async function createParentScheduleItems({
           studentId,
           learningLinkId,
           seriesId,
-          iconKey,
+          subjectLabel,
           seriesEndDate,
           repeatDays: repeatDaysSnapshot,
           title,
@@ -409,7 +407,7 @@ export async function POST(request: NextRequest) {
   const studentId = String(data.studentId || "");
   const repeatDays = parseRepeatDays(data.repeatDays);
   const seriesEndDate = repeatDays.length > 0 ? normalizeDate(data.seriesEndDate) : null;
-  const iconKey = normalizeIconKey(data.iconKey);
+  const subjectLabel = normalizeSubjectLabel(data.subjectLabel);
   const startTime = normalizeTime(data.startTime, "00:00");
   const endTime = normalizeTime(data.endTime, "23:59");
   const notes = typeof data.notes === "string" && data.notes.trim() ? data.notes.trim() : null;
@@ -437,7 +435,7 @@ export async function POST(request: NextRequest) {
       startTime,
       endTime,
       notes,
-      iconKey,
+      subjectLabel,
       repeatDays,
       seriesEndDate,
     });
@@ -457,7 +455,7 @@ export async function PATCH(request: NextRequest) {
   const studentId = String(data.studentId || "");
   const repeatDays = parseRepeatDays(data.repeatDays);
   const seriesEndDate = repeatDays.length > 0 ? normalizeDate(data.seriesEndDate) : null;
-  const iconKey = normalizeIconKey(data.iconKey);
+  const subjectLabel = normalizeSubjectLabel(data.subjectLabel);
 
   if (!id) return jsonError("missing id", 400);
   if (!title) return jsonError("missing title", 400);
@@ -494,7 +492,7 @@ export async function PATCH(request: NextRequest) {
         studentId,
         learningLinkId,
         seriesId: null,
-        iconKey,
+        subjectLabel,
         seriesEndDate: null,
         repeatDays: null,
         title,
@@ -531,7 +529,7 @@ export async function PATCH(request: NextRequest) {
             studentId,
             learningLinkId,
             seriesId: null,
-            iconKey,
+            subjectLabel,
             seriesEndDate: null,
             repeatDays: null,
             title,
@@ -567,7 +565,7 @@ export async function PATCH(request: NextRequest) {
             studentId,
             learningLinkId,
             seriesId,
-            iconKey,
+            subjectLabel,
             seriesEndDate,
             repeatDays: repeatDaysSnapshot,
             title,

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 const checks = {
   "prisma/schema.prisma": [
     "seriesId",
-    "iconKey",
+    "subjectLabel",
     "seriesEndDate",
     "repeatDays",
   ],
@@ -11,17 +11,19 @@ const checks = {
     "createParentScheduleItems",
     "buildRepeatDates",
     "seriesId",
-    "iconKey",
+    "subjectLabel",
     "seriesEndDate",
     "repeatDays",
     "deleteMany",
   ],
   "src/components/parent-time-management-client.tsx": [
-    "SCHEDULE_ICON_OPTIONS",
+    "subjectOptions",
     "repeatDays",
     "seriesEndDate",
     "toggleRepeatDay",
-    "iconKey",
+    "subjectLabel",
+    "max-h-[85vh]",
+    "overflow-y-auto",
     "每周",
     "截止日期",
   ],
@@ -47,4 +49,4 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-console.log("Parent repeat/icon schedule support is present.");
+console.log("Parent repeat subject schedule support is present.");
