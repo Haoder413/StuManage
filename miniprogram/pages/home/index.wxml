@@ -47,6 +47,7 @@
         <view class="row-title">{{lesson.dateText}} · {{lesson.statusLabel}}</view>
         <view class="row-sub">内容：{{lesson.lessonContent || '待老师填写'}}</view>
         <view class="row-sub">反馈：{{lesson.lessonFeedback || '待老师填写'}}</view>
+        <view class="row-sub">薄弱点：{{lesson.weakPointText || '待老师填写'}}</view>
       </view>
     </view>
   </block>

@@ -23,7 +23,11 @@ Page({
         const students = (data.students || []).map((student) => ({
           ...student,
           latestExams: (student.latestExams || []).map((exam) => ({ ...exam, dateText: formatDate(exam.date) })),
-          latestLessons: (student.latestLessons || []).map((lesson) => ({ ...lesson, dateText: formatDate(lesson.date) }))
+          latestLessons: (student.latestLessons || []).map((lesson) => ({
+            ...lesson,
+            dateText: formatDate(lesson.date),
+            weakPointText: (lesson.weakPointTags || []).join("、")
+          }))
         }));
         this.setData({ students });
       })

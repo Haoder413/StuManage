@@ -1,4 +1,4 @@
-import { getParentStudents } from "@/lib/parent-data";
+import { getParentStudents, parseTags } from "@/lib/parent-data";
 import { prisma } from "@/lib/prisma";
 import { canAccessResource, getVisibleResourceWhere } from "@/lib/resource-access";
 import { getStageLabel } from "@/lib/review-scheduler";
@@ -23,7 +23,7 @@ function examTypeLabel(type: string) {
 }
 
 function attendanceStatusLabel(status: string) {
-  if (status === "present") return "出勤";
+  if (status === "present") return "正常上课";
   if (status === "makeup") return "补课";
   if (status === "absent") return "请假";
   return status;
@@ -54,6 +54,7 @@ export async function getMobileParentHome(user: MobileParentUser) {
           statusLabel: attendanceStatusLabel(item.status),
           lessonContent: item.lessonContent,
           lessonFeedback: item.lessonFeedback,
+          weakPointTags: parseTags(item.weakPointTags),
         })),
         latestExams: approvedExams.slice(0, 3).map((exam) => ({
           id: exam.id,
