@@ -22,7 +22,7 @@ export default async function ParentProgressPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">学习进度</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">学习进度</h1>
         <p className="mt-1 text-sm text-slate-500">查看知识点进度和薄弱点复习情况</p>
       </div>
 
@@ -42,7 +42,7 @@ export default async function ParentProgressPage() {
                   <CardTitle>{student.name} · 学习进度</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
                     <StatCard title="知识点总数" value={String(totalKps)} />
                     <StatCard title="已掌握" value={String(masteredCount)} tone="green" />
                     <StatCard title="学习中" value={String(learningCount)} tone="blue" />
@@ -70,9 +70,9 @@ export default async function ParentProgressPage() {
                       {student.kpProgress.map((item) => {
                         const style = statusStyles[item.status] || statusStyles.not_started;
                         return (
-                          <div key={item.id} className="flex items-center justify-between border-b border-gray-50 px-3 py-2 last:border-0">
+                          <div key={item.id} className="flex flex-col gap-2 border-b border-gray-50 px-3 py-2 last:border-0 sm:flex-row sm:items-center sm:justify-between">
                             <span className="text-sm font-medium text-gray-700">{item.knowledgePoint.name}</span>
-                            <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${style}`}>
+                            <span className={`w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${style}`}>
                               {statusLabels[item.status] || "未开始"}
                             </span>
                           </div>

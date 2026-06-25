@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 interface Exam {
   id: string;
@@ -35,9 +38,17 @@ interface Student {
   grade: string | null;
 }
 
+interface WeakPointTag {
+  id: string;
+  name: string;
+  category: string | null;
+}
+
 export default function ExamsPage() {
   const [studentStats, setStudentStats] = useState<StudentStats[]>([]);
   const [pendingExams, setPendingExams] = useState<Exam[]>([]);
+  const [weakPointTags, setWeakPointTags] = useState<WeakPointTag[]>([]);
+  const [reviewTarget, setReviewTarget] = useState<{ exam: Exam; action: "approve" | "reject" } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,9 +56,11 @@ export default function ExamsPage() {
       fetch("/api/students").then(r => r.json()),
       fetch("/api/exams?groupBy=student").then(r => r.json()),
       fetch("/api/exams?reviewStatus=pending_review").then(r => r.json()),
+      fetch("/api/weak-point-tags").then(r => r.json()).catch(() => []),
     ])
-      .then(([students, exams, pending]: [Student[], Exam[], Exam[]]) => {
+      .then(([students, exams, pending, tags]: [Student[], Exam[], Exam[], WeakPointTag[]]) => {
         setPendingExams(pending);
+        setWeakPointTags(tags);
         const grouped: Record<string, Exam[]> = {};
         exams.forEach(e => {
           if (!grouped[e.studentId]) grouped[e.studentId] = [];
@@ -83,13 +96,11 @@ export default function ExamsPage() {
       });
   }, []);
 
-  async function reviewExam(examId: string, action: "approve" | "reject") {
-    const weakPointText = action === "approve" ? window.prompt("关联薄弱点，多个用逗号分隔", "") || "" : "";
-    const rejectionReason = action === "reject" ? window.prompt("请输入驳回原因", "成绩信息需要更正") || "成绩信息需要更正" : "";
-    const weakPointDescriptions = weakPointText
-      .split(/[，,\n]/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+  function openReviewDialog(exam: Exam, action: "approve" | "reject") {
+    setReviewTarget({ exam, action });
+  }
+
+  async function reviewExam(examId: string, action: "approve" | "reject", weakPointDescriptions: string[], rejectionReason: string) {
     const res = await fetch("/api/exams/review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,7 +108,25 @@ export default function ExamsPage() {
     });
     if (res.ok) {
       setPendingExams((current) => current.filter((exam) => exam.id !== examId));
+      setReviewTarget(null);
     }
+  }
+
+  async function createWeakPointTag(name: string) {
+    const cleanName = name.trim();
+    if (!cleanName) return null;
+    const existing = weakPointTags.find((tag) => tag.name === cleanName);
+    if (existing) return existing;
+
+    const res = await fetch("/api/weak-point-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: cleanName, category: null }),
+    });
+    if (!res.ok) return null;
+    const created = await res.json();
+    setWeakPointTags((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
+    return created as WeakPointTag;
   }
 
   if (loading) return <div className="p-6"><PageHeader title="成绩管理" description="加载中..." /></div>;
@@ -121,8 +150,8 @@ export default function ExamsPage() {
                   <p className="text-xs text-gray-400">{new Date(exam.date).toLocaleDateString("zh-CN")} · {exam.learningLink?.subject || "数学"} · {exam.learningLink?.parent?.name || "家长提交"} · {exam.reviewStatus}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => reviewExam(exam.id, "approve")} className="rounded-md bg-green-500 px-3 py-1.5 text-xs font-semibold text-white" type="button">通过</button>
-                  <button onClick={() => reviewExam(exam.id, "reject")} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600" type="button">驳回</button>
+                  <button onClick={() => openReviewDialog(exam, "approve")} className="rounded-md bg-green-500 px-3 py-1.5 text-xs font-semibold text-white" type="button">通过</button>
+                  <button onClick={() => openReviewDialog(exam, "reject")} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600" type="button">驳回</button>
                 </div>
               </div>
             ))}
@@ -170,6 +199,146 @@ export default function ExamsPage() {
           );
         })}
       </div>
+      <ReviewExamDialog
+        target={reviewTarget}
+        weakPointTags={weakPointTags}
+        onClose={() => setReviewTarget(null)}
+        onCreateTag={createWeakPointTag}
+        onSubmit={reviewExam}
+      />
     </div>
+  );
+}
+
+function ReviewExamDialog({
+  target,
+  weakPointTags,
+  onClose,
+  onCreateTag,
+  onSubmit,
+}: {
+  target: { exam: Exam; action: "approve" | "reject" } | null;
+  weakPointTags: WeakPointTag[];
+  onClose: () => void;
+  onCreateTag: (name: string) => Promise<WeakPointTag | null>;
+  onSubmit: (examId: string, action: "approve" | "reject", weakPointDescriptions: string[], rejectionReason: string) => Promise<void>;
+}) {
+  const [searchTag, setSearchTag] = useState("");
+  const [selectedWeakPoints, setSelectedWeakPoints] = useState<string[]>([]);
+  const [rejectionReason, setRejectionReason] = useState("成绩信息需要更正");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!target) return;
+    setSearchTag("");
+    setSelectedWeakPoints([]);
+    setRejectionReason("成绩信息需要更正");
+    setSaving(false);
+  }, [target?.exam.id, target?.action]);
+
+  const filteredTags = weakPointTags.filter((tag) =>
+    !searchTag.trim() || tag.name.toLowerCase().includes(searchTag.trim().toLowerCase())
+  );
+
+  function toggleTag(name: string) {
+    setSelectedWeakPoints((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name]
+    );
+  }
+
+  async function addSearchTag() {
+    const tag = await onCreateTag(searchTag);
+    if (!tag) return;
+    setSelectedWeakPoints((current) => current.includes(tag.name) ? current : [...current, tag.name]);
+    setSearchTag("");
+  }
+
+  async function submit() {
+    if (!target) return;
+    setSaving(true);
+    await onSubmit(
+      target.exam.id,
+      target.action,
+      target.action === "approve" ? selectedWeakPoints : [],
+      target.action === "reject" ? rejectionReason.trim() || "成绩信息需要更正" : ""
+    );
+    setSaving(false);
+  }
+
+  return (
+    <Dialog open={Boolean(target)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{target?.action === "approve" ? "通过成绩审核" : "驳回成绩"}</DialogTitle>
+          <DialogDescription>
+            {target ? `${target.exam.student.name} · ${target.exam.name} · ${target.exam.score}/${target.exam.totalScore}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        {target?.action === "approve" ? (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-gray-500">薄弱点</p>
+            <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+              <Button type="button" variant="outline" className="h-12 text-base font-semibold text-gray-600" onClick={addSearchTag}>
+                新增标签
+              </Button>
+              <Input
+                className="h-12 text-base"
+                placeholder="搜索标签"
+                value={searchTag}
+                onChange={(event) => setSearchTag(event.target.value)}
+              />
+            </div>
+
+            <div className="flex min-h-10 flex-wrap gap-2">
+              {selectedWeakPoints.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleTag(name)}
+                  className="rounded-full border bg-white px-3 py-1.5 text-sm font-medium text-gray-500 shadow-sm"
+                >
+                  {name} <span className="ml-1 text-gray-300">×</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="max-h-40 overflow-auto rounded-lg border bg-gray-50 p-2">
+              {filteredTags.length === 0 ? (
+                <p className="px-2 py-4 text-center text-sm text-gray-400">暂无匹配标签</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {filteredTags.map((tag) => {
+                    const active = selectedWeakPoints.includes(tag.name);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(tag.name)}
+                        className={`rounded-full border px-3 py-1.5 text-sm font-medium ${active ? "border-sky-200 bg-sky-50 text-sky-700" : "bg-white text-gray-500 hover:border-gray-300"}`}
+                      >
+                        {tag.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-500">驳回原因</label>
+            <Input value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} />
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" onClick={submit} disabled={saving}>
+            {saving ? "保存中..." : target?.action === "approve" ? "通过" : "驳回"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
