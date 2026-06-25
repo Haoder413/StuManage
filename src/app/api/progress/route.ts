@@ -19,7 +19,44 @@ export async function GET() {
     },
     include: { student: true, knowledgePoint: true },
   });
-  return NextResponse.json(progress);
+
+  const progressKeys = new Set(progress.map((item) => `${item.studentId}:${item.knowledgePointId}`));
+  const studentsWithCourseKnowledge = await prisma.student.findMany({
+    where: { workspaceId: user.workspaceId },
+    include: {
+      studentCourses: {
+        where: { status: "active" },
+        include: {
+          course: {
+            include: {
+              knowledgePoints: { orderBy: [{ parentId: "asc" }, { orderIndex: "asc" }] },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const syntheticProgress = studentsWithCourseKnowledge.flatMap((student) =>
+    student.studentCourses.flatMap((studentCourse) =>
+      studentCourse.course.knowledgePoints
+        .filter((knowledgePoint) => !progressKeys.has(`${student.id}:${knowledgePoint.id}`))
+        .map((knowledgePoint) => ({
+          id: `synthetic-${student.id}-${knowledgePoint.id}`,
+          workspaceId: user.workspaceId,
+          learningLinkId: null,
+          studentId: student.id,
+          knowledgePointId: knowledgePoint.id,
+          status: "not_started",
+          masteredAt: null,
+          updatedAt: new Date(0),
+          student,
+          knowledgePoint,
+        }))
+    )
+  );
+
+  return NextResponse.json([...progress, ...syntheticProgress]);
 }
 
 export async function POST(request: NextRequest) {

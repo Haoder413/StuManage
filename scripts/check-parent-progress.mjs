@@ -3,7 +3,18 @@ import { readFileSync, existsSync } from "node:fs";
 const files = {
   "src/components/parent-sidebar.tsx": ["学习进度", "/parent/progress"],
   "src/lib/parent-data.ts": ["kpProgress", "knowledgePoint", "reviewSchedules"],
-  "src/app/parent/progress/page.tsx": ["学习进度", "知识点进度", "薄弱点复习", "整体进度", "待复习"],
+  "src/app/parent/progress/page.tsx": [
+    "学习进度",
+    "知识点进度",
+    "薄弱点复习",
+    "整体进度",
+    "reviewFilters",
+    "filteredWeakPoints",
+    "当前薄弱",
+    "巩固中",
+    "已完成",
+    "最近复习",
+  ],
 };
 
 const missing = [];
@@ -23,6 +34,13 @@ for (const [file, snippets] of Object.entries(files)) {
 
 if (existsSync("src/app/parent/schedule/page.tsx")) {
   missing.push("src/app/parent/schedule/page.tsx should be removed");
+}
+
+const parentProgressSource = readFileSync("src/app/parent/progress/page.tsx", "utf8");
+for (const forbidden of ["记住了", "忘了", "markReviewCompleted", "markWeakpointMastered"]) {
+  if (parentProgressSource.includes(forbidden)) {
+    missing.push(`src/app/parent/progress/page.tsx should not include ${forbidden}`);
+  }
 }
 
 if (missing.length > 0) {

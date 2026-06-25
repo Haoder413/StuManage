@@ -32,13 +32,18 @@ Page({
         wx.setStorageSync("mobileToken", data.token);
         wx.setStorageSync("mobileUser", data.user);
         getApp().globalData.token = data.token;
-        wx.switchTab({ url: "/pages/home/index" });
+        wx.switchTab({
+          url: "/pages/home/index",
+          fail: (error) => {
+            this.setData({
+              loading: false,
+              message: error.errMsg || "登录成功，但跳转首页失败"
+            });
+          }
+        });
       })
       .catch((error) => {
-        this.setData({ message: error.message || "登录失败" });
-      })
-      .finally(() => {
-        this.setData({ loading: false });
+        this.setData({ loading: false, message: error.message || "登录失败" });
       });
   }
 });

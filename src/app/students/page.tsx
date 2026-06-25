@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { requireTeacherLike } from "@/lib/auth";
+import { DeleteStudentButton } from "@/components/delete-student-button";
 
 export default async function StudentsPage() {
   const user = await requireTeacherLike();
@@ -27,14 +28,18 @@ export default async function StudentsPage() {
         {students.map((s) => {
           const courseNames = s.studentCourses.map((item) => item.course.name);
           return (
-            <Link key={s.id} href={`/students/${s.id}`}>
-              <div className="glass-card rounded-xl p-5 hover:shadow-lg transition-all duration-200 cursor-pointer hover:translate-y-[-2px] h-full">
+            <div key={s.id} className="glass-card rounded-xl p-5 hover:shadow-lg transition-all duration-200 hover:translate-y-[-2px] h-full">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-base font-bold text-gray-900">{s.name}</h3>
                     <p className="text-xs text-gray-400 mt-0.5">{s.grade || "未设置年级"}</p>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-[#e07a5f]/10 text-[#e07a5f] whitespace-nowrap">查看详情</span>
+                  <div className="flex shrink-0 gap-2">
+                    <Link className="text-xs px-2 py-1 rounded-full bg-[#e07a5f]/10 text-[#e07a5f] whitespace-nowrap" href={`/students/${s.id}`}>
+                      查看详情
+                    </Link>
+                    <DeleteStudentButton studentId={s.id} studentName={s.name} />
+                  </div>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between gap-3">
@@ -54,8 +59,7 @@ export default async function StudentsPage() {
                     <span className="text-gray-700 text-right truncate max-w-[160px]">{s.parentContact || "-"}</span>
                   </div>
                 </div>
-              </div>
-            </Link>
+            </div>
           );
         })}
         {students.length === 0 && (
