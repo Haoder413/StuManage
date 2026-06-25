@@ -228,6 +228,7 @@ model StudentKpProgress {
   learningLink    LearningLink?  @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
   student         Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
   knowledgePoint  KnowledgePoint  @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+  @@unique([studentId, knowledgePointId, learningLinkId])
   @@unique([learningLinkId, knowledgePointId])
 }
 

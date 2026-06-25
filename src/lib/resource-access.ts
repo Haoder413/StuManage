@@ -12,30 +12,42 @@ export function isResourceControlledRole(user: { role: string }) {
 export async function canAccessResource(
   user: { id: string; role: string; workspaceId: string },
   resource: { id: string; workspaceId: string },
-  _action: "preview" | "download"
+  action: "preview" | "download"
 ) {
   if (canManageResources(user)) return true;
   if (!isResourceControlledRole(user)) return false;
 
-  const permission = await prisma.resourceCoursePermission.findFirst({
+  const directPermission = await prisma.resourcePermission.findFirst({
+    where: {
+      resourceId: resource.id,
+      userId: user.id,
+      workspaceId: resource.workspaceId,
+    },
+    select: { canPreview: true, canDownload: true },
+  });
+  if (directPermission) {
+    return action === "download"
+      ? directPermission.canDownload
+      : directPermission.canPreview || directPermission.canDownload;
+  }
+
+  const coursePermission = await prisma.resourceCoursePermission.findFirst({
     where: {
       resourceId: resource.id,
       workspaceId: resource.workspaceId,
       course: {
-        studentCourses: {
+        learningLinks: {
           some: {
-            student: {
-              parentLinks: {
-                some: { parentId: user.id },
-              },
-            },
+            workspaceId: user.workspaceId,
+            parentId: user.id,
+            isActive: true,
           },
         },
       },
     },
   });
 
-  return Boolean(permission);
+  return Boolean(coursePermission);
 }
 
 export function getVisibleResourceWhere(user: { id: string; role: string; workspaceId: string }): Prisma.LearningResourceWhereInput {
@@ -49,20 +61,31 @@ export function getVisibleResourceWhere(user: { id: string; role: string; worksp
 
   return {
     workspaceId: user.workspaceId,
-    coursePermissions: {
-      some: {
-        course: {
-          studentCourses: {
-            some: {
-              student: {
-                parentLinks: {
-                  some: { parentId: user.id },
+    OR: [
+      {
+        permissions: {
+          some: {
+            userId: user.id,
+            workspaceId: user.workspaceId,
+            OR: [{ canPreview: true }, { canDownload: true }],
+          },
+        },
+      },
+      {
+        coursePermissions: {
+          some: {
+            course: {
+              learningLinks: {
+                some: {
+                  workspaceId: user.workspaceId,
+                  parentId: user.id,
+                  isActive: true,
                 },
               },
             },
           },
         },
       },
-    },
+    ],
   };
 }

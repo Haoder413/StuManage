@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 
+async function validateScheduleRelations(workspaceId: string, data: { studentId?: string | null; courseId?: string | null }) {
+  const studentId = data.studentId ? String(data.studentId) : null;
+  const courseId = data.courseId ? String(data.courseId) : null;
+
+  if (studentId) {
+    const student = await prisma.student.findFirst({ where: { id: studentId, workspaceId }, select: { id: true } });
+    if (!student) return "student not found";
+  }
+
+  if (courseId) {
+    const course = await prisma.course.findFirst({ where: { id: courseId, workspaceId }, select: { id: true } });
+    if (!course) return "course not found";
+  }
+
+  if (studentId && courseId) {
+    const studentCourse = await prisma.studentCourse.findFirst({
+      where: { workspaceId, studentId, courseId, status: "active" },
+      select: { id: true },
+    });
+    if (!studentCourse) return "student is not in this course";
+  }
+
+  return null;
+}
+
 export async function GET() {
   const user = await requireTeacherLike();
   const schedules = await prisma.schedule.findMany({
@@ -27,6 +52,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const relationError = await validateScheduleRelations(user.workspaceId, data);
+  if (relationError) return NextResponse.json({ error: relationError }, { status: 400 });
+
   const schedule = await prisma.schedule.create({
     data: {
       workspaceId: user.workspaceId,
@@ -59,6 +87,9 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const relationError = await validateScheduleRelations(user.workspaceId, data);
+  if (relationError) return NextResponse.json({ error: relationError }, { status: 400 });
+
   await prisma.schedule.updateMany({
     where: { id: data.id, workspaceId: user.workspaceId },
     data: {
