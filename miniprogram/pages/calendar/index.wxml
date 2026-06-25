@@ -1,0 +1,149 @@
+<view class="page">
+  <view class="header">
+    <view>
+      <view class="title">日历</view>
+      <view class="subtitle">查看老师课程，并管理孩子的个人安排</view>
+    </view>
+    <button class="small-button" bindtap="openAddForm">新增安排</button>
+  </view>
+
+  <view class="card">
+    <view class="month-row">
+      <button class="nav-button" bindtap="prevMonth">‹</button>
+      <view class="month-title">{{monthTitle}}</view>
+      <button class="nav-button" bindtap="nextMonth">›</button>
+    </view>
+    <view class="week-row">
+      <view wx:for="{{dayNames}}" wx:key="*this" class="week-name">{{item}}</view>
+    </view>
+    <view class="calendar-grid">
+      <view wx:for="{{calendarDays}}" wx:key="date" class="{{item.className}}" data-date="{{item.date}}" bindtap="chooseDate">
+        <view class="{{item.today ? 'day-number today-number' : 'day-number'}}">{{item.day}}</view>
+        <view wx:for="{{item.items}}" wx:key="id" wx:for-item="schedule" class="{{schedule.chipClass}}">{{schedule.displayTitle}}</view>
+        <view wx:if="{{item.moreCount > 0}}" class="more-count">+{{item.moreCount}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showForm}}" class="modal-mask">
+    <view class="modal-panel form-card">
+      <view class="section-head modal-head">
+        <view class="section-title">{{editingItem ? '编辑个人安排' : '新增个人安排'}}</view>
+        <button class="link-button" bindtap="closeForm">关闭</button>
+      </view>
+
+      <scroll-view scroll-y class="modal-scroll">
+        <view class="field">
+          <view class="field-label">标题</view>
+          <input class="input" value="{{form.title}}" data-field="title" bindinput="updateForm" placeholder="例如：完成数学练习" />
+        </view>
+
+        <view class="field">
+          <view class="field-label">科目</view>
+          <picker range="{{subjects}}" range-key="name" bindchange="chooseSubject">
+            <view class="picker-box">{{form.subjectLabel}}</view>
+          </picker>
+          <button class="manage-subject-button" bindtap="openSubjectEditor">编辑科目</button>
+        </view>
+
+        <view class="field">
+          <view class="field-label">日期</view>
+          <picker mode="date" value="{{form.date}}" data-field="date" bindchange="updateForm">
+            <view class="picker-box">{{form.date}}</view>
+          </picker>
+        </view>
+
+        <view class="time-row">
+          <view class="field half-field">
+            <view class="field-label">开始时间</view>
+            <picker mode="time" value="{{form.startTime}}" data-field="startTime" bindchange="updateForm">
+              <view class="picker-box">{{form.startTime}}</view>
+            </picker>
+          </view>
+          <view class="field half-field">
+            <view class="field-label">结束时间</view>
+            <picker mode="time" value="{{form.endTime}}" data-field="endTime" bindchange="updateForm">
+              <view class="picker-box">{{form.endTime}}</view>
+            </picker>
+          </view>
+        </view>
+
+        <view class="field">
+          <view class="field-label">每周重复</view>
+          <view class="repeat-row">
+            <button wx:for="{{repeatDayOptions}}" wx:key="value" class="{{item.className}}" data-value="{{item.value}}" bindtap="toggleRepeatDay">{{item.label}}</button>
+          </view>
+        </view>
+
+        <view wx:if="{{form.repeatDays.length > 0}}" class="field">
+          <view class="field-label">截止日期</view>
+          <picker mode="date" value="{{form.seriesEndDate}}" data-field="seriesEndDate" bindchange="updateForm">
+            <view class="picker-box">{{form.seriesEndDate || '请选择截止日期'}}</view>
+          </picker>
+        </view>
+
+        <view class="field">
+          <view class="field-label">备注</view>
+          <textarea class="textarea" value="{{form.notes}}" data-field="notes" bindinput="updateForm" placeholder="可选" />
+        </view>
+      </scroll-view>
+      <button class="button modal-save-button" bindtap="saveItem">保存安排</button>
+    </view>
+  </view>
+
+  <view wx:if="{{showSubjectEditor}}" class="modal-mask">
+    <view class="modal-panel subject-modal-panel form-card">
+      <view class="section-head modal-head">
+        <view class="section-title">编辑科目</view>
+        <button class="link-button" bindtap="closeSubjectEditor">完成</button>
+      </view>
+      <view class="subject-edit-row">
+        <input class="input subject-input" value="{{subjectDraft}}" bindinput="updateSubjectDraft" placeholder="科目名称" maxlength="20" />
+        <button class="small-button" bindtap="saveSubject">{{editingSubjectName ? '保存' : '新增'}}</button>
+      </view>
+      <scroll-view scroll-y class="subject-scroll">
+        <view wx:for="{{subjects}}" wx:key="id" class="subject-row">
+          <view class="subject-name">{{item.name}}</view>
+          <view>
+            <button class="text-button" data-name="{{item.name}}" bindtap="editSubject">改名</button>
+            <button class="danger-button" data-name="{{item.name}}" bindtap="deleteSubject">删除</button>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="section-head">
+      <view>
+        <view class="section-title">当天安排</view>
+        <view class="subtitle">{{selectedDate}}</view>
+      </view>
+      <view class="count-text">{{selectedItems.length}} 项</view>
+    </view>
+    <view wx:if="{{loading}}" class="muted empty">加载中...</view>
+    <view wx:elif="{{selectedItems.length === 0}}" class="muted empty">暂无安排</view>
+    <view wx:for="{{selectedItems}}" wx:key="id" class="detail-card">
+      <view class="detail-head">
+        <view>
+          <view class="detail-title">{{item.title}}</view>
+          <view class="row-sub">{{item.kind === 'teacher_schedule' ? '老师安排' : '个人安排'}} · {{item.studentName}}</view>
+        </view>
+        <view class="{{item.kind === 'teacher_schedule' ? 'type-badge teacher-badge' : 'type-badge parent-badge'}}">
+          {{item.kind === 'teacher_schedule' ? '老师' : item.subjectLabel}}
+        </view>
+      </view>
+      <view class="detail-time">{{item.startTime || '待定'}} - {{item.endTime || '待定'}}</view>
+      <view wx:if="{{item.kind === 'teacher_schedule'}}" class="feedback-box">
+        <view>{{item.teacherName}} · {{item.subject}}</view>
+        <view wx:if="{{item.attendance.length > 0}}">内容：{{item.attendance[0].lessonContent || '待老师填写'}}</view>
+        <view wx:if="{{item.attendance.length > 0}}">反馈：{{item.attendance[0].lessonFeedback || '待老师填写'}}</view>
+      </view>
+      <view wx:if="{{item.notes}}" class="notes">{{item.notes}}</view>
+      <view wx:if="{{item.kind === 'parent_item'}}" class="action-row">
+        <button class="text-button" data-id="{{item.id}}" bindtap="openEditForm">编辑</button>
+        <button class="danger-button" data-id="{{item.id}}" bindtap="deleteItem">删除</button>
+      </view>
+    </view>
+  </view>
+</view>
