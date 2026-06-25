@@ -9,7 +9,8 @@ const files = {
   ],
   "src/lib/resource-access.ts": [
     "getVisibleResourceWhere",
-    "studentCourses",
+    "learningLinks",
+    "isActive: true",
     "coursePermissions",
   ],
   "src/app/api/resources/route.ts": [

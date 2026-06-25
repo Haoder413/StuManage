@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 
+function progressKey(studentId: string, knowledgePointId: string, learningLinkId: string | null) {
+  return `${studentId}:${knowledgePointId}:${learningLinkId || "legacy"}`;
+}
+
 export async function GET() {
   const user = await requireTeacherLike();
   const teacherLinks = await prisma.learningLink.findMany({
@@ -20,7 +24,7 @@ export async function GET() {
     include: { student: true, knowledgePoint: true },
   });
 
-  const progressKeys = new Set(progress.map((item) => `${item.studentId}:${item.knowledgePointId}`));
+  const progressKeys = new Set(progress.map((item) => progressKey(item.studentId, item.knowledgePointId, item.learningLinkId)));
   const studentsWithCourseKnowledge = await prisma.student.findMany({
     where: { workspaceId: user.workspaceId },
     include: {
@@ -40,7 +44,7 @@ export async function GET() {
   const syntheticProgress = studentsWithCourseKnowledge.flatMap((student) =>
     student.studentCourses.flatMap((studentCourse) =>
       studentCourse.course.knowledgePoints
-        .filter((knowledgePoint) => !progressKeys.has(`${student.id}:${knowledgePoint.id}`))
+        .filter((knowledgePoint) => !progressKeys.has(progressKey(student.id, knowledgePoint.id, null)))
         .map((knowledgePoint) => ({
           id: `synthetic-${student.id}-${knowledgePoint.id}`,
           workspaceId: user.workspaceId,
@@ -65,6 +69,12 @@ export async function POST(request: NextRequest) {
   const learningLink = data.learningLinkId
     ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
     : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
+  if (data.learningLinkId && !learningLink) {
+    return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
+  }
+  if (learningLink && learningLink.studentId !== String(data.studentId || "")) {
+    return NextResponse.json({ error: "learning link student mismatch" }, { status: 400 });
+  }
   const existing = await prisma.studentKpProgress.findFirst({
     where: {
       workspaceId: user.workspaceId,
@@ -81,7 +91,7 @@ export async function POST(request: NextRequest) {
       data: {
       workspaceId: user.workspaceId,
       learningLinkId: learningLink?.id || null,
-      studentId: data.studentId,
+      studentId: learningLink?.studentId || data.studentId,
       knowledgePointId: data.knowledgePointId,
       status: data.status || "not_started",
       },

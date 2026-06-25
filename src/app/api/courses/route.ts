@@ -127,7 +127,7 @@ export async function GET() {
     where: { workspaceId: user.workspaceId },
     include: {
       scheduleTimes: { orderBy: { orderIndex: "asc" } },
-      _count: { select: { knowledgePoints: true, studentCourses: true } },
+      _count: { select: { knowledgePoints: true, studentCourses: { where: { status: "active" } } } },
     },
     orderBy: { createdAt: "desc" },
   });

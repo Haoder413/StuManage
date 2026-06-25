@@ -75,7 +75,7 @@ export async function getParentLearningData(
           },
         },
       })
-    : await getParentStudents(user);
+    : [];
 
   return {
     learningLinks,

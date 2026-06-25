@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
-import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 
 function formatTeacherFeedback(data: {
   lessonFeedback?: string;
@@ -32,13 +32,38 @@ export async function POST(request: NextRequest) {
     },
   });
   if (!schedule) return NextResponse.json({ error: "schedule not found" }, { status: 404 });
+
+  const student = await prisma.student.findFirst({
+    where: { id: data.studentId, workspaceId: user.workspaceId },
+    select: { id: true },
+  });
+  if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });
+
+  if (schedule.studentId && schedule.studentId !== data.studentId) {
+    return NextResponse.json({ error: "student does not match schedule" }, { status: 400 });
+  }
   if (schedule.courseId && !schedule.course?.studentCourses.some((item) => item.studentId === data.studentId)) {
     return NextResponse.json({ error: "student is not in this course" }, { status: 400 });
   }
 
   const learningLink = data.learningLinkId
-    ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
+    ? user.role === "teacher"
+      ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
+      : await prisma.learningLink.findFirst({
+          where: { id: String(data.learningLinkId), workspaceId: user.workspaceId, isActive: true },
+          include: { parent: true, teacher: true, student: true, course: true },
+        })
     : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
+  if (data.learningLinkId && !learningLink) {
+    return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
+  }
+  if (learningLink && learningLink.studentId !== String(data.studentId || "")) {
+    return NextResponse.json({ error: "learning link student mismatch" }, { status: 400 });
+  }
+  if (learningLink?.courseId && schedule.courseId && learningLink.courseId !== schedule.courseId) {
+    return NextResponse.json({ error: "learning link course mismatch" }, { status: 400 });
+  }
+
   const date = new Date(data.date);
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
@@ -71,7 +96,7 @@ export async function POST(request: NextRequest) {
 
   const isPresentAttendance = data.status === "present";
   const hasConsumedLessonHour = existing?.status === "present";
-  const shouldUseLessonHour = isPresentAttendance && !hasConsumedLessonHour;
+  const shouldUseLessonHour = isPresentAttendance && existing?.status !== "present";
   const shouldRestoreLessonHour = hasConsumedLessonHour && !isPresentAttendance;
 
   const attendance = await prisma.$transaction(async (tx) => {

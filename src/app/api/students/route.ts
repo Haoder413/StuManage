@@ -142,6 +142,8 @@ export async function PATCH(request: NextRequest) {
         enrollmentDate: data.enrollmentDate ? new Date(data.enrollmentDate) : undefined,
         lessonFrequency: data.lessonFrequency || null,
         tuition: data.tuition ? parseFloat(data.tuition) : null,
+        totalLessonHours: data.totalLessonHours !== undefined ? parseInt(data.totalLessonHours) || 0 : undefined,
+        remainingLessonHours: data.remainingLessonHours !== undefined ? parseInt(data.remainingLessonHours) || 0 : undefined,
         notes: data.notes || null,
       },
     });
