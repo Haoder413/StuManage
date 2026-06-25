@@ -1,6 +1,6 @@
 import { requireParent } from "@/lib/auth";
 import { getParentStudents } from "@/lib/parent-data";
-import { getParentLearningLinks, learningLinkLabel } from "@/lib/learning-links";
+import { getParentLearningLinks } from "@/lib/learning-links";
 import { ParentExamChart } from "@/components/parent-exam-chart";
 import { ParentExamSubmissionForm } from "@/components/parent-exam-submission-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,7 @@ export default async function ParentExamsPage() {
     id: link.id,
     learningLinkId: link.id,
     studentId: link.studentId,
-    label: learningLinkLabel(link),
+    label: `${link.student?.name || "学生"} · ${link.subject}`,
   }));
 
   return (
