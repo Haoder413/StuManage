@@ -15,6 +15,7 @@ function absoluteFileUrl(path) {
 Page({
   data: {
     loading: true,
+    loadError: "",
     resources: []
   },
 
@@ -23,7 +24,7 @@ Page({
   },
 
   load() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: "" });
     request("/resources")
       .then((data) => {
         const resources = (data.resources || []).map((resource) => ({
@@ -32,6 +33,7 @@ Page({
         }));
         this.setData({ resources });
       })
+      .catch((error) => this.setData({ loadError: error.message || "资料加载失败", resources: [] }))
       .finally(() => this.setData({ loading: false }));
   },
 

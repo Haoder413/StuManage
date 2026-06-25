@@ -112,6 +112,7 @@ function emptyForm(date, links, subjects) {
 Page({
   data: {
     loading: true,
+    loadError: "",
     currentMonth: "",
     selectedDate: "",
     monthTitle: "",
@@ -140,7 +141,7 @@ Page({
   },
 
   loadCalendar() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: "" });
     Promise.all([
       request("/parent/calendar"),
       request("/parent/calendar-subjects")
@@ -152,6 +153,15 @@ Page({
           links,
           items: calendarData.items || [],
           subjects
+        });
+        this.refreshCalendar();
+      })
+      .catch((error) => {
+        this.setData({
+          loadError: error.message || "日历加载失败",
+          links: [],
+          items: [],
+          subjects: [{ id: "default-other", name: "其他" }]
         });
         this.refreshCalendar();
       })

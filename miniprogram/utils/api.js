@@ -22,6 +22,16 @@ function normalizeRequestError(error) {
   return error instanceof Error ? error : new Error(message || "网络请求失败");
 }
 
+function normalizeHttpError(res) {
+  const serverMessage = typeof res.data?.error === "string" ? res.data.error : "";
+  if (res.statusCode >= 500) {
+    return new Error(serverMessage || `HTTP 500：服务器开小差了，请稍后重试`);
+  }
+  if (res.statusCode === 403) return new Error(serverMessage || "当前账号无权访问");
+  if (res.statusCode === 404) return new Error(serverMessage || "接口不存在，请检查服务版本");
+  return new Error(serverMessage || `HTTP ${res.statusCode}：请求失败`);
+}
+
 function request(path, options = {}) {
   const config = getAppConfig();
   const token = getToken();
@@ -44,7 +54,9 @@ function request(path, options = {}) {
           return;
         }
         if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(res.data?.error || "request failed"));
+          const normalizedError = normalizeHttpError(res);
+          wx.showToast({ title: normalizedError.message, icon: "none", duration: 2500 });
+          reject(normalizedError);
           return;
         }
         resolve(res.data);
