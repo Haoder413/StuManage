@@ -195,6 +195,24 @@
   font-weight: 700;
 }
 
+.repeat-button-active {
+  border-color: #0284c7;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.manage-subject-button {
+  width: 100%;
+  margin-top: 12rpx;
+  padding: 18rpx 0;
+  border: 1rpx solid #bae6fd;
+  border-radius: 16rpx;
+  background: #f0f9ff;
+  color: #0284c7;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
 .link-button,
 .text-button {
   color: #0284c7;

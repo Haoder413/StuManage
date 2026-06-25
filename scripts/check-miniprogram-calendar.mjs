@@ -28,12 +28,14 @@ const required = {
     "saveSubject",
     "deleteSubject",
     "toggleRepeatDay",
+    "decorateRepeatDays",
     "buildCalendarDays",
   ],
   "miniprogram/pages/calendar/index.wxml": [
     "日历",
     "新增安排",
     "编辑科目",
+    "manage-subject-button",
     "每周重复",
     "截止日期",
   ],
@@ -43,6 +45,8 @@ const required = {
     ".schedule-chip",
     ".form-card",
     ".subject-row",
+    ".repeat-button-active",
+    ".manage-subject-button",
   ],
 };
 
@@ -59,6 +63,14 @@ for (const [file, snippets] of Object.entries(required)) {
   for (const snippet of snippets) {
     if (!text.includes(snippet)) missing.push(`${file}: ${snippet}`);
   }
+}
+
+const calendarWxml = readFileSync("miniprogram/pages/calendar/index.wxml", "utf8");
+if (calendarWxml.includes("学习关系")) {
+  missing.push("miniprogram/pages/calendar/index.wxml: remove 学习关系 field");
+}
+if (calendarWxml.includes("form.learningLinkId")) {
+  missing.push("miniprogram/pages/calendar/index.wxml: hide learningLinkId");
 }
 
 if (missing.length > 0) {
