@@ -34,6 +34,9 @@ const required = {
   "miniprogram/pages/calendar/index.wxml": [
     "日历",
     "新增安排",
+    "modal-mask",
+    "modal-panel",
+    "subject-modal-panel",
     "编辑科目",
     "manage-subject-button",
     "每周重复",
@@ -47,6 +50,9 @@ const required = {
     ".subject-row",
     ".repeat-button-active",
     ".manage-subject-button",
+    ".modal-mask",
+    ".modal-panel",
+    ".subject-modal-panel",
   ],
 };
 
