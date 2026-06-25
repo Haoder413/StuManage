@@ -21,6 +21,38 @@
   font-weight: 800;
 }
 
+.chart-card {
+  margin-top: 24rpx;
+  padding: 20rpx;
+  border-radius: 24rpx;
+  background: #f8fafc;
+}
+
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.trend-label {
+  color: #0f172a;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 320rpx;
+}
+
+.chart-empty {
+  padding: 72rpx 0;
+  color: #94a3b8;
+  font-size: 24rpx;
+  text-align: center;
+}
+
 .exam-row {
   padding: 22rpx 0;
   border-top: 1rpx solid #f1f5f9;
