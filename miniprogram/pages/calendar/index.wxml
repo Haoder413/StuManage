@@ -32,25 +32,16 @@
     </view>
 
     <view class="field">
-      <view class="field-label">学习关系</view>
-      <picker range="{{links}}" range-key="label" bindchange="chooseLink">
-        <view class="picker-box">{{form.learningLinkId ? form.learningLinkId : '请选择学习关系'}}</view>
-      </picker>
-    </view>
-
-    <view class="field">
       <view class="field-label">标题</view>
       <input class="input" value="{{form.title}}" data-field="title" bindinput="updateForm" placeholder="例如：完成数学练习" />
     </view>
 
     <view class="field">
-      <view class="field-row">
-        <view class="field-label">科目</view>
-        <button class="link-button" bindtap="openSubjectEditor">编辑科目</button>
-      </view>
+      <view class="field-label">科目</view>
       <picker range="{{subjects}}" range-key="name" bindchange="chooseSubject">
         <view class="picker-box">{{form.subjectLabel}}</view>
       </picker>
+      <button class="manage-subject-button" bindtap="openSubjectEditor">编辑科目</button>
     </view>
 
     <view class="field">
@@ -78,7 +69,7 @@
     <view class="field">
       <view class="field-label">每周重复</view>
       <view class="repeat-row">
-        <button wx:for="{{repeatDayOptions}}" wx:key="value" class="repeat-button" data-value="{{item.value}}" bindtap="toggleRepeatDay">{{item.label}}</button>
+        <button wx:for="{{repeatDayOptions}}" wx:key="value" class="{{item.className}}" data-value="{{item.value}}" bindtap="toggleRepeatDay">{{item.label}}</button>
       </view>
     </view>
 

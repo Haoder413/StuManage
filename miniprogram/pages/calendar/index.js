@@ -11,6 +11,15 @@ const REPEAT_DAYS = [
   { value: 0, label: "周日" }
 ];
 
+function decorateRepeatDays(repeatDays) {
+  const selectedDays = repeatDays || [];
+  return REPEAT_DAYS.map((day) => ({
+    ...day,
+    selected: selectedDays.includes(day.value),
+    className: selectedDays.includes(day.value) ? "repeat-button repeat-button-active" : "repeat-button"
+  }));
+}
+
 function pad(value) {
   return String(value).padStart(2, "0");
 }
@@ -117,7 +126,7 @@ Page({
     selectedDate: "",
     monthTitle: "",
     dayNames: DAY_NAMES,
-    repeatDayOptions: REPEAT_DAYS,
+    repeatDayOptions: decorateRepeatDays([]),
     calendarDays: [],
     selectedItems: [],
     links: [],
@@ -200,7 +209,8 @@ Page({
     this.setData({
       showForm: true,
       editingItem: null,
-      form: emptyForm(date, this.data.links, this.data.subjects)
+      form: emptyForm(date, this.data.links, this.data.subjects),
+      repeatDayOptions: decorateRepeatDays([])
     });
   },
 
@@ -208,6 +218,7 @@ Page({
     const id = event.currentTarget.dataset.id;
     const item = this.data.items.find((entry) => entry.id === id);
     if (!item || item.kind !== "parent_item") return;
+    const repeatDays = item.repeatDays || [];
     this.setData({
       showForm: true,
       editingItem: item,
@@ -221,14 +232,15 @@ Page({
         startTime: item.startTime,
         endTime: item.endTime,
         notes: item.notes || "",
-        repeatDays: item.repeatDays || [],
+        repeatDays,
         seriesEndDate: item.seriesEndDate || ""
-      }
+      },
+      repeatDayOptions: decorateRepeatDays(repeatDays)
     });
   },
 
   closeForm() {
-    this.setData({ showForm: false, editingItem: null });
+    this.setData({ showForm: false, editingItem: null, repeatDayOptions: decorateRepeatDays([]) });
   },
 
   updateForm(event) {
@@ -255,7 +267,7 @@ Page({
     const next = repeatDays.includes(value)
       ? repeatDays.filter((day) => day !== value)
       : repeatDays.concat(value).sort((a, b) => a - b);
-    this.setData({ "form.repeatDays": next });
+    this.setData({ "form.repeatDays": next, repeatDayOptions: decorateRepeatDays(next) });
   },
 
   saveItem() {
