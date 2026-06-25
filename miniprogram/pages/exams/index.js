@@ -22,6 +22,7 @@ function buildChartPoints(exams) {
 Page({
   data: {
     loading: true,
+    loadError: "",
     students: []
   },
 
@@ -30,7 +31,7 @@ Page({
   },
 
   load() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: "" });
     request("/parent/exams")
       .then((data) => {
         const students = (data.students || []).map((student) => ({
@@ -41,6 +42,7 @@ Page({
         }));
         this.setData({ students }, () => this.drawCharts());
       })
+      .catch((error) => this.setData({ loadError: error.message || "成绩加载失败", students: [] }))
       .finally(() => this.setData({ loading: false }));
   },
 

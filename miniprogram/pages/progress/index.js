@@ -15,6 +15,7 @@ function formatDate(value) {
 Page({
   data: {
     loading: true,
+    loadError: "",
     students: []
   },
 
@@ -23,7 +24,7 @@ Page({
   },
 
   load() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: "" });
     request("/parent/progress")
       .then((data) => {
         const students = (data.students || []).map((student) => ({
@@ -39,6 +40,7 @@ Page({
         }));
         this.setData({ students });
       })
+      .catch((error) => this.setData({ loadError: error.message || "进度加载失败", students: [] }))
       .finally(() => this.setData({ loading: false }));
   }
 });
