@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 
 const files = {
   "src/app/api/exams/route.ts": ["reviewStatus", "pending_review", "learningLinkId", "requireCurrentUser"],
-  "src/app/exams/page.tsx": ["待审核成绩", "reviewStatus", "/api/exams/review"],
+  "src/app/exams/page.tsx": ["待审核成绩", "reviewStatus", "/api/exams/review", "ReviewExamDialog", "搜索标签", "新增标签"],
   "src/app/exams/new/page.tsx": ["learningLinkId", "weakPointDescriptions"],
   "src/app/parent/exams/page.tsx": ["提交成绩", "pending_review", "officialExams", "learningLinkId"],
 };
@@ -29,6 +29,11 @@ if (!existsSync("src/app/api/exams/review/route.ts")) {
   for (const snippet of ["reviewStatus", "approved", "rejected", "rejectionReason", "getNextReviewDate", "weakPointDescriptions"]) {
     if (!route.includes(snippet)) missing.push(`src/app/api/exams/review/route.ts: ${snippet}`);
   }
+}
+
+const examsPage = readFileSync("src/app/exams/page.tsx", "utf8");
+if (examsPage.includes("window.prompt")) {
+  missing.push("src/app/exams/page.tsx: should not use window.prompt");
 }
 
 if (missing.length > 0) {
