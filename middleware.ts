@@ -7,12 +7,13 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAuthRoute = pathname.startsWith("/api/auth");
   const isLogin = pathname.startsWith("/login");
+  const isDisclaimer = pathname.startsWith("/disclaimer");
   const isPublicAsset =
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js)$/);
 
-  if (isAuthRoute || isLogin || isPublicAsset) return NextResponse.next();
+  if (isAuthRoute || isLogin || isDisclaimer || isPublicAsset) return NextResponse.next();
 
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
   if (hasSession) {

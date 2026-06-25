@@ -1,0 +1,46 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/home/index",
+    "pages/exams/index",
+    "pages/calendar/index",
+    "pages/progress/index",
+    "pages/resources/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "淘淘数学",
+    "navigationBarBackgroundColor": "#f8fafc",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f8fafc"
+  },
+  "tabBar": {
+    "color": "#64748b",
+    "selectedColor": "#0284c7",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/exams/index",
+        "text": "成绩"
+      },
+      {
+        "pagePath": "pages/calendar/index",
+        "text": "日历"
+      },
+      {
+        "pagePath": "pages/progress/index",
+        "text": "进度"
+      },
+      {
+        "pagePath": "pages/resources/index",
+        "text": "资料"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

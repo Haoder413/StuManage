@@ -7,11 +7,11 @@ export const SESSION_COOKIE = "student_management_session";
 export const ROLE_COOKIE = "student_management_role";
 const SESSION_DAYS = 14;
 
-function hashToken(token: string) {
+export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function createSession(userId: string, cookieSecure?: boolean) {
+export async function createSessionToken(userId: string) {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + SESSION_DAYS);
@@ -23,6 +23,12 @@ export async function createSession(userId: string, cookieSecure?: boolean) {
       expiresAt,
     },
   });
+
+  return { token, expiresAt };
+}
+
+export async function createSession(userId: string, cookieSecure?: boolean) {
+  const { token, expiresAt } = await createSessionToken(userId);
 
   cookies().set(SESSION_COOKIE, token, {
     httpOnly: true,

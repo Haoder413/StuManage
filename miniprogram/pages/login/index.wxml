@@ -1,0 +1,17 @@
+<view class="page login-page">
+  <view class="login-hero">
+    <view class="title">淘淘数学</view>
+    <view class="subtitle">家长端小程序试用版</view>
+  </view>
+
+  <view class="card form-card">
+    <view class="field-label">账号</view>
+    <input class="input" placeholder="手机号或邮箱" value="{{identifier}}" bindinput="onIdentifierInput" />
+
+    <view class="field-label">密码</view>
+    <input class="input" password placeholder="请输入密码" value="{{password}}" bindinput="onPasswordInput" />
+
+    <button class="button login-button" loading="{{loading}}" bindtap="login">登录</button>
+    <view wx:if="{{message}}" class="message">{{message}}</view>
+  </view>
+</view>
