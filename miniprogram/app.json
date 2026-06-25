@@ -3,6 +3,7 @@
     "pages/login/index",
     "pages/home/index",
     "pages/exams/index",
+    "pages/calendar/index",
     "pages/progress/index",
     "pages/resources/index"
   ],
@@ -25,6 +26,10 @@
       {
         "pagePath": "pages/exams/index",
         "text": "成绩"
+      },
+      {
+        "pagePath": "pages/calendar/index",
+        "text": "日历"
       },
       {
         "pagePath": "pages/progress/index",
