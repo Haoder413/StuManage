@@ -59,8 +59,7 @@
   font-size: 24rpx;
 }
 
-.point-row,
-.weak-row {
+.point-row {
   padding: 20rpx 0;
   border-top: 1rpx solid #f1f5f9;
 }
@@ -99,4 +98,82 @@
 .not_started {
   background: #f1f5f9;
   color: #64748b;
+}
+
+.weak-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin: 24rpx 0 28rpx;
+}
+
+.weak-filter {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.weak-filter-orange {
+  background: #ffedd5;
+  color: #f97316;
+}
+
+.weak-filter-blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.weak-filter-gray {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.weak-card {
+  margin-top: 20rpx;
+  padding: 26rpx;
+  border: 1rpx solid #f1f5f9;
+  border-radius: 24rpx;
+  background: #ffffff;
+}
+
+.weak-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.weak-status {
+  padding: 6rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.weak-active {
+  background: #ffedd5;
+  color: #f97316;
+}
+
+.weak-pending {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.weak-done {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.next-review {
+  margin-top: 8rpx;
+  color: #2563eb;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.empty {
+  padding: 36rpx 0;
+  text-align: center;
 }

@@ -42,11 +42,21 @@
     </view>
 
     <view class="card">
-      <view class="section-title">当前薄弱点</view>
-      <view wx:if="{{item.weakPoints.length === 0}}" class="muted">暂无薄弱点</view>
-      <view wx:for="{{item.weakPoints}}" wx:key="id" wx:for-item="point" class="weak-row">
-        <view class="row-title">{{point.description}}</view>
-        <view class="row-sub">{{point.nextReviewText}}</view>
+      <view class="section-title">薄弱点复习</view>
+      <view class="weak-filter-row">
+        <view wx:for="{{item.weakPointFilters}}" wx:key="key" class="{{item.className}}">{{item.label}} {{item.count}}</view>
+      </view>
+      <view wx:if="{{item.weakPoints.length === 0}}" class="muted empty">暂无薄弱点记录</view>
+      <view wx:for="{{item.weakPoints}}" wx:key="id" wx:for-item="point" class="weak-card">
+        <view class="weak-title-row">
+          <view class="row-title">{{point.description}}</view>
+          <view class="{{point.statusClass}}">{{point.statusLabel}}</view>
+        </view>
+        <view class="row-sub">
+          {{point.createdText}} · 已复习 {{point.completedReviewCount}} 次
+        </view>
+        <view wx:if="{{point.masteredText}}" class="row-sub">{{point.masteredText}}</view>
+        <view class="next-review">{{point.nextReviewText}}</view>
       </view>
     </view>
   </block>

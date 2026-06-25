@@ -1,6 +1,7 @@
 import { getParentStudents } from "@/lib/parent-data";
 import { prisma } from "@/lib/prisma";
 import { canAccessResource, getVisibleResourceWhere } from "@/lib/resource-access";
+import { getStageLabel } from "@/lib/review-scheduler";
 
 type MobileParentUser = {
   id: string;
@@ -109,27 +110,35 @@ export async function getMobileParentProgress(user: MobileParentUser) {
       const masteredCount = student.kpProgress.filter((item) => item.status === "mastered").length;
       const learningCount = student.kpProgress.filter((item) => item.status === "learning").length;
       const activeWeakPoints = student.weakPoints.filter((point) => point.status === "active");
+      const pendingWeakPoints = student.weakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
       return {
         id: student.id,
         name: student.name,
         totalKps,
         masteredCount,
         learningCount,
+        currentWeakPointCount: activeWeakPoints.length,
+        pendingWeakPointCount: pendingWeakPoints.length,
         progressPercent: totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0,
         knowledgePoints: student.kpProgress.map((item) => ({
           id: item.id,
           name: item.knowledgePoint.name,
           status: item.status,
         })),
-        weakPoints: activeWeakPoints.map((point) => {
+        weakPoints: student.weakPoints.map((point) => {
           const pendingReview = point.reviewSchedules.find((schedule) => schedule.status === "pending");
+          const completedReviewCount = point.reviewSchedules.filter((schedule) => schedule.status === "completed").length;
           return {
             id: point.id,
             description: point.description,
             status: point.status,
+            statusLabel: point.status === "active" ? "当前薄弱" : pendingReview ? "巩固中" : "已完成",
             createdAt: isoDate(point.createdAt),
+            masteredAt: isoDate(point.masteredAt),
+            completedReviewCount,
             nextReviewAt: isoDate(pendingReview?.nextReviewAt),
             reviewStage: pendingReview?.stage || null,
+            reviewStageLabel: pendingReview ? getStageLabel(pendingReview.stage) : null,
           };
         }),
       };
