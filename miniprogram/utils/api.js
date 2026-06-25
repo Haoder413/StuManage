@@ -8,6 +8,20 @@ function getToken() {
   return app.globalData.token || wx.getStorageSync("mobileToken") || "";
 }
 
+function normalizeRequestError(error) {
+  const message = error?.errMsg || error?.message || "";
+  if (message.includes("timeout")) {
+    return new Error("接口连接超时，请检查服务地址或服务是否启动");
+  }
+  if (message.includes("url not in domain list") || message.includes("domain")) {
+    return new Error("接口域名未配置，请在开发者工具关闭域名校验或配置业务域名");
+  }
+  if (message.includes("ssl") || message.includes("TLS") || message.includes("certificate")) {
+    return new Error("接口 HTTPS 证书校验失败，请检查域名证书配置");
+  }
+  return error instanceof Error ? error : new Error(message || "网络请求失败");
+}
+
 function request(path, options = {}) {
   const config = getAppConfig();
   const token = getToken();
@@ -16,6 +30,7 @@ function request(path, options = {}) {
       url: `${config.apiBaseUrl}${path}`,
       method: options.method || "GET",
       data: options.data || {},
+      timeout: options.timeout || 10000,
       header: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -34,7 +49,11 @@ function request(path, options = {}) {
         }
         resolve(res.data);
       },
-      fail: reject
+      fail(error) {
+        const normalizedError = normalizeRequestError(error);
+        wx.showToast({ title: normalizedError.message, icon: "none", duration: 2500 });
+        reject(normalizedError);
+      }
     });
   });
 }

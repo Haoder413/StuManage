@@ -1,6 +1,8 @@
 App({
   globalData: {
-    apiBaseUrl: "https://taotaomath.top/api/mobile",
+    localApiBaseUrl: "http://127.0.0.1:3001/api/mobile",
+    productionApiBaseUrl: "https://taotaomath.top/api/mobile",
+    apiBaseUrl: "http://127.0.0.1:3001/api/mobile",
     fileBaseUrl: "https://taotaomath.top"
   },
   onLaunch() {

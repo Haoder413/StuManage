@@ -16,6 +16,14 @@
         </view>
         <view class="average">{{item.averageText}}</view>
       </view>
+      <view class="chart-card">
+        <view class="chart-head">
+          <view class="trend-label">成绩趋势</view>
+          <view class="row-sub">按考试时间</view>
+        </view>
+        <canvas wx:if="{{item.chartPoints.length > 0}}" id="exam-chart-{{index}}" type="2d" class="chart-canvas"></canvas>
+        <view wx:else class="chart-empty">暂无趋势数据</view>
+      </view>
       <view wx:if="{{item.exams.length === 0}}" class="muted empty">暂无成绩记录</view>
       <view wx:for="{{item.exams}}" wx:key="id" wx:for-item="exam" class="exam-row">
         <view>
