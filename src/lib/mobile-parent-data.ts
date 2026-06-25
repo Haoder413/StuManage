@@ -112,6 +112,9 @@ export async function getMobileParentProgress(user: MobileParentUser) {
       const learningCount = student.kpProgress.filter((item) => item.status === "learning").length;
       const activeWeakPoints = student.weakPoints.filter((point) => point.status === "active");
       const pendingWeakPoints = student.weakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+      const masteredWeakPoints = student.weakPoints.filter((point) => point.status !== "active");
+      const consolidatingWeakPoints = masteredWeakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+      const completedWeakPoints = masteredWeakPoints.filter((point) => !point.reviewSchedules.some((schedule) => schedule.status === "pending"));
       return {
         id: student.id,
         name: student.name,
@@ -120,6 +123,8 @@ export async function getMobileParentProgress(user: MobileParentUser) {
         learningCount,
         currentWeakPointCount: activeWeakPoints.length,
         pendingWeakPointCount: pendingWeakPoints.length,
+        consolidatingWeakPointCount: consolidatingWeakPoints.length,
+        completedWeakPointCount: completedWeakPoints.length,
         progressPercent: totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0,
         knowledgePoints: student.kpProgress.map((item) => ({
           id: item.id,
@@ -129,6 +134,9 @@ export async function getMobileParentProgress(user: MobileParentUser) {
         weakPoints: student.weakPoints.map((point) => {
           const pendingReview = point.reviewSchedules.find((schedule) => schedule.status === "pending");
           const completedReviewCount = point.reviewSchedules.filter((schedule) => schedule.status === "completed").length;
+          const lastReviewed = point.reviewSchedules
+            .filter((schedule) => schedule.lastReviewedAt)
+            .sort((a, b) => new Date(b.lastReviewedAt || "").getTime() - new Date(a.lastReviewedAt || "").getTime())[0];
           return {
             id: point.id,
             description: point.description,
@@ -137,6 +145,7 @@ export async function getMobileParentProgress(user: MobileParentUser) {
             createdAt: isoDate(point.createdAt),
             masteredAt: isoDate(point.masteredAt),
             completedReviewCount,
+            lastReviewedAt: isoDate(lastReviewed?.lastReviewedAt),
             nextReviewAt: isoDate(pendingReview?.nextReviewAt),
             reviewStage: pendingReview?.stage || null,
             reviewStageLabel: pendingReview ? getStageLabel(pendingReview.stage) : null,

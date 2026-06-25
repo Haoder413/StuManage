@@ -59,6 +59,7 @@ export function StudentDetailEditor({
   const [logs, setLogs] = useState(initialLogs);
   const [showStudentDialog, setShowStudentDialog] = useState(false);
   const [editingLog, setEditingLog] = useState<CommunicationLog | null>(null);
+  const [lessonHourAction, setLessonHourAction] = useState<"add" | "use" | null>(null);
 
   const [studentForm, setStudentForm] = useState({
     name: initialStudent.name,
@@ -67,10 +68,13 @@ export function StudentDetailEditor({
     enrollmentDate: formatDateInput(initialStudent.enrollmentDate),
     lessonFrequency: initialStudent.lessonFrequency || "",
     tuition: initialStudent.tuition?.toString() || "",
-    totalLessonHours: initialStudent.totalLessonHours?.toString() || "0",
-    remainingLessonHours: initialStudent.remainingLessonHours?.toString() || "0",
     notes: initialStudent.notes || "",
     courseId: initialStudent.courseId || "none",
+  });
+
+  const [lessonHourForm, setLessonHourForm] = useState({
+    amount: "1",
+    note: "",
   });
 
   const [logForm, setLogForm] = useState({
@@ -87,8 +91,6 @@ export function StudentDetailEditor({
       enrollmentDate: formatDateInput(student.enrollmentDate),
       lessonFrequency: student.lessonFrequency || "",
       tuition: student.tuition?.toString() || "",
-      totalLessonHours: student.totalLessonHours?.toString() || "0",
-      remainingLessonHours: student.remainingLessonHours?.toString() || "0",
       notes: student.notes || "",
       courseId: student.courseId || "none",
     });
@@ -126,6 +128,37 @@ export function StudentDetailEditor({
         courseId: updated.studentCourses?.[0]?.courseId || "none",
       });
       setShowStudentDialog(false);
+    }
+  }
+
+  function openLessonHourDialog(action: "add" | "use") {
+    setLessonHourAction(action);
+    setLessonHourForm({ amount: "1", note: "" });
+  }
+
+  async function saveLessonHourAction() {
+    if (!lessonHourAction) return;
+    const res = await fetch("/api/students", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: student.id,
+        action: lessonHourAction,
+        amount: parseInt(lessonHourForm.amount) || 0,
+        note: lessonHourForm.note,
+      }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setStudent(prev => ({
+        ...prev,
+        totalLessonHours: updated.totalLessonHours,
+        remainingLessonHours: updated.remainingLessonHours,
+      }));
+      setLessonHourAction(null);
+      window.location.reload();
+    } else {
+      alert("课时操作失败，请检查数量。");
     }
   }
 
@@ -167,6 +200,10 @@ export function StudentDetailEditor({
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">剩余课时</span><span className="text-[#1a1a2e]/70">{student.remainingLessonHours}</span></div>
             <div className="flex justify-between gap-4"><span className="text-[#1a1a2e]/40">所属课程</span><span className="text-[#1a1a2e]/70 text-right">{courses.find(course => course.id === student.courseId)?.name || "-"}</span></div>
             <div className="flex justify-between gap-4"><span className="text-[#1a1a2e]/40">备注</span><span className="text-[#1a1a2e]/70 text-right">{student.notes || "-"}</span></div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => openLessonHourDialog("add")}>增加课时</Button>
+              <Button variant="outline" size="sm" onClick={() => openLessonHourDialog("use")}>使用课时</Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -220,14 +257,6 @@ export function StudentDetailEditor({
               <Label className="text-xs text-gray-500">学费</Label>
               <Input type="number" value={studentForm.tuition} onChange={e => setStudentForm(prev => ({ ...prev, tuition: e.target.value }))} />
             </div>
-            <div>
-              <Label className="text-xs text-gray-500">总课时</Label>
-              <Input type="number" min="0" value={studentForm.totalLessonHours} onChange={e => setStudentForm(prev => ({ ...prev, totalLessonHours: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="text-xs text-gray-500">剩余课时</Label>
-              <Input type="number" min="0" value={studentForm.remainingLessonHours} onChange={e => setStudentForm(prev => ({ ...prev, remainingLessonHours: e.target.value }))} />
-            </div>
             <div className="col-span-2">
               <Label className="text-xs text-gray-500">选择课程</Label>
               <Select value={studentForm.courseId} onValueChange={courseId => setStudentForm(prev => ({ ...prev, courseId }))}>
@@ -255,6 +284,35 @@ export function StudentDetailEditor({
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowStudentDialog(false)}>取消</Button>
             <Button size="sm" onClick={saveStudent} disabled={!studentForm.name.trim()}>保存</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(lessonHourAction)} onOpenChange={(open) => !open && setLessonHourAction(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{lessonHourAction === "add" ? "增加课时" : "使用课时"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-gray-500">数量</Label>
+              <Input
+                type="number"
+                min="1"
+                value={lessonHourForm.amount}
+                onChange={e => setLessonHourForm(prev => ({ ...prev, amount: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">备注</Label>
+              <Textarea
+                value={lessonHourForm.note}
+                onChange={e => setLessonHourForm(prev => ({ ...prev, note: e.target.value }))}
+                placeholder={lessonHourAction === "add" ? "如：购买 20 节课" : "如：补录已使用课时"}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setLessonHourAction(null)}>取消</Button>
+              <Button size="sm" onClick={saveLessonHourAction} disabled={(parseInt(lessonHourForm.amount) || 0) <= 0}>保存</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

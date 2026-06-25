@@ -15,6 +15,7 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
     include: {
       scheduleTimes: { orderBy: { orderIndex: "asc" } },
       studentCourses: {
+        where: { status: "active" },
         include: { student: true },
         orderBy: { createdAt: "desc" },
       },
@@ -27,12 +28,20 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
     orderBy: [{ parentId: "asc" }, { orderIndex: "asc" }],
   });
   const kpCount = knowledgePoints.length;
+  const activeStudentCourses = Array.from(
+    new Map(course.studentCourses.map((item) => [item.student.id, item])).values()
+  );
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
         <Link href="/courses"><Button variant="outline" size="sm">返回</Button></Link>
-        <DeleteCourseButton courseId={course.id} courseName={course.name} />
+        <div className="flex items-center gap-2">
+          <Link href={`/courses/${course.id}/edit`}>
+            <Button variant="outline" size="sm">编辑课程</Button>
+          </Link>
+          <DeleteCourseButton courseId={course.id} courseName={course.name} />
+        </div>
       </div>
       <PageHeader title={course.name} description={`${course.type === "fixed" ? "固定课程" : "定制课程"} · ${kpCount} 个知识点`} />
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
@@ -60,11 +69,11 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
           <Card>
             <CardHeader><CardTitle>选课学生</CardTitle></CardHeader>
             <CardContent>
-              {course.studentCourses.length === 0 ? (
+              {activeStudentCourses.length === 0 ? (
                 <p className="text-sm text-[#1a1a2e]/30">暂无学生选择该课程</p>
               ) : (
               <div className="space-y-2">
-                {course.studentCourses.map(({ student }) => (
+                {activeStudentCourses.map(({ student }) => (
                   <Link
                     key={student.id}
                     href={`/students/${student.id}`}

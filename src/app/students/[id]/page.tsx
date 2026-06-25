@@ -30,6 +30,11 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
         orderBy: { date: "desc" },
         include: { schedule: true },
       },
+      lessonHourLogs: {
+        orderBy: { createdAt: "desc" },
+        include: { attendance: { include: { schedule: true } } },
+        take: 50,
+      },
       communicationLogs: { orderBy: { date: "desc" }, take: 5 },
     },
   });
@@ -46,7 +51,14 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
   const presentCount = student.attendance.filter((a) => a.status === "present").length;
   const totalLessonHours = student.totalLessonHours || 0;
   const remainingLessonHours = student.remainingLessonHours || 0;
-  const courseNames = student.studentCourses.map((item) => item.course.name);
+  const activeStudentCourses = Array.from(
+    new Map(
+      student.studentCourses
+        .filter((item) => item.status === "active")
+        .map((item) => [item.courseId, item])
+    ).values()
+  );
+  const courseNames = activeStudentCourses.map((item) => item.course.name);
   const attendanceRate = attendanceCount > 0 ? Math.round((presentCount / attendanceCount) * 100) : 0;
   const avgScore = student.exams.length > 0
     ? Math.round(student.exams.reduce((sum, e) => sum + (e.score / e.totalScore) * 100, 0) / student.exams.length)
@@ -82,7 +94,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           totalLessonHours: student.totalLessonHours,
           remainingLessonHours: student.remainingLessonHours,
           notes: student.notes,
-          courseId: student.studentCourses.find((item) => item.status === "active")?.courseId || "none",
+          courseId: activeStudentCourses[0]?.courseId || "none",
         }}
         courses={courses.map((course) => ({
           id: course.id,
@@ -101,6 +113,53 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           date: log.date.toISOString(),
         }))}
       />
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>课时历史</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {student.lessonHourLogs.length === 0 ? (
+            <p className="text-sm text-[#1a1a2e]/30">暂无课时记录</p>
+          ) : (
+            <div className="space-y-3">
+              {student.lessonHourLogs.map((log) => {
+                const typeLabels: Record<string, string> = {
+                  manual_add: "增加课时",
+                  manual_use: "使用课时",
+                  attendance_present: "出勤扣课时",
+                  attendance_restore: "恢复课时",
+                };
+                return (
+                  <div key={log.id} className="rounded-lg border border-[#1a1a2e]/5 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold text-[#1a1a2e]">
+                        {typeLabels[log.type] || log.type}
+                        <span className={log.deltaRemainingHours >= 0 ? "ml-2 text-green-600" : "ml-2 text-[#e07a5f]"}>
+                          {log.deltaRemainingHours > 0 ? "+" : ""}{log.deltaRemainingHours}
+                        </span>
+                      </p>
+                      <span className="text-xs text-[#1a1a2e]/40">{log.createdAt.toLocaleString("zh-CN")}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-[#1a1a2e]/50">
+                      剩余课时 {log.beforeRemainingHours} → {log.afterRemainingHours}
+                      <span className="mx-2">·</span>
+                      总课时 {log.beforeTotalHours} → {log.afterTotalHours}
+                    </p>
+                    {log.attendance?.schedule && (
+                      <p className="mt-1 text-xs text-[#1a1a2e]/40">
+                        {log.attendance.date.toLocaleDateString("zh-CN")} · {log.attendance.schedule.startTime || "待定"}{log.attendance.schedule.endTime ? `-${log.attendance.schedule.endTime}` : ""}
+                      </p>
+                    )}
+                    {log.teacherFeedback && <p className="mt-1 text-xs text-[#1a1a2e]/60">{log.teacherFeedback}</p>}
+                    {log.note && <p className="mt-1 text-xs text-[#1a1a2e]/40">备注：{log.note}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="mt-6">
         <CardHeader>

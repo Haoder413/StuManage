@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireParent } from "@/lib/auth";
 import { getParentStudents } from "@/lib/parent-data";
 import { getStageLabel, isOverdue } from "@/lib/review-scheduler";
@@ -15,9 +16,12 @@ const statusStyles: Record<string, string> = {
   not_started: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
-export default async function ParentProgressPage() {
+type ReviewFilter = "all" | "pending" | "active" | "mastered" | "done";
+
+export default async function ParentProgressPage({ searchParams }: { searchParams?: { review?: string } }) {
   const user = await requireParent();
   const parentStudents = await getParentStudents(user);
+  const activeReviewFilter = getReviewFilter(searchParams?.review);
 
   return (
     <div>
@@ -34,6 +38,17 @@ export default async function ParentProgressPage() {
           const progressPct = totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0;
           const pendingWeakPoints = student.weakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
           const activeWeakPoints = student.weakPoints.filter((point) => point.status === "active");
+          const masteredWeakPoints = student.weakPoints.filter((point) => point.status !== "active");
+          const consolidatingWeakPoints = masteredWeakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+          const completedWeakPoints = masteredWeakPoints.filter((point) => !point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+          const reviewFilters = [
+            { key: "all" as const, label: "全部", count: student.weakPoints.length },
+            { key: "pending" as const, label: "待复习", count: pendingWeakPoints.length },
+            { key: "active" as const, label: "当前薄弱", count: activeWeakPoints.length },
+            { key: "mastered" as const, label: "巩固中", count: consolidatingWeakPoints.length },
+            { key: "done" as const, label: "已完成", count: completedWeakPoints.length },
+          ];
+          const filteredWeakPoints = filterWeakPoints(student.weakPoints, activeReviewFilter);
 
           return (
             <section key={student.id} className="space-y-4">
@@ -88,46 +103,65 @@ export default async function ParentProgressPage() {
                   <CardTitle>薄弱点复习</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-4 flex flex-wrap gap-2 text-xs font-semibold">
-                    <span className="rounded-full bg-orange-100 px-2.5 py-1 text-orange-600">当前薄弱 {activeWeakPoints.length}</span>
-                    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-600">待复习 {pendingWeakPoints.length}</span>
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600">全部 {student.weakPoints.length}</span>
+                  <div className="mb-4 flex w-fit flex-wrap gap-1 rounded-lg bg-gray-100/50 p-1">
+                    {reviewFilters.map((filter) => (
+                      <Link
+                        key={filter.key}
+                        href={`/parent/progress?review=${filter.key}`}
+                        className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                          activeReviewFilter === filter.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        {filter.label}
+                        {filter.count > 0 && <span className="ml-1 text-gray-400">{filter.count}</span>}
+                      </Link>
+                    ))}
                   </div>
 
-                  {student.weakPoints.length === 0 ? (
+                  {filteredWeakPoints.length === 0 ? (
                     <p className="py-8 text-center text-sm text-gray-400">暂无薄弱点记录</p>
                   ) : (
                     <div className="space-y-3">
-                      {student.weakPoints.map((point) => {
+                      {filteredWeakPoints.map((point) => {
                         const pendingReview = point.reviewSchedules.find((schedule) => schedule.status === "pending");
                         const completedCount = point.reviewSchedules.filter((schedule) => schedule.status === "completed").length;
+                        const lastReviewed = point.reviewSchedules
+                          .filter((schedule) => schedule.lastReviewedAt)
+                          .sort((a, b) => (b.lastReviewedAt?.getTime() || 0) - (a.lastReviewedAt?.getTime() || 0))[0];
+                        const isMastered = point.status !== "active";
+                        const isDone = isMastered && !pendingReview;
                         const overdue = pendingReview ? isOverdue(pendingReview.nextReviewAt) : false;
                         const statusLabel = point.status === "active" ? "当前薄弱" : pendingReview ? "巩固中" : "已完成";
 
                         return (
-                          <div key={point.id} className="rounded-xl border border-gray-100 p-4">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-semibold text-gray-900">{point.description}</p>
-                              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                point.status === "active"
-                                  ? "bg-orange-100 text-orange-600"
-                                  : pendingReview
-                                    ? "bg-blue-100 text-blue-600"
-                                    : "bg-green-100 text-green-700"
-                              }`}>
-                                {statusLabel}
-                              </span>
+                          <div key={point.id} className="rounded-xl border border-gray-100 p-4 transition-colors hover:border-gray-200">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-semibold text-gray-900">{point.description}</p>
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                    point.status === "active"
+                                      ? "bg-orange-100 text-orange-600"
+                                      : isDone
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-blue-100 text-blue-600"
+                                  }`}>
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs text-gray-400">
+                                  创建于 {point.createdAt.toLocaleDateString("zh-CN")}
+                                  {point.masteredAt && <span> · 掌握于 {point.masteredAt.toLocaleDateString("zh-CN")}</span>}
+                                  <span> · 已复习 {completedCount} 次</span>
+                                  <span> · 最近复习 {lastReviewed?.lastReviewedAt ? lastReviewed.lastReviewedAt.toLocaleDateString("zh-CN") : "-"}</span>
+                                </p>
+                                <p className={`mt-1 text-xs ${overdue ? "text-red-500" : pendingReview ? "text-blue-500" : "text-gray-400"}`}>
+                                  {pendingReview
+                                    ? `${getStageLabel(pendingReview.stage)} · ${overdue ? "已逾期" : pendingReview.nextReviewAt.toLocaleDateString("zh-CN")}`
+                                    : "暂无待复习"}
+                                </p>
+                              </div>
                             </div>
-                            <p className="mt-1 text-xs text-gray-400">
-                              创建于 {point.createdAt.toLocaleDateString("zh-CN")}
-                              {point.masteredAt && <span> · 掌握于 {point.masteredAt.toLocaleDateString("zh-CN")}</span>}
-                              <span> · 已复习 {completedCount} 次</span>
-                            </p>
-                            <p className={`mt-1 text-xs ${overdue ? "text-red-500" : pendingReview ? "text-blue-500" : "text-gray-400"}`}>
-                              {pendingReview
-                                ? `${getStageLabel(pendingReview.stage)} · ${overdue ? "已逾期" : pendingReview.nextReviewAt.toLocaleDateString("zh-CN")}`
-                                : "暂无待复习"}
-                            </p>
                           </div>
                         );
                       })}
@@ -141,6 +175,19 @@ export default async function ParentProgressPage() {
       </div>
     </div>
   );
+}
+
+function getReviewFilter(value?: string): ReviewFilter {
+  if (value === "pending" || value === "active" || value === "mastered" || value === "done") return value;
+  return "all";
+}
+
+function filterWeakPoints<T extends { status: string; reviewSchedules: { status: string }[] }>(weakPoints: T[], filter: ReviewFilter) {
+  if (filter === "pending") return weakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+  if (filter === "active") return weakPoints.filter((point) => point.status === "active");
+  if (filter === "mastered") return weakPoints.filter((point) => point.status !== "active" && point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+  if (filter === "done") return weakPoints.filter((point) => point.status !== "active" && !point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+  return weakPoints;
 }
 
 function StatCard({ title, value, tone }: { title: string; value: string; tone?: "green" | "blue" }) {

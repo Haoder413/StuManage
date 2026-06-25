@@ -25,6 +25,7 @@ model Workspace {
   reviewSchedules   ReviewSchedule[]
   schedules         Schedule[]
   attendance        Attendance[]
+  lessonHourLogs    LessonHourLog[]
   communicationLogs CommunicationLog[]
   weakPointTags     WeakPointTag[]
   lessonTags        LessonTag[]
@@ -124,6 +125,7 @@ model Student {
   weakPoints       WeakPoint[]
   schedules        Schedule[]
   attendance       Attendance[]
+  lessonHourLogs   LessonHourLog[]
   communicationLogs CommunicationLog[]
   parentLinks      ParentStudent[]
   learningLinks    LearningLink[]
@@ -271,6 +273,7 @@ model Schedule {
   startDate   DateTime?
   endDate     DateTime?
   notes       String?
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   workspace Workspace @relation(fields: [workspaceId], references: [id])
   student    Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -297,6 +300,30 @@ model Attendance {
   learningLink LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
   schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lessonHourLogs LessonHourLog[]
+}
+
+model LessonHourLog {
+  id                   String   @id @default(cuid())
+  workspaceId          String   @default("default-real")
+  studentId            String
+  attendanceId         String?
+  type                 String
+  deltaTotalHours      Int      @default(0)
+  deltaRemainingHours  Int      @default(0)
+  beforeTotalHours     Int
+  afterTotalHours      Int
+  beforeRemainingHours Int
+  afterRemainingHours  Int
+  note                 String?
+  teacherFeedback      String?
+  createdAt            DateTime @default(now())
+  workspace            Workspace @relation(fields: [workspaceId], references: [id])
+  student              Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attendance           Attendance? @relation(fields: [attendanceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, studentId, createdAt])
+  @@index([attendanceId])
 }
 
 model ParentScheduleItem {

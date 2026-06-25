@@ -5,7 +5,7 @@ import { requireTeacherLike } from "@/lib/auth";
 export async function GET() {
   const user = await requireTeacherLike();
   const schedules = await prisma.schedule.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: { workspaceId: user.workspaceId, isActive: true },
     include: {
       student: true,
       course: {

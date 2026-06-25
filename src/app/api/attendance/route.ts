@@ -3,6 +3,21 @@ import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 
+function formatTeacherFeedback(data: {
+  lessonFeedback?: string;
+  feedbackTags?: string[];
+  contentTags?: string[];
+  weakPointTags?: string[];
+}) {
+  const parts = [
+    data.lessonFeedback,
+    Array.isArray(data.feedbackTags) && data.feedbackTags.length > 0 ? `反馈：${data.feedbackTags.join("、")}` : "",
+    Array.isArray(data.contentTags) && data.contentTags.length > 0 ? `内容：${data.contentTags.join("、")}` : "",
+    Array.isArray(data.weakPointTags) && data.weakPointTags.length > 0 ? `薄弱点：${data.weakPointTags.join("、")}` : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join("；") : null;
+}
+
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
@@ -54,8 +69,10 @@ export async function POST(request: NextRequest) {
       weakPointTags: JSON.stringify(data.weakPointTags || []),
   };
 
-  const shouldUseLessonHour = data.status === "present" && existing?.status !== "present";
-  const shouldRestoreLessonHour = existing?.status === "present" && data.status !== "present";
+  const isPresentAttendance = data.status === "present";
+  const hasConsumedLessonHour = existing?.status === "present";
+  const shouldUseLessonHour = isPresentAttendance && !hasConsumedLessonHour;
+  const shouldRestoreLessonHour = hasConsumedLessonHour && !isPresentAttendance;
 
   const attendance = await prisma.$transaction(async (tx) => {
     const savedAttendance = existing
@@ -63,16 +80,66 @@ export async function POST(request: NextRequest) {
       : await tx.attendance.create({ data: payload });
 
     if (shouldUseLessonHour) {
+      const beforeStudent = await tx.student.findFirst({
+        where: { id: data.studentId, workspaceId: user.workspaceId },
+        select: { totalLessonHours: true, remainingLessonHours: true },
+      });
       await tx.student.updateMany({
         where: { id: data.studentId, workspaceId: user.workspaceId, remainingLessonHours: { gt: 0 } },
         data: { remainingLessonHours: { decrement: 1 } },
       });
+      const afterStudent = await tx.student.findFirst({
+        where: { id: data.studentId, workspaceId: user.workspaceId },
+        select: { totalLessonHours: true, remainingLessonHours: true },
+      });
+      if (beforeStudent && afterStudent && beforeStudent.remainingLessonHours !== afterStudent.remainingLessonHours) {
+        await tx.lessonHourLog.create({
+          data: {
+            workspaceId: user.workspaceId,
+            studentId: data.studentId,
+            attendanceId: savedAttendance.id,
+            type: "attendance_present",
+            deltaTotalHours: 0,
+            deltaRemainingHours: afterStudent.remainingLessonHours - beforeStudent.remainingLessonHours,
+            beforeTotalHours: beforeStudent.totalLessonHours,
+            afterTotalHours: afterStudent.totalLessonHours,
+            beforeRemainingHours: beforeStudent.remainingLessonHours,
+            afterRemainingHours: afterStudent.remainingLessonHours,
+            note: "出勤扣课时",
+            teacherFeedback: formatTeacherFeedback(data),
+          },
+        });
+      }
     }
 
     if (shouldRestoreLessonHour) {
+      const beforeStudent = await tx.student.findFirstOrThrow({
+        where: { id: data.studentId, workspaceId: user.workspaceId },
+        select: { totalLessonHours: true, remainingLessonHours: true },
+      });
       await tx.student.update({
         where: { id: data.studentId },
         data: { remainingLessonHours: { increment: 1 } },
+      });
+      const afterStudent = await tx.student.findFirstOrThrow({
+        where: { id: data.studentId, workspaceId: user.workspaceId },
+        select: { totalLessonHours: true, remainingLessonHours: true },
+      });
+      await tx.lessonHourLog.create({
+        data: {
+          workspaceId: user.workspaceId,
+          studentId: data.studentId,
+          attendanceId: savedAttendance.id,
+          type: "attendance_restore",
+          deltaTotalHours: 0,
+          deltaRemainingHours: afterStudent.remainingLessonHours - beforeStudent.remainingLessonHours,
+          beforeTotalHours: beforeStudent.totalLessonHours,
+          afterTotalHours: afterStudent.totalLessonHours,
+          beforeRemainingHours: beforeStudent.remainingLessonHours,
+          afterRemainingHours: afterStudent.remainingLessonHours,
+          note: "出勤改为非出勤，恢复课时",
+          teacherFeedback: formatTeacherFeedback(data),
+        },
       });
     }
 
