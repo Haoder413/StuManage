@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 
 const files = {
-  "src/app/parent/layout.tsx": ["ParentSidebar", "children"],
-  "src/components/parent-sidebar.tsx": ["孩子首页", "上课记录", "成绩记录", "学习进度", "/parent/lessons", "/parent/exams", "/parent/progress"],
+  "src/app/parent/layout.tsx": ["ParentSidebar", "children", "pb-20", "md:pb-6"],
+  "src/components/parent-sidebar.tsx": ["孩子首页", "时间管理", "成绩记录", "学习进度", "/parent/lessons", "/parent/exams", "/parent/progress", "ParentMobileNav", "hidden", "md:flex", "md:hidden"],
   "src/lib/parent-data.ts": ["getParentStudents", "parentId: user.id", "workspaceId: user.workspaceId"],
   "src/app/parent/page.tsx": ["孩子概览", "最近上课", "最近成绩", "课程安排"],
-  "src/app/parent/lessons/page.tsx": ["上课记录", "lessonContent", "lessonFeedback", "parseTags"],
+  "src/app/parent/lessons/page.tsx": ["时间管理", "ParentTimeManagementClient"],
+  "src/components/parent-time-management-client.tsx": ["lessonContent", "lessonFeedback", "TeacherTagList"],
   "src/app/parent/exams/page.tsx": ["成绩记录", "平均得分率", "totalScore"],
   "src/app/parent/progress/page.tsx": ["学习进度", "知识点进度", "薄弱点复习"],
 };

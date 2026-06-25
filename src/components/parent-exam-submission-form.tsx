@@ -19,7 +19,8 @@ export function ParentExamSubmissionForm({ learningLinks }: { learningLinks: Par
   async function submitExam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const link = learningLinks.find((item) => item.id === learningLinkId);
     if (!link) {
       setMessage("请选择学习关系");
@@ -40,7 +41,7 @@ export function ParentExamSubmissionForm({ learningLinks }: { learningLinks: Par
       }),
     });
     setMessage(response.ok ? "已提交，等待老师审核" : "提交失败，请稍后重试");
-    if (response.ok) event.currentTarget.reset();
+    if (response.ok) formElement.reset();
   }
 
   if (learningLinks.length === 0) {
