@@ -281,13 +281,18 @@ export async function GET(request: NextRequest) {
       notes: schedule.notes,
       attendance: schedule.attendance
         .filter((record) => record.studentId === link.studentId && record.learningLinkId === link.id)
-        .map((record) => ({
-          id: record.id,
-          date: formatCalendarDate(record.date),
-          status: record.status,
-          lessonContent: record.lessonContent,
-          lessonFeedback: record.lessonFeedback,
-        })),
+        .map((record) => {
+          const weakPointTags = parseTags(record.weakPointTags);
+          return {
+            id: record.id,
+            date: formatCalendarDate(record.date),
+            status: record.status,
+            lessonContent: record.lessonContent,
+            lessonFeedback: record.lessonFeedback,
+            weakPointTags,
+            weakPointText: weakPointTags.join("、"),
+          };
+        }),
     }));
   });
 

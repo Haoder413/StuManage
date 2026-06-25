@@ -138,6 +138,7 @@
         <view>{{item.teacherName}} · {{item.subject}}</view>
         <view wx:if="{{item.attendance.length > 0}}">内容：{{item.attendance[0].lessonContent || '待老师填写'}}</view>
         <view wx:if="{{item.attendance.length > 0}}">反馈：{{item.attendance[0].lessonFeedback || '待老师填写'}}</view>
+        <view wx:if="{{item.attendance.length > 0}}">薄弱点：{{item.attendance[0].weakPointText || '待老师填写'}}</view>
       </view>
       <view wx:if="{{item.notes}}" class="notes">{{item.notes}}</view>
       <view wx:if="{{item.kind === 'parent_item'}}" class="action-row">
