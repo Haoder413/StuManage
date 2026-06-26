@@ -36,16 +36,21 @@ export async function getMobileParentHome(user: MobileParentUser) {
     user: { id: user.id, name: user.name },
     students: parentStudents.map(({ student }) => {
       const approvedExams = student.exams.filter((exam) => exam.reviewStatus === "approved");
+      const seenCourseNames = new Set<string>();
+      const courses = student.studentCourses.reduce<{ id: string; name: string }[]>((items, item) => {
+        const courseName = item.course.name.trim();
+        if (seenCourseNames.has(courseName)) return items;
+        seenCourseNames.add(courseName);
+        items.push({ id: item.course.id, name: item.course.name });
+        return items;
+      }, []);
       return {
         id: student.id,
         name: student.name,
         grade: student.grade,
         remainingLessonHours: student.remainingLessonHours,
         totalLessonHours: student.totalLessonHours,
-        courses: student.studentCourses.map((item) => ({
-          id: item.course.id,
-          name: item.course.name,
-        })),
+        courses,
         weakPointCount: student.weakPoints.filter((point) => point.status === "active").length,
         latestLessons: student.attendance.slice(0, 3).map((item) => ({
           id: item.id,
