@@ -9,7 +9,7 @@ export default async function StudentsPage() {
   const user = await requireTeacherLike();
   const students = await prisma.student.findMany({
     where: { workspaceId: user.workspaceId },
-    include: { studentCourses: { include: { course: true } } },
+    include: { studentCourses: { where: { status: "active" }, include: { course: true } } },
     orderBy: { createdAt: "desc" },
   });
 

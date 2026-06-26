@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CourseOutlineEditor } from "./course-outline-editor";
 import { requireTeacherLike } from "@/lib/auth";
 import { DeleteCourseButton } from "./delete-course-button";
+import { CompleteCourseButton } from "./complete-course-button";
 
 export default async function CourseDetailPage({ params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
@@ -37,13 +38,27 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
       <div className="mb-4 flex items-center justify-between gap-3">
         <Link href="/courses"><Button variant="outline" size="sm">返回</Button></Link>
         <div className="flex items-center gap-2">
-          <Link href={`/courses/${course.id}/edit`}>
-            <Button variant="outline" size="sm">编辑课程</Button>
-          </Link>
+          {course.status !== "completed" && (
+            <Link href={`/courses/${course.id}/edit`}>
+              <Button variant="outline" size="sm">编辑课程</Button>
+            </Link>
+          )}
+          <CompleteCourseButton
+            courseId={course.id}
+            disabled={course.status === "completed"}
+            students={activeStudentCourses.map((item) => ({
+              id: item.id,
+              studentName: item.student.name,
+              studentGrade: item.student.grade,
+            }))}
+          />
           <DeleteCourseButton courseId={course.id} courseName={course.name} />
         </div>
       </div>
-      <PageHeader title={course.name} description={`${course.type === "fixed" ? "固定课程" : "定制课程"} · ${kpCount} 个知识点`} />
+      <PageHeader
+        title={course.name}
+        description={`${course.type === "fixed" ? "固定课程" : "定制课程"} · ${course.status === "completed" ? "已结课" : "进行中"} · ${kpCount} 个知识点`}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <Card>
           <CardHeader><CardTitle>知识点大纲</CardTitle></CardHeader>

@@ -40,12 +40,6 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
   });
 
   if (!student) notFound();
-  const courses = await prisma.course.findMany({
-    where: { workspaceId: user.workspaceId },
-    include: { scheduleTimes: { orderBy: { orderIndex: "asc" } } },
-    orderBy: { createdAt: "desc" },
-  });
-
   const weakPointCount = student.weakPoints.length;
   const attendanceCount = student.attendance.length;
   const presentCount = student.attendance.filter((a) => a.status === "present").length;
@@ -94,18 +88,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           totalLessonHours: student.totalLessonHours,
           remainingLessonHours: student.remainingLessonHours,
           notes: student.notes,
-          courseId: activeStudentCourses[0]?.courseId || "none",
         }}
-        courses={courses.map((course) => ({
-          id: course.id,
-          name: course.name,
-          type: course.type,
-          scheduleTimes: course.scheduleTimes.map((time) => ({
-            dayOfWeek: time.dayOfWeek,
-            startTime: time.startTime,
-            endTime: time.endTime,
-          })),
-        }))}
         initialLogs={student.communicationLogs.map((log) => ({
           id: log.id,
           method: log.method,

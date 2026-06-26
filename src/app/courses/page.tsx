@@ -39,8 +39,8 @@ export default async function CoursesPage() {
                     <h3 className="text-base font-bold text-gray-900">{c.name}</h3>
                     <p className="text-xs text-gray-400 mt-0.5">{c.description || "暂无课程说明"}</p>
                   </div>
-                  <Badge variant={c.type === "fixed" ? "default" : "secondary"} className="whitespace-nowrap">
-                    {c.type === "fixed" ? "固定课程" : "定制课程"}
+                  <Badge variant={c.status === "completed" ? "secondary" : c.type === "fixed" ? "default" : "secondary"} className="whitespace-nowrap">
+                    {c.status === "completed" ? "已结课" : c.type === "fixed" ? "固定课程" : "定制课程"}
                   </Badge>
                 </div>
                 <div className="mb-4 min-h-8 text-xs text-gray-400">

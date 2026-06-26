@@ -17,6 +17,7 @@ export default async function EditCoursePage({ params }: { params: { id: string 
   });
 
   if (!course) notFound();
+  if (course.status === "completed") notFound();
 
   const students = await prisma.student.findMany({
     where: { workspaceId: user.workspaceId },
