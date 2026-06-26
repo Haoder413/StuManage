@@ -29,6 +29,10 @@ function attendanceStatusLabel(status: string) {
   return status;
 }
 
+function normalizeCourseName(name: string) {
+  return name.trim().replace(/\s+/g, " ");
+}
+
 export async function getMobileParentHome(user: MobileParentUser) {
   const parentStudents = await getParentStudents(user);
 
@@ -37,13 +41,15 @@ export async function getMobileParentHome(user: MobileParentUser) {
     students: parentStudents.map(({ student }) => {
       const approvedExams = student.exams.filter((exam) => exam.reviewStatus === "approved");
       const seenCourseNames = new Set<string>();
-      const courses = student.studentCourses.reduce<{ id: string; name: string }[]>((items, item) => {
-        const courseName = item.course.name.trim();
-        if (seenCourseNames.has(courseName)) return items;
-        seenCourseNames.add(courseName);
-        items.push({ id: item.course.id, name: item.course.name });
-        return items;
-      }, []);
+      const courses = student.studentCourses
+        .filter((item) => item.status === "active")
+        .reduce<{ id: string; name: string }[]>((items, item) => {
+          const courseName = normalizeCourseName(item.course.name);
+          if (seenCourseNames.has(courseName)) return items;
+          seenCourseNames.add(courseName);
+          items.push({ id: item.course.id, name: courseName || item.course.name });
+          return items;
+        }, []);
       return {
         id: student.id,
         name: student.name,
