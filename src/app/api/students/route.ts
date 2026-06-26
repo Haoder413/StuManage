@@ -36,14 +36,23 @@ async function syncStudentCourseAndSchedules(
   });
   if (!course) return;
 
-  await tx.studentCourse.create({
-    data: {
-      workspaceId,
-      studentId,
-      courseId,
-      status: "active",
-    },
+  const inactiveCourseLink = await tx.studentCourse.findFirst({
+    where: { workspaceId, studentId, courseId },
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
   });
+  if (inactiveCourseLink) {
+    await tx.studentCourse.update({ where: { id: inactiveCourseLink.id }, data: { status: "active" } });
+  } else {
+    await tx.studentCourse.create({
+      data: {
+        workspaceId,
+        studentId,
+        courseId,
+        status: "active",
+      },
+    });
+  }
 
   if (course.type === "custom" && course.scheduleTimes.length > 0) {
     await tx.schedule.createMany({
