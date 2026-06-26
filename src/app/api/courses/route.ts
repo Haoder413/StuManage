@@ -47,11 +47,6 @@ async function syncCourseStudents(
   });
 
   for (const studentId of validStudentIds) {
-    await tx.studentCourse.updateMany({
-      where: { workspaceId, studentId, status: "active", courseId: { not: courseId } },
-      data: { status: "inactive" },
-    });
-
     const activeCourseLink = await tx.studentCourse.findFirst({
       where: { workspaceId, courseId, studentId, status: "active" },
       select: { id: true },
@@ -64,7 +59,10 @@ async function syncCourseStudents(
       orderBy: { createdAt: "desc" },
     });
     if (inactiveCourseLink) {
-      await tx.studentCourse.update({ where: { id: inactiveCourseLink.id }, data: { status: "active" } });
+      await tx.studentCourse.update({
+        where: { id: inactiveCourseLink.id },
+        data: { status: "active", endDate: null, endEvaluation: null },
+      });
     } else {
       await tx.studentCourse.create({ data: { workspaceId, courseId, studentId, status: "active" } });
     }
@@ -176,14 +174,6 @@ export async function POST(request: NextRequest) {
       const validStudentIds = students.map((student) => student.id);
 
       if (validStudentIds.length > 0) {
-        await tx.studentCourse.updateMany({
-          where: { workspaceId: user.workspaceId, studentId: { in: validStudentIds }, status: "active" },
-          data: { status: "inactive" },
-        });
-        await tx.schedule.updateMany({
-          where: { workspaceId: user.workspaceId, studentId: { in: validStudentIds }, courseId: { not: null } },
-          data: { isActive: false },
-        });
         await tx.studentCourse.createMany({
           data: validStudentIds.map((studentId) => ({
             workspaceId: user.workspaceId,
@@ -246,9 +236,10 @@ export async function PATCH(request: NextRequest) {
   const course = await prisma.$transaction(async (tx) => {
     const existing = await tx.course.findFirst({
       where: { id: data.id, workspaceId: user.workspaceId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!existing) return null;
+    if (existing.status === "completed") return "completed";
 
     await tx.course.update({
       where: { id: existing.id },
@@ -275,6 +266,65 @@ export async function PATCH(request: NextRequest) {
       include: {
         scheduleTimes: { orderBy: { orderIndex: "asc" } },
         studentCourses: { where: { status: "active" }, include: { student: true } },
+      },
+    });
+  });
+
+  if (course === "completed") return NextResponse.json({ error: "course completed" }, { status: 400 });
+  if (!course) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json(course);
+}
+
+export async function PUT(request: NextRequest) {
+  const user = await requireTeacherLike();
+  const data = await request.json();
+  if (data.action !== "complete") return NextResponse.json({ error: "invalid action" }, { status: 400 });
+  if (!data.id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+
+  const evaluations: { studentCourseId: string; evaluation: string }[] = Array.isArray(data.evaluations)
+    ? data.evaluations
+        .filter((item: { studentCourseId?: unknown; evaluation?: unknown }) => typeof item.studentCourseId === "string")
+        .map((item: { studentCourseId?: string; evaluation?: unknown }) => ({
+          studentCourseId: item.studentCourseId as string,
+          evaluation: typeof item.evaluation === "string" ? item.evaluation.trim() : "",
+        }))
+    : [];
+  const evaluationByStudentCourseId = new Map(evaluations.map((item) => [item.studentCourseId, item.evaluation]));
+  const endedAt = new Date();
+
+  const course = await prisma.$transaction(async (tx) => {
+    const existing = await tx.course.findFirst({
+      where: { id: data.id, workspaceId: user.workspaceId },
+      include: { studentCourses: { where: { status: "active" }, select: { id: true } } },
+    });
+    if (!existing) return null;
+
+    await tx.course.update({
+      where: { id: existing.id },
+      data: { status: "completed", endedAt },
+    });
+
+    for (const studentCourse of existing.studentCourses) {
+      await tx.studentCourse.update({
+        where: { id: studentCourse.id },
+        data: {
+          status: "completed",
+          endDate: endedAt,
+          endEvaluation: evaluationByStudentCourseId.get(studentCourse.id) || null,
+        },
+      });
+    }
+
+    await tx.schedule.updateMany({
+      where: { workspaceId: user.workspaceId, courseId: existing.id, isActive: true },
+      data: { isActive: false },
+    });
+
+    return tx.course.findFirst({
+      where: { id: existing.id, workspaceId: user.workspaceId },
+      include: {
+        scheduleTimes: { orderBy: { orderIndex: "asc" } },
+        studentCourses: { where: { status: "completed" }, include: { student: true } },
       },
     });
   });

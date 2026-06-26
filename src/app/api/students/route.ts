@@ -11,24 +11,13 @@ async function syncStudentCourseAndSchedules(
   studentId: string,
   courseId: string | null | undefined
 ) {
-  const currentActiveCourse = await tx.studentCourse.findFirst({
-    where: { workspaceId, studentId, status: "active" },
-    select: { courseId: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (currentActiveCourse?.courseId === courseId) return;
-
-  await tx.studentCourse.updateMany({
-    where: { workspaceId, studentId, status: "active" },
-    data: { status: "inactive" },
-  });
-
-  await tx.schedule.deleteMany({
-    where: { workspaceId, studentId, courseId: { not: null } },
-  });
-
   if (!courseId) return;
+
+  const activeCourseLink = await tx.studentCourse.findFirst({
+    where: { workspaceId, studentId, courseId, status: "active" },
+    select: { id: true },
+  });
+  if (activeCourseLink) return;
 
   const course = await tx.course.findFirst({
     where: { id: courseId, workspaceId },
@@ -42,7 +31,10 @@ async function syncStudentCourseAndSchedules(
     orderBy: { createdAt: "desc" },
   });
   if (inactiveCourseLink) {
-    await tx.studentCourse.update({ where: { id: inactiveCourseLink.id }, data: { status: "active" } });
+    await tx.studentCourse.update({
+      where: { id: inactiveCourseLink.id },
+      data: { status: "active", endDate: null, endEvaluation: null },
+    });
   } else {
     await tx.studentCourse.create({
       data: {

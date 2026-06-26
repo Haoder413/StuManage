@@ -10,7 +10,7 @@ export async function getParentStudents(user: { id: string; workspaceId: string 
     include: {
       student: {
         include: {
-          studentCourses: { include: { course: true } },
+          studentCourses: { where: { status: "active" }, include: { course: true } },
           attendance: {
             orderBy: { date: "desc" },
             include: { schedule: true },
@@ -49,7 +49,7 @@ export async function getParentLearningData(
         include: {
           student: {
             include: {
-              studentCourses: { include: { course: true } },
+              studentCourses: { where: { status: "active" }, include: { course: true } },
               attendance: {
                 where: { learningLinkId: activeSelectedLinkId },
                 orderBy: { date: "desc" },

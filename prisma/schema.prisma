@@ -138,6 +138,8 @@ model Course {
   name            String
   description     String?
   type            String   @default("fixed")
+  status          String   @default("active")
+  endedAt         DateTime?
   defaultCapacity Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -170,6 +172,8 @@ model StudentCourse {
   studentId     String
   courseId      String
   startDate     DateTime @default(now())
+  endDate       DateTime?
+  endEvaluation String?
   status        String   @default("active")
   customContent String?
   createdAt     DateTime @default(now())
