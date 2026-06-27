@@ -11,6 +11,7 @@ model Workspace {
   id                String   @id
   name              String
   kind              String   @default("real")
+  gradeRolloverYear Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   users             User[]

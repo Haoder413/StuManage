@@ -4,9 +4,11 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { requireTeacherLike } from "@/lib/auth";
 import { DeleteStudentButton } from "@/components/delete-student-button";
+import { rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
 
 export default async function StudentsPage() {
   const user = await requireTeacherLike();
+  await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const students = await prisma.student.findMany({
     where: { workspaceId: user.workspaceId },
     include: { studentCourses: { where: { status: "active" }, include: { course: true } } },
@@ -34,8 +36,8 @@ export default async function StudentsPage() {
                     <h3 className="text-base font-bold text-gray-900">{s.name}</h3>
                     <p className="text-xs text-gray-400 mt-0.5">{s.grade || "未设置年级"}</p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Link className="text-xs px-2 py-1 rounded-full bg-[#e07a5f]/10 text-[#e07a5f] whitespace-nowrap" href={`/students/${s.id}`}>
+                  <div className="flex shrink-0 items-center justify-end gap-2">
+                    <Link className="inline-flex items-center justify-center h-9 px-3 rounded-md bg-[#e07a5f]/10 text-xs font-medium text-[#e07a5f] whitespace-nowrap" href={`/students/${s.id}`}>
                       查看详情
                     </Link>
                     <DeleteStudentButton studentId={s.id} studentName={s.name} />

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StudentDetailEditor } from "./student-detail-editor";
 import { requireTeacherLike } from "@/lib/auth";
+import { rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
 
 function parseTags(value: string | null) {
   if (!value) return [];
@@ -20,6 +21,7 @@ function parseTags(value: string | null) {
 
 export default async function StudentDetailPage({ params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
+  await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const student = await prisma.student.findFirst({
     where: { id: params.id, workspaceId: user.workspaceId },
     include: {

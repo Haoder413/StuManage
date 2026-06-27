@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { isGraduatedGrade, STUDENT_GRADE_OPTIONS } from "@/lib/student-grades";
 
 interface StudentInfo {
   id: string;
@@ -225,7 +226,18 @@ export function StudentDetailEditor({
             </div>
             <div>
               <Label className="text-xs text-gray-500">年级</Label>
-              <Input value={studentForm.grade} onChange={e => setStudentForm(prev => ({ ...prev, grade: e.target.value }))} />
+              <Select value={studentForm.grade || "none"} onValueChange={grade => setStudentForm(prev => ({ ...prev, grade: grade === "none" ? "" : grade }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">未设置年级</SelectItem>
+                  {isGraduatedGrade(studentForm.grade) && (
+                    <SelectItem value={studentForm.grade}>{studentForm.grade}</SelectItem>
+                  )}
+                  {STUDENT_GRADE_OPTIONS.map((grade) => (
+                    <SelectItem key={grade} value={grade}>{grade}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs text-gray-500">家长联系方式</Label>

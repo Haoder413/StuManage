@@ -4,12 +4,14 @@ import { readFileSync } from "node:fs";
 const page = readFileSync("src/app/students/new/page.tsx", "utf8");
 const route = readFileSync("src/app/api/students/route.ts", "utf8");
 
-assert.match(page, /fetch\("\/api\/courses"\)/, "new student page should load courses");
-assert.match(page, /name="courseId"/, "new student page should submit selected course");
-assert.match(page, /name="dayOfWeek"/, "new student page should submit fixed weekday");
-assert.match(page, /name="startTime"/, "new student page should submit fixed start time");
-assert.match(page, /name="endTime"/, "new student page should submit fixed end time");
+assert.doesNotMatch(page, /fetch\("\/api\/courses"\)/, "new student page should not load courses");
+assert.doesNotMatch(page, /选择课程/, "new student page should not show course selection");
+assert.doesNotMatch(page, /courseId/, "new student page should not submit selected course");
+assert.doesNotMatch(page, /name="dayOfWeek"/, "new student page should not submit fixed weekday");
+assert.doesNotMatch(page, /name="startTime"/, "new student page should not submit fixed start time");
+assert.doesNotMatch(page, /name="endTime"/, "new student page should not submit fixed end time");
 
-assert.match(route, /studentCourses:\s*{/s, "student API should create a student-course link");
-assert.match(route, /schedules:\s*hasSchedule \? {/s, "student API should create a fixed schedule");
+assert.match(route, /syncStudentCourseAndSchedules/, "student API may keep optional course sync compatibility for other flows");
 assert.match(route, /type:\s*"fixed"/, "created schedule should be fixed");
+
+console.log("New student form no longer includes course selection.");
