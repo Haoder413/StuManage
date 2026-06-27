@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
+import { normalizeStudentGrade, rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
 
 const LESSON_HOUR_ACTIONS = ["add", "use"] as const;
 
@@ -63,6 +64,7 @@ async function syncStudentCourseAndSchedules(
 
 export async function GET() {
   const user = await requireTeacherLike();
+  await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const students = await prisma.student.findMany({
     where: { workspaceId: user.workspaceId },
     include: {
@@ -76,6 +78,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
+  await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const data = await request.json();
   const hasCourse = Boolean(data.courseId);
   const legacyHasSchedule = hasCourse && data.dayOfWeek !== undefined && data.startTime && data.endTime;
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
       data: {
         workspaceId: user.workspaceId,
         name: data.name,
-        grade: data.grade || null,
+        grade: normalizeStudentGrade(data.grade),
         parentContact: data.parentContact || null,
         enrollmentDate: new Date(data.enrollmentDate),
         lessonFrequency: data.lessonFrequency || null,
@@ -130,6 +133,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const user = await requireTeacherLike();
+  await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const data = await request.json();
   if (!data.id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
@@ -138,7 +142,7 @@ export async function PATCH(request: NextRequest) {
       where: { id: data.id, workspaceId: user.workspaceId },
       data: {
         name: data.name,
-        grade: data.grade || null,
+        grade: normalizeStudentGrade(data.grade),
         parentContact: data.parentContact || null,
         enrollmentDate: data.enrollmentDate ? new Date(data.enrollmentDate) : undefined,
         lessonFrequency: data.lessonFrequency || null,

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
-import { createSession, ROLE_COOKIE } from "@/lib/auth";
+import { createSession } from "@/lib/auth";
 
 function getCookieSecure(request: NextRequest) {
   const forwardedProto = request.headers.get("x-forwarded-proto");
@@ -31,11 +30,6 @@ export async function POST(request: NextRequest) {
 
   const cookieSecure = getCookieSecure(request);
   await createSession(user.id, cookieSecure);
-  cookies().set(ROLE_COOKIE, user.role, {
-    sameSite: "lax",
-    secure: cookieSecure,
-    path: "/",
-  });
   const redirectTo = user.role === "parent" ? "/parent" : "/";
   return NextResponse.json({ redirectTo });
 }

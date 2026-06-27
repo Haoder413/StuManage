@@ -31,8 +31,6 @@ export function Sidebar({ initialRole }: { initialRole: string | null }) {
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     if (saved === "true") setCollapsed(true);
-    const cookieRole = document.cookie.split("; ").find((item) => item.startsWith("student_management_role="))?.split("=")[1] || null;
-    if (cookieRole) setRole(cookieRole);
     fetch("/api/account/me")
       .then((res) => res.ok ? res.json() : null)
       .then((data) => {
