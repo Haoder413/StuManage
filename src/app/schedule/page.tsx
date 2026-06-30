@@ -57,6 +57,14 @@ interface LessonVideo {
   size: number;
   createdAt: string;
 }
+type UploadLessonVideoResult = LessonVideo & {
+  storageProvider?: string;
+  vodFileId?: string | null;
+  vodMediaUrl?: string | null;
+  vodSubAppId?: number | null;
+  cosObjectKey?: string | null;
+  playbackDomain?: string | null;
+};
 interface Student { id: string; name: string; grade: string | null; }
 interface LessonTag { id: string; name: string; type: "content" | "feedback"; }
 interface WeakPointTag { id: string; name: string; category: string | null; }
@@ -266,6 +274,7 @@ export default function SchedulePage() {
   const [reviewVideoFile, setReviewVideoFile] = useState<File | null>(null);
   const [reviewVideoError, setReviewVideoError] = useState("");
   const [savingReview, setSavingReview] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [editingAttendanceKey, setEditingAttendanceKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -427,6 +436,7 @@ export default function SchedulePage() {
     if (!pendingAttendance) return;
     setSavingReview(true);
     setReviewVideoError("");
+    setUploadProgress(0);
     const savedAttendance = await handleAttendance(
       pendingAttendance.scheduleId,
       pendingAttendance.studentId,
@@ -449,32 +459,29 @@ export default function SchedulePage() {
       const formData = new FormData();
       formData.append("file", reviewVideoFile);
       formData.append("title", reviewVideoFile.name);
-      const videoResponse = await fetch(`/api/attendance/${savedAttendance.id}/video`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!videoResponse.ok) {
+      try {
+        const lessonVideo = await uploadLessonVideoWithProgress(
+          `/api/attendance/${savedAttendance.id}/video`,
+          formData,
+          setUploadProgress
+        );
+        setSchedules(prev => prev.map(s => {
+          if (s.id !== pendingAttendance.scheduleId) return s;
+          return {
+            ...s,
+            attendance: s.attendance.map(a => a.id === savedAttendance.id ? { ...a, lessonVideo } : a),
+          };
+        }));
+      } catch (error) {
         setSavingReview(false);
-        let errorCode = "";
-        try {
-          const errorResult = await videoResponse.json();
-          errorCode = String(errorResult.error || "");
-        } catch {}
-        setReviewVideoError(videoResponse.status === 413
-          ? errorCode === "lesson_video_too_large"
+        const uploadError = error as { status?: number; code?: string };
+        setReviewVideoError(uploadError.status === 413
+          ? uploadError.code === "lesson_video_too_large"
             ? "视频超过系统上传上限，请压缩后重试，或调整服务器 LESSON_VIDEO_MAX_MB 配置"
             : "视频上传失败：服务器上传上限不足，请先调整 Nginx 上传大小后重试"
           : "视频上传失败，请确认格式和大小后重试");
         return;
       }
-      const lessonVideo = await videoResponse.json();
-      setSchedules(prev => prev.map(s => {
-        if (s.id !== pendingAttendance.scheduleId) return s;
-        return {
-          ...s,
-          attendance: s.attendance.map(a => a.id === savedAttendance.id ? { ...a, lessonVideo } : a),
-        };
-      }));
     }
     const weakPointDescriptions = Array.from(new Set(selectedWeakPointTags.map(item => item.trim()).filter(Boolean)));
     if (weakPointDescriptions.length > 0) {
@@ -492,7 +499,37 @@ export default function SchedulePage() {
     setReviewLessonVideo(null);
     setReviewAttendanceId(null);
     setReviewVideoFile(null);
+    setUploadProgress(0);
     setSavingReview(false);
+  }
+
+  function uploadLessonVideoWithProgress(
+    url: string,
+    formData: FormData,
+    onProgress: (progress: number) => void
+  ) {
+    return new Promise<UploadLessonVideoResult>((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open("POST", url);
+      request.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+      };
+      request.onload = () => {
+        let result: any = null;
+        try {
+          result = request.responseText ? JSON.parse(request.responseText) : null;
+        } catch {}
+        if (request.status >= 200 && request.status < 300 && result) {
+          onProgress(100);
+          resolve(result);
+          return;
+        }
+        reject({ status: request.status, code: result?.error || "" });
+      };
+      request.onerror = () => reject({ status: 0, code: "network_error" });
+      request.send(formData);
+    });
   }
 
   async function deleteReviewLessonVideo() {
@@ -943,21 +980,43 @@ export default function SchedulePage() {
                 type="file"
                 accept="video/mp4,video/webm,video/quicktime,video/x-m4v"
                 className="mt-2"
+                disabled={savingReview}
                 onChange={(event) => {
                   setReviewVideoFile(event.target.files?.[0] || null);
                   setReviewVideoError("");
+                  setUploadProgress(0);
                 }}
               />
               <p className="mt-1 text-[11px] text-gray-400">
                 支持 mp4、webm、mov、m4v。选择新文件后，保存时会上传{reviewLessonVideo ? "并替换当前视频" : ""}。
               </p>
               {reviewVideoFile && <p className="mt-1 text-[11px] text-blue-500">已选择：{reviewVideoFile.name}</p>}
+              {savingReview && reviewVideoFile && (
+                <div className="mt-3 space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-blue-500">
+                    <span>{uploadProgress > 0 ? "正在上传" : "准备上传"}</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-blue-50"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={uploadProgress}
+                  >
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all duration-200"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               {reviewVideoError && <p className="mt-1 text-[11px] text-red-500">{reviewVideoError}</p>}
             </div>
             <div className="sticky bottom-0 flex justify-end gap-2 border-t border-gray-100 bg-background pt-3">
-              <Button variant="outline" size="sm" onClick={() => setShowReviewForm(false)}>取消</Button>
+              <Button variant="outline" size="sm" onClick={() => setShowReviewForm(false)} disabled={savingReview}>取消</Button>
               <Button size="sm" onClick={submitAttendanceReview} disabled={savingReview}>
-                {savingReview ? "保存中..." : "保存考勤与反馈"}
+                {savingReview ? reviewVideoFile ? `上传中 ${uploadProgress}%` : "保存中..." : "保存考勤与反馈"}
               </Button>
             </div>
           </div>
