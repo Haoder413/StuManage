@@ -17,6 +17,7 @@ type Account = {
   workspaceName: string;
   parentStudentIds: string[];
   learningLinks: string[];
+  isCurrent: boolean;
 };
 
 type WorkspaceOption = {
@@ -36,6 +37,7 @@ type CourseOption = {
   id: string;
   workspaceId: string;
   name: string;
+  studentIds: string[];
 };
 
 type TeacherOption = {
@@ -49,6 +51,7 @@ type ParentOption = {
   id: string;
   workspaceId: string;
   name: string;
+  parentStudentIds: string[];
 };
 
 type LearningLinkOption = {
@@ -122,17 +125,33 @@ export function AccountManager({
     [students, selectedLearningLink.workspaceId]
   );
   const linkTeachers = useMemo(
-    () => teachers.filter((teacher) => teacher.workspaceId === selectedLearningLink.workspaceId),
-    [teachers, selectedLearningLink.workspaceId]
+    () => users
+      .filter((user) => user.role === "teacher" && user.workspaceId === selectedLearningLink.workspaceId)
+      .map((user) => ({ id: user.id, workspaceId: user.workspaceId, name: user.name, teachingSubject: user.teachingSubject })),
+    [users, selectedLearningLink.workspaceId]
   );
   const linkParents = useMemo(
-    () => parents.filter((parent) => parent.workspaceId === selectedLearningLink.workspaceId),
-    [parents, selectedLearningLink.workspaceId]
+    () => users
+      .filter((user) => user.role === "parent" && user.workspaceId === selectedLearningLink.workspaceId)
+      .map((user) => ({ id: user.id, workspaceId: user.workspaceId, name: user.name, parentStudentIds: user.parentStudentIds })),
+    [users, selectedLearningLink.workspaceId]
   );
   const linkCourses = useMemo(
     () => courses.filter((course) => course.workspaceId === selectedLearningLink.workspaceId),
     [courses, selectedLearningLink.workspaceId]
   );
+  const selectedParent = useMemo(
+    () => parents.find((parent) => parent.id === selectedLearningLink.parentId),
+    [parents, selectedLearningLink.parentId]
+  );
+  const filteredLinkStudents = useMemo(() => {
+    if (!selectedLearningLink.parentId || !selectedParent) return [];
+    return linkStudents.filter((student) => selectedParent.parentStudentIds.includes(student.id));
+  }, [linkStudents, selectedLearningLink.parentId, selectedParent]);
+  const filteredLinkCourses = useMemo(() => {
+    if (!selectedLearningLink.studentId) return linkCourses;
+    return linkCourses.filter((course) => course.studentIds.includes(selectedLearningLink.studentId));
+  }, [linkCourses, selectedLearningLink.studentId]);
 
   function editAccount(account: Account) {
     setMessage("");
@@ -188,6 +207,7 @@ export function AccountManager({
       workspaceName,
       parentStudentIds: saved.parentStudents?.map((item: { studentId: string }) => item.studentId) || [],
       learningLinks: saved.learningLinksAsParent?.map((item: { id: string }) => item.id) || [],
+      isCurrent: form.id ? users.find((item) => item.id === form.id)?.isCurrent || false : false,
     };
     setUsers((current) => isEditing
       ? current.map((item) => item.id === normalized.id ? normalized : item)
@@ -195,6 +215,30 @@ export function AccountManager({
     );
     setForm(blankForm);
     setMessage("已保存账号");
+  }
+
+  async function deleteAccount() {
+    if (!form.id) return;
+    const account = users.find((item) => item.id === form.id);
+    if (account?.isCurrent) {
+      setMessage("不能删除当前登录账号");
+      return;
+    }
+    if (!window.confirm(`确认删除账号“${form.name || account?.name || "未命名"}”？删除后该账号将无法登录。`)) return;
+
+    const response = await fetch(`/api/accounts?id=${encodeURIComponent(form.id)}`, { method: "DELETE" });
+    const result = await response.json();
+    if (!response.ok) {
+      setMessage(result.error === "account has historical records and cannot be deleted"
+        ? "该账号已有历史业务记录，暂不能删除"
+        : result.error || "删除账号失败"
+      );
+      return;
+    }
+    setUsers((current) => current.filter((item) => item.id !== form.id));
+    setLearningLinks((current) => current.filter((link) => link.parentId !== form.id && link.teacherId !== form.id));
+    setForm(blankForm);
+    setMessage("已删除账号");
   }
 
   function editLearningLink(link: LearningLinkOption) {
@@ -217,6 +261,23 @@ export function AccountManager({
       ...current,
       teacherId,
       subject: teacher?.teachingSubject || current.subject || "数学",
+    }));
+  }
+
+  function updateParentForLink(parentId: string) {
+    setSelectedLearningLink((current) => ({
+      ...current,
+      parentId,
+      studentId: "",
+      courseId: "",
+    }));
+  }
+
+  function updateStudentForLink(studentId: string) {
+    setSelectedLearningLink((current) => ({
+      ...current,
+      studentId,
+      courseId: "",
     }));
   }
 
@@ -372,14 +433,25 @@ export function AccountManager({
 
           <div className="flex gap-2">
             <Button onClick={saveAccount} type="button">保存账号</Button>
+            {isEditing && (
+              <Button onClick={deleteAccount} type="button" variant="outline" disabled={users.find((item) => item.id === form.id)?.isCurrent}>
+                删除账号
+              </Button>
+            )}
             <Button onClick={() => setForm(blankForm)} type="button" variant="outline">取消</Button>
           </div>
+          {isEditing && users.find((item) => item.id === form.id)?.isCurrent && (
+            <p className="text-xs text-slate-400">不能删除当前登录账号。</p>
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle>学习关系</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          <p className="rounded-md bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700">
+            学习关系决定家长端和小程序里家长能看到哪个孩子、老师、科目和课程；它不是登录账号本身。创建家长账号时，先在账号里勾选“可见学生”，再在这里为这些学生绑定对应老师和课程。
+          </p>
           <div className="space-y-2">
             {learningLinks.length === 0 ? (
               <p className="text-sm text-slate-400">暂无学习关系</p>
@@ -412,7 +484,7 @@ export function AccountManager({
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700">家长</label>
-              <Select value={selectedLearningLink.parentId} onValueChange={(parentId) => setSelectedLearningLink({ ...selectedLearningLink, parentId })}>
+              <Select value={selectedLearningLink.parentId} onValueChange={updateParentForLink}>
                 <SelectTrigger><SelectValue placeholder="选择家长" /></SelectTrigger>
                 <SelectContent>
                   {linkParents.map((parent) => (
@@ -423,14 +495,17 @@ export function AccountManager({
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700">学生</label>
-              <Select value={selectedLearningLink.studentId} onValueChange={(studentId) => setSelectedLearningLink({ ...selectedLearningLink, studentId })}>
+              <Select value={selectedLearningLink.studentId} onValueChange={updateStudentForLink} disabled={!selectedLearningLink.parentId}>
                 <SelectTrigger><SelectValue placeholder="选择学生" /></SelectTrigger>
                 <SelectContent>
-                  {linkStudents.map((student) => (
+                  {filteredLinkStudents.map((student) => (
                     <SelectItem key={student.id} value={student.id}>{student.name}{student.grade ? ` · ${student.grade}` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedLearningLink.parentId && filteredLinkStudents.length === 0 && (
+                <p className="mt-1 text-xs text-amber-600">该家长还没有可见学生，请先在上方账号编辑里勾选。</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700">老师</label>
@@ -449,11 +524,14 @@ export function AccountManager({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">不绑定课程</SelectItem>
-                  {linkCourses.map((course) => (
+                  {filteredLinkCourses.map((course) => (
                     <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedLearningLink.studentId && filteredLinkCourses.length === 0 && (
+                <p className="mt-1 text-xs text-amber-600">该学生当前没有关联课程，可先在课程管理中选择学生。</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700">科目</label>

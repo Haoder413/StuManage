@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { AccountManager } from "./account-manager";
 
 export default async function AccountsPage() {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
   const [users, workspaces, students, courses, learningLinks] = await Promise.all([
     prisma.user.findMany({
       include: {
@@ -17,7 +17,10 @@ export default async function AccountsPage() {
     }),
     prisma.workspace.findMany({ orderBy: { name: "asc" } }),
     prisma.student.findMany({ orderBy: { name: "asc" } }),
-    prisma.course.findMany({ orderBy: { name: "asc" } }),
+    prisma.course.findMany({
+      include: { studentCourses: { where: { status: "active" }, select: { studentId: true } } },
+      orderBy: { name: "asc" },
+    }),
     prisma.learningLink.findMany({
       include: { parent: true, student: true, teacher: true, course: true },
       orderBy: { createdAt: "desc" },
@@ -42,6 +45,7 @@ export default async function AccountsPage() {
           workspaceName: user.workspace.name,
           parentStudentIds: user.parentStudents.map((item) => item.studentId),
           learningLinks: user.learningLinksAsParent.map((link) => link.id),
+          isCurrent: user.id === currentUser.id,
         }))}
         workspaces={workspaces.map((workspace) => ({
           id: workspace.id,
@@ -58,6 +62,7 @@ export default async function AccountsPage() {
           id: course.id,
           workspaceId: course.workspaceId,
           name: course.name,
+          studentIds: course.studentCourses.map((item) => item.studentId),
         }))}
         teachers={teachers.map((teacher) => ({
           id: teacher.id,
@@ -69,6 +74,7 @@ export default async function AccountsPage() {
           id: parent.id,
           workspaceId: parent.workspaceId,
           name: parent.name,
+          parentStudentIds: parent.parentStudents.map((item) => item.studentId),
         }))}
         learningLinks={learningLinks.map((link) => ({
           id: link.id,
