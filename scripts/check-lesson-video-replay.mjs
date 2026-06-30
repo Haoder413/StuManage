@@ -23,6 +23,7 @@ const fileRoute = read("src/app/api/lesson-videos/[id]/file/route.ts");
 const parentItemsRoute = read("src/app/api/parent/schedule-items/route.ts");
 const parentClient = read("src/components/parent-time-management-client.tsx");
 const schedulePage = read("src/app/schedule/page.tsx");
+const serverInit = read("deploy/server-init.sh");
 
 assertIncludes(schema, "model LessonVideo", "schema should define lesson videos");
 assertIncludes(schema, "lessonVideo LessonVideo?", "attendance should expose one lesson video");
@@ -66,5 +67,12 @@ assertIncludes(parentClient, "课堂回放", "parent client labels replay sectio
 
 assertIncludes(schedulePage, "课堂视频", "teacher schedule dialog has video upload section");
 assertMatches(schedulePage, /type="file"[\s\S]*accept="video\/mp4,video\/webm,video\/quicktime,video\/x-m4v"/, "teacher video input should limit video types");
+assertIncludes(schedulePage, "renderAttendanceControls", "schedule page should centralize attendance controls");
+assertIncludes(schedulePage, "修改", "recorded attendance should expose an edit action");
+assertIncludes(schedulePage, "已记录", "recorded attendance should show a saved status instead of repeat action buttons");
+
+assertIncludes(serverInit, "client_max_body_size 2048m;", "nginx should allow large lesson video uploads");
+assertIncludes(serverInit, "proxy_read_timeout 1800s;", "nginx should keep long video uploads alive");
+assertIncludes(serverInit, "proxy_send_timeout 1800s;", "nginx should keep long video uploads alive");
 
 console.log("Lesson video replay support is present.");
