@@ -54,11 +54,14 @@ server {
     listen 80;
     server_name _;
 
-    client_max_body_size 100m;
+    client_max_body_size 2048m;
+    client_body_timeout 1800s;
 
     location / {
         proxy_pass http://127.0.0.1:$PORT;
         proxy_http_version 1.1;
+        proxy_read_timeout 1800s;
+        proxy_send_timeout 1800s;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;

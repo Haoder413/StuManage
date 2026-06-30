@@ -266,6 +266,7 @@ export default function SchedulePage() {
   const [reviewVideoFile, setReviewVideoFile] = useState<File | null>(null);
   const [reviewVideoError, setReviewVideoError] = useState("");
   const [savingReview, setSavingReview] = useState(false);
+  const [editingAttendanceKey, setEditingAttendanceKey] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -380,6 +381,7 @@ export default function SchedulePage() {
         );
         return { ...s, attendance: [...otherAttendance, att] };
       }));
+      setEditingAttendanceKey(null);
       return att;
     }
     return null;
@@ -453,7 +455,9 @@ export default function SchedulePage() {
       });
       if (!videoResponse.ok) {
         setSavingReview(false);
-        setReviewVideoError("视频上传失败，请确认格式和大小后重试");
+        setReviewVideoError(videoResponse.status === 413
+          ? "视频上传失败：服务器上传上限不足，请先调整 Nginx 上传大小后重试"
+          : "视频上传失败，请确认格式和大小后重试");
         return;
       }
       const lessonVideo = await videoResponse.json();
@@ -495,6 +499,77 @@ export default function SchedulePage() {
       ...s,
       attendance: s.attendance.map(a => a.lessonVideo?.id === reviewLessonVideo.id ? { ...a, lessonVideo: null } : a),
     } : s));
+  }
+
+  function attendanceKey(scheduleId: string, studentId: string) {
+    return `${scheduleId}:${studentId}`;
+  }
+
+  function attendanceLabel(status: string) {
+    if (status === "present") return "✅ 已记录：出勤";
+    if (status === "absent") return "❌ 已记录：请假";
+    if (status === "makeup") return "🔄 已记录：补课";
+    return "已记录";
+  }
+
+  function renderAttendanceControls(
+    schedule: Schedule,
+    student: { id: string; name: string; grade: string | null },
+    existing?: Schedule["attendance"][number],
+    compact = false
+  ) {
+    const key = attendanceKey(schedule.id, student.id);
+    const editing = editingAttendanceKey === key || !existing;
+    const statuses: Array<"present" | "absent" | "makeup"> = ["present", "absent", "makeup"];
+    const labels: Record<(typeof statuses)[number], string> = compact
+      ? { present: "出勤", absent: "请假", makeup: "补课" }
+      : { present: "✅ 出勤", absent: "❌ 请假", makeup: "🔄 补课" };
+
+    if (!editing && existing) {
+      return (
+        <div className={`mt-1 flex items-center ${compact ? "justify-between" : ""} gap-1.5`}>
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+            {attendanceLabel(existing.status)}
+          </span>
+          <button
+            type="button"
+            className="rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-500 hover:bg-blue-50"
+            onClick={() => setEditingAttendanceKey(key)}
+          >
+            修改
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {statuses.map((status) => {
+          const active = existing?.status === status;
+          return (
+            <button
+              key={status}
+              type="button"
+              onClick={() => status === "absent"
+                ? handleAttendance(schedule.id, student.id, selectedDate, status)
+                : openAttendanceReview(schedule, status, existing, student)}
+              className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${active ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"}`}
+            >
+              {labels[status]}
+            </button>
+          );
+        })}
+        {existing && (
+          <button
+            type="button"
+            className="rounded px-1.5 py-0.5 text-[10px] font-medium text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+            onClick={() => setEditingAttendanceKey(null)}
+          >
+            取消
+          </button>
+        )}
+      </div>
+    );
   }
 
   function toggleTag(name: string, kind: "content" | "feedback") {
@@ -711,36 +786,14 @@ export default function SchedulePage() {
                                   <span className="text-xs font-medium text-gray-700">{student.name}</span>
                                   <span className="text-[10px] text-gray-400">{student.grade || "未设置"}</span>
                                 </div>
-                                <div className="mt-1 flex gap-1.5">
-                                  {["present", "absent", "makeup"].map(st => {
-                                    const labels: Record<string, string> = { present: "出勤", absent: "请假", makeup: "补课" };
-                                    const active = studentAtt?.status === st;
-                                    return (
-                                      <button key={st}
-                                        onClick={() => st === "absent" ? handleAttendance(s.id, student.id, selectedDate, st) : openAttendanceReview(s, st as "present" | "makeup", studentAtt, student)}
-                                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${active ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600 hover:bg-white"}`}>
-                                        {labels[st]}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                                {renderAttendanceControls(s, student, studentAtt, true)}
                               </div>
                             );
                           })}
                         </div>
                       ) : (
-                        <div className="flex gap-1.5 mt-2 pt-2 border-t border-gray-50">
-                          {["present", "absent", "makeup"].map(st => {
-                            const labels: Record<string, string> = { present: "✅ 出勤", absent: "❌ 请假", makeup: "🔄 补课" };
-                            const active = todayAtt?.status === st;
-                            return (
-                              <button key={st}
-                                onClick={() => s.studentId && (st === "absent" ? handleAttendance(s.id, s.studentId, selectedDate, st) : openAttendanceReview(s, st as "present" | "makeup", todayAtt))}
-                                className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${active ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"}`}>
-                                {labels[st]}
-                              </button>
-                            );
-                          })}
+                        <div className="mt-2 border-t border-gray-50 pt-2">
+                          {s.student && renderAttendanceControls(s, s.student, todayAtt)}
                         </div>
                       )}
                     </div>
