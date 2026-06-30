@@ -9,15 +9,26 @@ async function validateLearningLinkInput(data: any) {
   const teacherId = String(data.teacherId || "");
   const courseId = data.courseId ? String(data.courseId) : null;
 
-  const [parent, teacher, student, course] = await Promise.all([
+  const [parent, teacher, student, course, parentStudent] = await Promise.all([
     prisma.user.findFirst({ where: { id: parentId, workspaceId, role: "parent" } }),
     prisma.user.findFirst({ where: { id: teacherId, workspaceId, role: "teacher" } }),
     prisma.student.findFirst({ where: { id: studentId, workspaceId } }),
     courseId ? prisma.course.findFirst({ where: { id: courseId, workspaceId } }) : Promise.resolve(null),
+    prisma.parentStudent.findFirst({ where: { parentId, studentId } }),
   ]);
 
   if (!parent || !teacher || !student || (courseId && !course)) {
     return { error: "invalid learning link participants" };
+  }
+  if (!parentStudent) {
+    return { error: "student is not visible to this parent" };
+  }
+  if (courseId) {
+    const studentCourse = await prisma.studentCourse.findFirst({
+      where: { workspaceId, studentId, courseId, status: "active" },
+      select: { id: true },
+    });
+    if (!studentCourse) return { error: "student is not in this course" };
   }
 
   const subject = String(data.subject || teacher.teachingSubject || "数学").trim() || "数学";

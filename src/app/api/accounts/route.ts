@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
@@ -121,4 +122,31 @@ export async function PATCH(request: NextRequest) {
   });
 
   return NextResponse.json(user);
+}
+
+export async function DELETE(request: NextRequest) {
+  const currentUser = await requireAdmin();
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+  if (id === currentUser.id) {
+    return NextResponse.json({ error: "cannot delete current account" }, { status: 400 });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!user) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  try {
+    await prisma.user.delete({ where: { id: user.id } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return NextResponse.json({ error: "account has historical records and cannot be deleted" }, { status: 409 });
+    }
+    throw error;
+  }
+
+  return NextResponse.json({ success: true });
 }
