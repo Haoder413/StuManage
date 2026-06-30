@@ -56,6 +56,7 @@ assertIncludes(uploadRoute, "vodFileId", "upload route persists VOD id");
 assertIncludes(uploadRoute, "DELETE", "upload route deletes video");
 assertIncludes(uploadRoute, "lesson_video_too_large", "upload route should classify oversized videos");
 assertIncludes(uploadRoute, "status: 413", "upload route should return request-too-large for oversized videos");
+assertIncludes(uploadRoute, "console.error", "upload route should log provider failures for server diagnostics");
 
 assertIncludes(fileRoute, "requireCurrentUser", "file route authenticates users");
 assertIncludes(fileRoute, "canAccessLessonVideo", "file route checks video permissions");
@@ -75,6 +76,11 @@ assertIncludes(schedulePage, "renderAttendanceControls", "schedule page should c
 assertIncludes(schedulePage, "修改", "recorded attendance should expose an edit action");
 assertIncludes(schedulePage, "已记录", "recorded attendance should show a saved status instead of repeat action buttons");
 assertIncludes(schedulePage, "视频超过系统上传上限", "teacher UI should explain application size limit");
+assertIncludes(schedulePage, "uploadLessonVideoWithProgress", "teacher UI should upload videos with progress events");
+assertIncludes(schedulePage, "XMLHttpRequest", "teacher UI should use upload progress-capable requests");
+assertIncludes(schedulePage, "uploadProgress", "teacher UI should track video upload progress");
+assertIncludes(schedulePage, "正在上传", "teacher UI should show upload progress copy");
+assertIncludes(schedulePage, "aria-valuenow", "teacher UI progress bar should expose progress semantics");
 
 assertIncludes(serverInit, "client_max_body_size 2048m;", "nginx should allow large lesson video uploads");
 assertIncludes(serverInit, "proxy_read_timeout 1800s;", "nginx should keep long video uploads alive");

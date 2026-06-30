@@ -32,6 +32,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     saved = await uploadLessonVideo(file);
   } catch (error) {
     const message = error instanceof Error ? error.message : "failed to save lesson video";
+    console.error("Lesson video upload failed", {
+      attendanceId: attendance.id,
+      workspaceId: user.workspaceId,
+      fileName: file.name,
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     if (message === "lesson_video_too_large") {
       return NextResponse.json({ error: message }, { status: 413 });
     }
