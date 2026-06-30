@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/lib/auth";
-import { getNextReviewDate } from "@/lib/review-scheduler";
 import {
   ensureParentCanUseLearningLink,
   ensureTeacherCanUseLearningLink,
   findLearningLinkForTeacherStudent,
 } from "@/lib/learning-links";
+import { applyExamWeakPoints, normalizeWeakPointDescriptions } from "@/lib/weak-point-reuse";
 
 export async function GET(request: NextRequest) {
   const user = await requireCurrentUser();
@@ -80,56 +80,38 @@ export async function POST(request: NextRequest) {
 
   const reviewStatus = isParentSubmission ? "pending_review" : "approved";
   const examDate = new Date(data.date);
-  const exam = await prisma.exam.create({
-    data: {
-      workspaceId: user.workspaceId,
-      learningLinkId: learningLink?.id || null,
-      studentId: learningLink?.studentId || data.studentId,
-      name: data.name,
-      type: data.type,
-      score: parseFloat(data.score),
-      totalScore: parseFloat(data.totalScore) || 100,
-      date: examDate,
-      notes: data.notes || null,
-      reviewStatus,
-      submittedById: user.id,
-      reviewedById: reviewStatus === "approved" ? user.id : null,
-      reviewedAt: reviewStatus === "approved" ? new Date() : null,
-    },
-  });
-
-  const weakPointDescriptions: string[] = Array.isArray(data.weakPointDescriptions)
-    ? data.weakPointDescriptions.map(String).map((item: string) => item.trim()).filter(Boolean)
-    : [];
-  if (reviewStatus === "approved" && learningLink && weakPointDescriptions.length > 0) {
-    await prisma.weakPoint.createMany({
-      data: weakPointDescriptions.map((description) => ({
+  const weakPointDescriptions = normalizeWeakPointDescriptions(data.weakPointDescriptions);
+  const exam = await prisma.$transaction(async (tx) => {
+    const savedExam = await tx.exam.create({
+      data: {
         workspaceId: user.workspaceId,
-        learningLinkId: learningLink.id,
-        studentId: learningLink.studentId,
-        description,
-      })),
-    });
-    const createdWeakPoints = await prisma.weakPoint.findMany({
-      where: {
-        workspaceId: user.workspaceId,
-        learningLinkId: learningLink.id,
-        studentId: learningLink.studentId,
-        description: { in: weakPointDescriptions },
+        learningLinkId: learningLink?.id || null,
+        studentId: learningLink?.studentId || data.studentId,
+        name: data.name,
+        type: data.type,
+        score: parseFloat(data.score),
+        totalScore: parseFloat(data.totalScore) || 100,
+        date: examDate,
+        notes: data.notes || null,
+        reviewStatus,
+        submittedById: user.id,
+        reviewedById: reviewStatus === "approved" ? user.id : null,
+        reviewedAt: reviewStatus === "approved" ? new Date() : null,
       },
-      orderBy: { createdAt: "desc" },
-      take: weakPointDescriptions.length,
     });
-    await prisma.reviewSchedule.createMany({
-      data: createdWeakPoints.map((point) => ({
+
+    if (reviewStatus === "approved" && learningLink && weakPointDescriptions.length > 0) {
+      await applyExamWeakPoints({
+        tx,
         workspaceId: user.workspaceId,
-        weakPointId: point.id,
-        stage: 1,
-        nextReviewAt: getNextReviewDate(1),
-        status: "pending",
-      })),
-    });
-  }
+        learningLinkId: learningLink.id,
+        studentId: learningLink.studentId,
+        descriptions: weakPointDescriptions,
+      });
+    }
+
+    return savedExam;
+  });
 
   return NextResponse.json(exam, { status: 201 });
 }
@@ -143,7 +125,8 @@ export async function PATCH(request: NextRequest) {
   const updateData: any = {};
   if (data.score !== undefined) updateData.score = parseFloat(data.score);
   if (data.totalScore !== undefined) updateData.totalScore = parseFloat(data.totalScore);
-  if (data.name !== undefined) updateData.name = data.name;
+  if (data.name !== undefined) updateData.name = String(data.name || "").trim();
+  if (data.type !== undefined) updateData.type = data.type;
   await prisma.exam.updateMany({
     where: { id: data.id, workspaceId: user.workspaceId },
     data: updateData,

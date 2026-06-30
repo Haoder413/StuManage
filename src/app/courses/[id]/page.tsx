@@ -20,6 +20,10 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
         include: { student: true },
         orderBy: { createdAt: "desc" },
       },
+      homeworkAssignments: {
+        orderBy: { createdAt: "desc" },
+        include: { submissions: true },
+      },
     },
   });
 
@@ -76,6 +80,33 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
                 <div className="space-y-2 text-sm text-[#1a1a2e]/70">
                   {course.scheduleTimes.map((time) => (
                     <p key={time.id}>周{["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} · {time.startTime}-{time.endTime}</p>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>课程作业</CardTitle>
+              <Link href={`/homework/new`}><Button variant="outline" size="sm">新建作业</Button></Link>
+            </CardHeader>
+            <CardContent>
+              {course.homeworkAssignments.length === 0 ? (
+                <p className="text-sm text-[#1a1a2e]/30">暂无作业</p>
+              ) : (
+                <div className="space-y-2">
+                  {course.homeworkAssignments.slice(0, 5).map((assignment) => (
+                    <Link
+                      key={assignment.id}
+                      href={`/homework/${assignment.id}`}
+                      className="block rounded-lg border border-[#1a1a2e]/5 px-3 py-2 text-sm hover:bg-white/50"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-[#1a1a2e]">{assignment.title}</span>
+                        <span className="text-xs text-[#1a1a2e]/40">{assignment.status === "published" ? "已发布" : "草稿"}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-[#1a1a2e]/40">提交记录 {assignment.submissions.length} 条</p>
+                    </Link>
                   ))}
                 </div>
               )}

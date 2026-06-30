@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { ExamWeakPointDialog, type ExamWeakPointTag } from "@/components/exam-weak-point-dialog";
 
 export default function NewExamPage() {
   const router = useRouter();
@@ -15,43 +16,53 @@ export default function NewExamPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [type, setType] = useState("quiz");
   const [scores, setScores] = useState<Record<string, { score: string; total: string }>>({});
-  const [weakPoints, setWeakPoints] = useState<Record<string, string>>({});
+  const [weakPointTags, setWeakPointTags] = useState<ExamWeakPointTag[]>([]);
+  const [pendingSubmit, setPendingSubmit] = useState<{
+    name: string;
+    type: string;
+    date: string;
+    scores: Record<string, { score: string; total: string }>;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/students").then((r) => r.json()).then(setStudents);
+    fetch("/api/weak-point-tags").then((r) => r.json()).then(setWeakPointTags).catch(() => setWeakPointTags([]));
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     const form = new FormData(e.currentTarget);
     const examName = form.get("name") as string;
     const examDate = form.get("date") as string;
+    const hasScores = Object.values(scores).some((item) => item?.score);
+    if (!hasScores) return;
+    setPendingSubmit({ name: examName, type, date: examDate, scores });
+  }
 
+  async function savePendingExam(weakPointDescriptions: string[]) {
+    if (!pendingSubmit) return;
+    setLoading(true);
     for (const student of students) {
-      const s = scores[student.id];
+      const s = pendingSubmit.scores[student.id];
       if (s?.score) {
-        const weakPointDescriptions = (weakPoints[student.id] || "")
-          .split(/[，,\n]/)
-          .map((item) => item.trim())
-          .filter(Boolean);
         await fetch("/api/exams", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             studentId: student.id,
             learningLinkId: student.learningLinkId || null,
-            name: examName,
-            type,
+            name: pendingSubmit.name,
+            type: pendingSubmit.type,
             score: parseFloat(s.score),
             totalScore: parseFloat(s.total) || 100,
-            date: new Date(examDate).toISOString(),
+            date: new Date(pendingSubmit.date).toISOString(),
             weakPointDescriptions,
           }),
         });
       }
     }
     setLoading(false);
+    setPendingSubmit(null);
     router.push("/exams");
     router.refresh();
   }
@@ -63,8 +74,20 @@ export default function NewExamPage() {
     }));
   }
 
-  function updateWeakPoints(studentId: string, value: string) {
-    setWeakPoints((prev) => ({ ...prev, [studentId]: value }));
+  async function createWeakPointTag(name: string) {
+    const cleanName = name.trim();
+    if (!cleanName) return null;
+    const existing = weakPointTags.find((tag) => tag.name === cleanName);
+    if (existing) return existing;
+    const res = await fetch("/api/weak-point-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: cleanName, category: null }),
+    });
+    if (!res.ok) return null;
+    const created = await res.json();
+    setWeakPointTags((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
+    return created as ExamWeakPointTag;
   }
 
   return (
@@ -104,7 +127,6 @@ export default function NewExamPage() {
                       <th className="p-2 text-left font-medium">学生</th>
                       <th className="p-2 text-left font-medium w-24">得分</th>
                       <th className="p-2 text-left font-medium w-24">满分</th>
-                      <th className="p-2 text-left font-medium">关联薄弱点</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -129,13 +151,6 @@ export default function NewExamPage() {
                             onChange={(e) => updateScore(s.id, "total", e.target.value)}
                           />
                         </td>
-                        <td className="p-2">
-                          <Input
-                            placeholder="多个薄弱点用逗号隔开"
-                            value={weakPoints[s.id] || ""}
-                            onChange={(e) => updateWeakPoints(s.id, e.target.value)}
-                          />
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -150,6 +165,16 @@ export default function NewExamPage() {
           </form>
         </CardContent>
       </Card>
+      <ExamWeakPointDialog
+        open={Boolean(pendingSubmit)}
+        title="保存成绩"
+        description={pendingSubmit ? `${pendingSubmit.name} · ${Object.values(pendingSubmit.scores).filter((item) => item?.score).length} 名学生` : ""}
+        weakPointTags={weakPointTags}
+        onClose={() => setPendingSubmit(null)}
+        onCreateTag={createWeakPointTag}
+        onSubmit={savePendingExam}
+        submitLabel="保存成绩"
+      />
     </div>
   );
 }

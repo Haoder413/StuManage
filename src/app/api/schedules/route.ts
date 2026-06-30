@@ -42,7 +42,7 @@ export async function GET() {
           },
         },
       },
-      attendance: true,
+      attendance: { include: { lessonVideo: true } },
     },
     orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
   });
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      attendance: true,
+      attendance: { include: { lessonVideo: true } },
     },
   });
   return NextResponse.json(schedule, { status: 201 });
@@ -116,7 +116,7 @@ export async function PATCH(request: NextRequest) {
           },
         },
       },
-      attendance: true,
+      attendance: { include: { lessonVideo: true } },
     },
   });
   if (!schedule) return NextResponse.json({ error: "not found" }, { status: 404 });

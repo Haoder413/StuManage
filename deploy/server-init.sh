@@ -20,7 +20,7 @@ if [ -z "$REPO_URL" ]; then
 fi
 
 apt-get update
-apt-get install -y ca-certificates curl git nginx sqlite3
+apt-get install -y ca-certificates curl git nginx sqlite3 libreoffice
 
 if ! command -v node >/dev/null 2>&1; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -

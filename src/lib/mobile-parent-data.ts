@@ -29,6 +29,13 @@ function attendanceStatusLabel(status: string) {
   return status;
 }
 
+function homeworkStatusLabel(status: string, dueAt?: Date | string | null) {
+  if (status === "graded") return "已批改";
+  if (status === "submitted") return "已提交";
+  if (status === "pending" && dueAt && new Date(dueAt).getTime() < Date.now()) return "已逾期";
+  return "待提交";
+}
+
 function normalizeCourseName(name: string) {
   return name.trim().replace(/\s+/g, " ");
 }
@@ -199,4 +206,82 @@ export async function getMobileResources(user: MobileParentUser) {
   }));
 
   return { resources: items };
+}
+
+export async function getMobileParentHomework(user: MobileParentUser) {
+  const submissions = await prisma.homeworkSubmission.findMany({
+    where: {
+      workspaceId: user.workspaceId,
+      assignment: { status: "published" },
+      student: { parentLinks: { some: { parentId: user.id } } },
+    },
+    include: {
+      student: true,
+      assignment: { include: { course: true, questions: { orderBy: { orderIndex: "asc" } } } },
+      currentVersion: { include: { reviews: { include: { question: true }, orderBy: { question: { orderIndex: "asc" } } } } },
+      versions: {
+        include: { reviews: { include: { question: true }, orderBy: { question: { orderIndex: "asc" } } } },
+        orderBy: { versionNumber: "desc" },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return {
+    submissions: submissions.map((submission) => ({
+      id: submission.id,
+      status: submission.status,
+      statusLabel: homeworkStatusLabel(submission.status, submission.assignment.dueAt),
+      totalScore: submission.totalScore,
+      overallComment: submission.overallComment,
+      student: { id: submission.student.id, name: submission.student.name },
+      assignment: {
+        id: submission.assignment.id,
+        title: submission.assignment.title,
+        description: submission.assignment.description,
+        dueAt: isoDate(submission.assignment.dueAt),
+        course: { id: submission.assignment.course.id, name: submission.assignment.course.name },
+        questionPreviewUrl: `/api/mobile/homework/files/question/${submission.assignment.id}?mode=preview`,
+        questionDownloadUrl: `/api/mobile/homework/files/question/${submission.assignment.id}?mode=download`,
+        answerDownloadUrl: `/api/mobile/homework/files/answer/${submission.assignment.id}?mode=download`,
+        questions: submission.assignment.questions.map((question) => ({
+          id: question.id,
+          number: question.number,
+          type: question.type,
+          score: question.score,
+        })),
+      },
+      currentVersion: submission.currentVersion ? {
+        id: submission.currentVersion.id,
+        versionNumber: submission.currentVersion.versionNumber,
+        status: submission.currentVersion.status,
+        totalScore: submission.currentVersion.totalScore,
+        overallComment: submission.currentVersion.overallComment,
+        submittedAt: isoDate(submission.currentVersion.submittedAt),
+        previewUrl: `/api/mobile/homework/files/submission/${submission.currentVersion.id}?mode=preview`,
+        downloadUrl: `/api/mobile/homework/files/submission/${submission.currentVersion.id}?mode=download`,
+        reviews: submission.currentVersion.reviews.map((review) => ({
+          id: review.id,
+          score: review.score,
+          comment: review.comment,
+          isCorrect: review.isCorrect,
+          question: {
+            number: review.question.number,
+            type: review.question.type,
+            score: review.question.score,
+          },
+        })),
+      } : null,
+      versions: submission.versions.map((version) => ({
+        id: version.id,
+        versionNumber: version.versionNumber,
+        status: version.status,
+        totalScore: version.totalScore,
+        overallComment: version.overallComment,
+        submittedAt: isoDate(version.submittedAt),
+        previewUrl: `/api/mobile/homework/files/submission/${version.id}?mode=preview`,
+        downloadUrl: `/api/mobile/homework/files/submission/${version.id}?mode=download`,
+      })),
+    })),
+  };
 }

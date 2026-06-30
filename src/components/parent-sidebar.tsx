@@ -11,6 +11,7 @@ const parentNavItems = [
   { href: "/parent/exams", label: "成绩记录", icon: "📝" },
   { href: "/parent/progress", label: "学习进度", icon: "📈" },
   { href: "/parent/resources", label: "资料中心", icon: "📁" },
+  { href: "/parent/homework", label: "作业", icon: "✍" },
   { href: "/parent/settings", label: "账号设置", icon: "⚙" },
 ];
 
@@ -63,7 +64,7 @@ export function ParentSidebar() {
 function ParentMobileNav({ pathname }: { pathname: string }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
-      <div className="grid grid-cols-6 gap-1">
+      <div className="grid grid-cols-7 gap-1">
         {parentNavItems.map((item) => {
           const isActive = pathname === item.href;
           return (

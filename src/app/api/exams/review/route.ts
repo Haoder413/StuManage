@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/lib/auth";
-import { getNextReviewDate } from "@/lib/review-scheduler";
+import { applyExamWeakPoints, normalizeWeakPointDescriptions } from "@/lib/weak-point-reuse";
 
 export async function POST(request: NextRequest) {
   const user = await requireCurrentUser();
@@ -12,9 +12,7 @@ export async function POST(request: NextRequest) {
   const data = await request.json();
   const examId = String(data.examId || "");
   const action = String(data.action || "");
-  const weakPointDescriptions: string[] = Array.isArray(data.weakPointDescriptions)
-    ? data.weakPointDescriptions.map(String).map((item: string) => item.trim()).filter(Boolean)
-    : [];
+  const weakPointDescriptions = normalizeWeakPointDescriptions(data.weakPointDescriptions);
 
   const exam = await prisma.exam.findFirst({
     where: {
@@ -57,25 +55,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (exam.learningLink && weakPointDescriptions.length > 0) {
-      for (const description of weakPointDescriptions) {
-        const weakPoint = await tx.weakPoint.create({
-          data: {
-            workspaceId: user.workspaceId,
-            learningLinkId: exam.learningLink.id,
-            studentId: exam.learningLink.studentId,
-            description,
-          },
-        });
-        await tx.reviewSchedule.create({
-          data: {
-            workspaceId: user.workspaceId,
-            weakPointId: weakPoint.id,
-            stage: 1,
-            nextReviewAt: getNextReviewDate(1),
-            status: "pending",
-          },
-        });
-      }
+      await applyExamWeakPoints({
+        tx,
+        workspaceId: user.workspaceId,
+        learningLinkId: exam.learningLink.id,
+        studentId: exam.learningLink.studentId,
+        descriptions: weakPointDescriptions,
+      });
     }
 
     return savedExam;

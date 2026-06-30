@@ -2,6 +2,18 @@
   margin-bottom: 28rpx;
 }
 
+.action-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.action-arrow {
+  color: #0284c7;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
 .student-name {
   font-size: 36rpx;
   font-weight: 800;
