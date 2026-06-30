@@ -276,6 +276,8 @@ export async function GET(request: NextRequest) {
       courseType: schedule.type,
       dayOfWeek: schedule.dayOfWeek,
       date: schedule.date ? formatCalendarDate(schedule.date) : null,
+      startDate: schedule.startDate ? formatCalendarDate(schedule.startDate) : null,
+      endDate: schedule.endDate ? formatCalendarDate(schedule.endDate) : null,
       startTime: schedule.startTime,
       endTime: schedule.endTime,
       notes: schedule.notes,

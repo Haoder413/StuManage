@@ -175,6 +175,8 @@ model CourseScheduleTime {
   dayOfWeek   Int
   startTime   String
   endTime     String
+  startDate   DateTime?
+  endDate     DateTime?
   orderIndex  Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

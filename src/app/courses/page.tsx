@@ -5,6 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { requireTeacherLike } from "@/lib/auth";
 
+function formatScheduleDateRange(startDate: Date | null, endDate: Date | null) {
+  if (!startDate && !endDate) return "";
+  const format = (date: Date) => date.toISOString().slice(0, 10);
+  if (startDate && endDate) return `（${format(startDate)} 至 ${format(endDate)}）`;
+  if (startDate) return `（${format(startDate)} 起）`;
+  return `（至 ${format(endDate as Date)}）`;
+}
+
 export default async function CoursesPage() {
   const user = await requireTeacherLike();
   const courses = await prisma.course.findMany({
@@ -45,7 +53,7 @@ export default async function CoursesPage() {
                 </div>
                 <div className="mb-4 min-h-8 text-xs text-gray-400">
                   {c.scheduleTimes.length > 0
-                    ? c.scheduleTimes.map((time) => `周${["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} ${time.startTime}-${time.endTime}`).join("、")
+                    ? c.scheduleTimes.map((time) => `周${["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} ${time.startTime}-${time.endTime}${formatScheduleDateRange(time.startDate, time.endDate)}`).join("、")
                     : "暂无固定时间"}
                 </div>
                 <div className="grid grid-cols-2 gap-3">

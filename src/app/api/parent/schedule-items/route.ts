@@ -378,6 +378,8 @@ export async function GET() {
       courseType: schedule.type,
       dayOfWeek: schedule.dayOfWeek,
       date: schedule.date,
+      startDate: schedule.startDate,
+      endDate: schedule.endDate,
       startTime: schedule.startTime,
       endTime: schedule.endTime,
       notes: schedule.notes,

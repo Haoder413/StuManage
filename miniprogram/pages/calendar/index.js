@@ -38,6 +38,12 @@ function sameDay(first, second) {
   return first.getFullYear() === second.getFullYear() && first.getMonth() === second.getMonth() && first.getDate() === second.getDate();
 }
 
+function inTeacherScheduleRange(item, date) {
+  if (item.startDate && date < parseDate(item.startDate)) return false;
+  if (item.endDate && date > parseDate(item.endDate)) return false;
+  return true;
+}
+
 function addDays(date, amount) {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + amount);
@@ -88,7 +94,7 @@ function getItemsForDate(items, date) {
   return (items || [])
     .filter((item) => {
       if (item.kind === "teacher_schedule") {
-        if (item.courseType === "fixed" && item.dayOfWeek === dayOfWeek) return true;
+        if (item.courseType === "fixed" && item.dayOfWeek === dayOfWeek) return inTeacherScheduleRange(item, date);
         return item.date ? sameDay(parseDate(item.date), date) : false;
       }
       return sameDay(parseDate(item.date), date);

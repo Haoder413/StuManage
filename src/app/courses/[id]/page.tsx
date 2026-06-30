@@ -9,6 +9,14 @@ import { requireTeacherLike } from "@/lib/auth";
 import { DeleteCourseButton } from "./delete-course-button";
 import { CompleteCourseButton } from "./complete-course-button";
 
+function formatScheduleDateRange(startDate: Date | null, endDate: Date | null) {
+  if (!startDate && !endDate) return "";
+  const format = (date: Date) => date.toISOString().slice(0, 10);
+  if (startDate && endDate) return ` · ${format(startDate)} 至 ${format(endDate)}`;
+  if (startDate) return ` · ${format(startDate)} 起`;
+  return ` · 至 ${format(endDate as Date)}`;
+}
+
 export default async function CourseDetailPage({ params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
   const course = await prisma.course.findFirst({
@@ -79,7 +87,7 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
               ) : (
                 <div className="space-y-2 text-sm text-[#1a1a2e]/70">
                   {course.scheduleTimes.map((time) => (
-                    <p key={time.id}>周{["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} · {time.startTime}-{time.endTime}</p>
+                    <p key={time.id}>周{["日", "一", "二", "三", "四", "五", "六"][time.dayOfWeek]} · {time.startTime}-{time.endTime}{formatScheduleDateRange(time.startDate, time.endDate)}</p>
                   ))}
                 </div>
               )}
