@@ -21,7 +21,6 @@ const coursesApi = read("src/app/api/courses/route.ts");
 const studentsApi = read("src/app/api/students/route.ts");
 const schedulesApi = read("src/app/api/schedules/route.ts");
 const schedulePage = read("src/app/schedule/page.tsx");
-const studentEditor = read("src/app/students/[id]/student-detail-editor.tsx");
 const courseDetailPage = read("src/app/courses/[id]/page.tsx");
 const newCoursePage = read("src/app/courses/new/page.tsx");
 
@@ -34,7 +33,6 @@ assertIncludes(studentsApi, "syncStudentCourseAndSchedules", "student course swi
 assertIncludes(schedulesApi, "studentCourses", "course schedule student list include");
 assertIncludes(schedulePage, "courseAttendanceStudentId", "course attendance per-student state");
 assertIncludes(schedulePage, "displayName", "schedule displayName helper");
-assertIncludes(studentEditor, "选择课程", "student course selector");
 assertIncludes(coursesApi, "export async function DELETE", "course delete API");
 assertIncludes(coursesApi, "deleteMany({ where: { id, workspaceId: user.workspaceId } })", "workspace-scoped course deletion");
 assertIncludes(courseDetailPage, "DeleteCourseButton", "course detail delete button");

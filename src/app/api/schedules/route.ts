@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
       startTime: data.startTime || null,
       endTime: data.endTime || null,
       date: data.date ? new Date(data.date) : null,
+      startDate: data.startDate ? new Date(data.startDate) : null,
+      endDate: data.endDate ? new Date(data.endDate) : null,
       notes: data.notes || null,
     },
     include: {
@@ -100,6 +102,8 @@ export async function PATCH(request: NextRequest) {
       startTime: data.startTime || null,
       endTime: data.endTime || null,
       date: data.date ? new Date(data.date) : null,
+      startDate: data.startDate ? new Date(data.startDate) : null,
+      endDate: data.endDate ? new Date(data.endDate) : null,
       notes: data.notes || null,
     },
   });

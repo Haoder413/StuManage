@@ -9,6 +9,24 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
+const WEEKDAY_OPTIONS = [
+  { value: "1", label: "周一" },
+  { value: "2", label: "周二" },
+  { value: "3", label: "周三" },
+  { value: "4", label: "周四" },
+  { value: "5", label: "周五" },
+  { value: "6", label: "周六" },
+  { value: "0", label: "周日" },
+];
+
+type ScheduleTimeForm = {
+  selectedDays: string[];
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate: string;
+};
+
 interface Student {
   id: string;
   name: string;
@@ -20,7 +38,9 @@ export default function NewCoursePage() {
   const [loading, setLoading] = useState(false);
   const [type, setType] = useState("fixed");
   const [defaultCapacity, setDefaultCapacity] = useState("");
-  const [scheduleTimes, setScheduleTimes] = useState([{ dayOfWeek: "1", startTime: "09:00", endTime: "10:00" }]);
+  const [scheduleTimes, setScheduleTimes] = useState<ScheduleTimeForm[]>([
+    { selectedDays: ["1"], startTime: "09:00", endTime: "10:00", startDate: "", endDate: "" },
+  ]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
@@ -38,12 +58,26 @@ export default function NewCoursePage() {
     }
   }
 
-  function updateScheduleTime(index: number, field: "dayOfWeek" | "startTime" | "endTime", value: string) {
+  function updateScheduleTime(index: number, field: "startTime" | "endTime" | "startDate" | "endDate", value: string) {
     setScheduleTimes(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   }
 
+  function toggleScheduleDay(index: number, day: string) {
+    setScheduleTimes((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      const selectedDays = item.selectedDays.includes(day)
+        ? item.selectedDays.filter((value) => value !== day)
+        : [...item.selectedDays, day];
+      return { ...item, selectedDays };
+    }));
+  }
+
+  function setScheduleDays(index: number, selectedDays: string[]) {
+    setScheduleTimes((prev) => prev.map((item, i) => i === index ? { ...item, selectedDays } : item));
+  }
+
   function addScheduleTime() {
-    setScheduleTimes(prev => [...prev, { dayOfWeek: "1", startTime: "09:00", endTime: "10:00" }]);
+    setScheduleTimes(prev => [...prev, { selectedDays: ["1"], startTime: "09:00", endTime: "10:00", startDate: "", endDate: "" }]);
   }
 
   function removeScheduleTime(index: number) {
@@ -68,9 +102,11 @@ export default function NewCoursePage() {
       defaultCapacity: type === "custom" ? 1 : defaultCapacity ? Number(defaultCapacity) : null,
       studentIds: type === "custom" ? selectedStudentIds.slice(0, 1) : selectedStudentIds,
       scheduleTimes: scheduleTimes.map((item) => ({
-        dayOfWeek: Number(item.dayOfWeek),
+        dayOfWeeks: item.selectedDays.map(Number),
         startTime: item.startTime,
         endTime: item.endTime,
+        startDate: item.startDate,
+        endDate: item.endDate,
       })),
     };
 
@@ -156,28 +192,47 @@ export default function NewCoursePage() {
               </div>
               <div className="space-y-2">
                 {scheduleTimes.map((item, index) => (
-                  <div key={index} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 rounded-lg border border-[#1a1a2e]/10 p-3">
-                    <div>
-                      <Label className="text-xs text-gray-500">星期</Label>
-                      <Select value={item.dayOfWeek} onValueChange={(value) => updateScheduleTime(index, "dayOfWeek", value)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {[["1", "周一"], ["2", "周二"], ["3", "周三"], ["4", "周四"], ["5", "周五"], ["6", "周六"], ["0", "周日"]].map(([value, label]) => (
-                            <SelectItem key={value} value={value}>{label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div key={index} className="space-y-3 rounded-lg border border-[#1a1a2e]/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label className="text-xs text-gray-500">上课日</Label>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setScheduleDays(index, ["1", "2", "3", "4", "5"])}>工作日</Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => removeScheduleTime(index)} disabled={scheduleTimes.length === 1}>删除</Button>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">开始时间</Label>
-                      <Input type="time" value={item.startTime} onChange={(e) => updateScheduleTime(index, "startTime", e.target.value)} />
+                    <div className="flex flex-wrap gap-2">
+                      {WEEKDAY_OPTIONS.map((day) => {
+                        const active = item.selectedDays.includes(day.value);
+                        return (
+                          <button
+                            key={day.value}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => toggleScheduleDay(index, day.value)}
+                            className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${active ? "border-[#e07a5f] bg-[#e07a5f]/10 text-[#e07a5f]" : "border-[#1a1a2e]/10 text-[#1a1a2e]/60 hover:bg-white/70"}`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">结束时间</Label>
-                      <Input type="time" value={item.endTime} onChange={(e) => updateScheduleTime(index, "endTime", e.target.value)} />
-                    </div>
-                    <div className="flex items-end">
-                      <Button type="button" variant="outline" size="sm" onClick={() => removeScheduleTime(index)} disabled={scheduleTimes.length === 1}>删除</Button>
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <div>
+                        <Label className="text-xs text-gray-500">开始时间</Label>
+                        <Input type="time" value={item.startTime} onChange={(e) => updateScheduleTime(index, "startTime", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">结束时间</Label>
+                        <Input type="time" value={item.endTime} onChange={(e) => updateScheduleTime(index, "endTime", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">开始日期</Label>
+                        <Input type="date" value={item.startDate} onChange={(e) => updateScheduleTime(index, "startDate", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">截止日期</Label>
+                        <Input type="date" value={item.endDate} onChange={(e) => updateScheduleTime(index, "endDate", e.target.value)} />
+                      </div>
                     </div>
                   </div>
                 ))}

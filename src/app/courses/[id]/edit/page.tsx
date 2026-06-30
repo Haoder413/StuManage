@@ -38,6 +38,8 @@ export default async function EditCoursePage({ params }: { params: { id: string 
           dayOfWeek: time.dayOfWeek,
           startTime: time.startTime,
           endTime: time.endTime,
+          startDate: time.startDate ? time.startDate.toISOString() : null,
+          endDate: time.endDate ? time.endDate.toISOString() : null,
         })),
       }}
       students={students}

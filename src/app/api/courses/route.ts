@@ -3,20 +3,48 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 
+type NormalizedScheduleTime = {
+  workspaceId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  orderIndex: number;
+};
+
+function parseOptionalDate(value: unknown) {
+  if (typeof value !== "string" || !value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function normalizeScheduleTimes(data: unknown, workspaceId: string) {
-  return Array.isArray(data)
-    ? data
-        .map((item: { dayOfWeek?: number; startTime?: string; endTime?: string }, index: number) => ({
+  if (!Array.isArray(data)) return [];
+
+  const normalized: NormalizedScheduleTime[] = [];
+  data.forEach((item: { dayOfWeek?: number; dayOfWeeks?: number[]; startTime?: string; endTime?: string; startDate?: string; endDate?: string }, index: number) => {
+    const dayOfWeeks = Array.isArray(item.dayOfWeeks) ? item.dayOfWeeks : [item.dayOfWeek];
+    const startDate = parseOptionalDate(item.startDate);
+    const endDate = parseOptionalDate(item.endDate);
+    if (startDate && endDate && endDate < startDate) return;
+
+    Array.from(new Set(dayOfWeeks.map(Number))).forEach((dayOfWeek) => {
+      normalized.push({
           workspaceId,
-          dayOfWeek: Number(item.dayOfWeek),
+          dayOfWeek,
           startTime: String(item.startTime || ""),
           endTime: String(item.endTime || ""),
-          orderIndex: index,
-        }))
-        .filter((item: { dayOfWeek: number; startTime: string; endTime: string }) =>
-          Number.isInteger(item.dayOfWeek) && item.dayOfWeek >= 0 && item.dayOfWeek <= 6 && item.startTime && item.endTime
-        )
-    : [];
+          startDate,
+          endDate,
+          orderIndex: normalized.length + index,
+      });
+    });
+  });
+
+  return normalized.filter((item) =>
+    Number.isInteger(item.dayOfWeek) && item.dayOfWeek >= 0 && item.dayOfWeek <= 6 && item.startTime && item.endTime
+  );
 }
 
 function normalizeStudentIds(data: unknown) {
@@ -76,7 +104,7 @@ async function syncCourseSchedules(
   workspaceId: string,
   courseId: string,
   type: string,
-  scheduleTimes: { dayOfWeek: number; startTime: string; endTime: string }[],
+  scheduleTimes: NormalizedScheduleTime[],
   studentIds: string[]
 ) {
   await tx.schedule.updateMany({
@@ -95,6 +123,8 @@ async function syncCourseSchedules(
         dayOfWeek: time.dayOfWeek,
         startTime: time.startTime,
         endTime: time.endTime,
+        startDate: time.startDate,
+        endDate: time.endDate,
         isActive: true,
       })),
     });
@@ -112,6 +142,8 @@ async function syncCourseSchedules(
           dayOfWeek: time.dayOfWeek,
           startTime: time.startTime,
           endTime: time.endTime,
+          startDate: time.startDate,
+          endDate: time.endDate,
           isActive: true,
         }))
       ),
@@ -154,13 +186,15 @@ export async function POST(request: NextRequest) {
 
     if (type === "fixed" && scheduleTimes.length > 0) {
       await tx.schedule.createMany({
-        data: scheduleTimes.map((time: { dayOfWeek: number; startTime: string; endTime: string }) => ({
+        data: scheduleTimes.map((time) => ({
           workspaceId: user.workspaceId,
           courseId: created.id,
           type: "fixed",
           dayOfWeek: time.dayOfWeek,
           startTime: time.startTime,
           endTime: time.endTime,
+          startDate: time.startDate,
+          endDate: time.endDate,
           isActive: true,
         })),
       });
@@ -186,7 +220,7 @@ export async function POST(request: NextRequest) {
         if (type === "custom" && scheduleTimes.length > 0) {
           await tx.schedule.createMany({
             data: validStudentIds.flatMap((studentId) =>
-              scheduleTimes.map((time: { dayOfWeek: number; startTime: string; endTime: string }) => ({
+              scheduleTimes.map((time) => ({
                 workspaceId: user.workspaceId,
                 studentId,
                 courseId: created.id,
@@ -194,6 +228,8 @@ export async function POST(request: NextRequest) {
                 dayOfWeek: time.dayOfWeek,
                 startTime: time.startTime,
                 endTime: time.endTime,
+                startDate: time.startDate,
+                endDate: time.endDate,
                 isActive: true,
               }))
             ),

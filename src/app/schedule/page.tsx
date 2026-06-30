@@ -34,7 +34,7 @@ function formatDateInput(date: Date) {
 interface Schedule {
   id: string; studentId: string | null; courseId: string | null; type: string;
   dayOfWeek: number | null; startTime: string | null; endTime: string | null;
-  date: string | null; notes: string | null;
+  date: string | null; startDate: string | null; endDate: string | null; notes: string | null;
   student: { id: string; name: string; grade: string | null } | null;
   course: {
     id: string;
@@ -77,6 +77,19 @@ function parseTags(value: string | null | undefined) {
   } catch {
     return [];
   }
+}
+
+function startOfLocalDay(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function isScheduleInDateRange(schedule: Schedule, date: Date) {
+  const target = startOfLocalDay(date);
+  if (schedule.startDate && target < startOfLocalDay(new Date(schedule.startDate))) return false;
+  if (schedule.endDate && target > startOfLocalDay(new Date(schedule.endDate))) return false;
+  return true;
 }
 
 function mergeWeakPointTags(tags: WeakPointTag[], weakPoints: WeakPoint[]) {
@@ -289,7 +302,7 @@ export default function SchedulePage() {
   function getSchedulesForDate(date: Date) {
     const dow = date.getDay();
     return schedules.filter(s => {
-      if (s.type === "fixed" && s.dayOfWeek === dow) return true;
+      if (s.type === "fixed" && s.dayOfWeek === dow) return isScheduleInDateRange(s, date);
       if (s.type === "flexible" && s.date) return isSameDay(new Date(s.date), date);
       return false;
     });

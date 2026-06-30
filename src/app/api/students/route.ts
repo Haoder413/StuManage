@@ -57,6 +57,8 @@ async function syncStudentCourseAndSchedules(
         dayOfWeek: time.dayOfWeek,
         startTime: time.startTime,
         endTime: time.endTime,
+        startDate: time.startDate,
+        endDate: time.endDate,
       })),
     });
   }
