@@ -1,0 +1,63 @@
+<view class="page">
+  <view class="header">
+    <view class="title">作业</view>
+    <view class="subtitle">查看课程作业、上传答案和查看批改</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="card muted">加载中...</view>
+  <view wx:elif="{{submissions.length === 0}}" class="card muted">暂无作业</view>
+
+  <view wx:for="{{submissions}}" wx:key="id" class="card homework-card">
+    <view class="card-head">
+      <view>
+        <view class="homework-title">{{item.assignment.title}}</view>
+        <view class="row-sub">{{item.student.name}} · {{item.assignment.course.name}}</view>
+      </view>
+      <view class="status">{{item.statusLabel}}</view>
+    </view>
+
+    <view class="meta">截止：{{item.dueText}}</view>
+    <view wx:if="{{item.assignment.description}}" class="description">{{item.assignment.description}}</view>
+
+    <view class="actions">
+      <button size="mini" bindtap="previewQuestion" data-url="{{item.assignment.questionPreviewUrl}}">查看题目</button>
+      <button size="mini" bindtap="copyAnswerUrl" data-url="{{item.assignment.answerDownloadUrl}}">下载答案/解析</button>
+      <button size="mini" class="primary-mini" bindtap="chooseAndUpload" data-id="{{item.id}}" loading="{{submittingId === item.id}}">
+        {{item.currentVersion ? '重新上传答案' : '上传答案'}}
+      </button>
+    </view>
+
+    <view wx:if="{{item.currentVersion}}" class="current">
+      <view class="section-title">当前提交</view>
+      <view class="row-sub">第 {{item.currentVersion.versionNumber}} 次 · {{item.submittedText}}</view>
+      <view class="actions compact-actions">
+        <button size="mini" bindtap="copySubmissionUrl" data-url="{{item.currentVersion.downloadUrl}}">复制提交文件链接</button>
+      </view>
+    </view>
+
+    <view class="review">
+      <view class="section-title">当前批改</view>
+      <view wx:if="{{item.status !== 'graded'}}" class="muted">老师尚未完成当前版本批改。</view>
+      <view wx:else>
+        <view class="total-score">总分：{{item.totalScore || 0}}</view>
+        <view wx:if="{{item.overallComment}}" class="comment">总评：{{item.overallComment}}</view>
+        <view wx:for="{{item.currentVersion.reviews}}" wx:key="id" wx:for-item="review" class="review-row">
+          <view>第 {{review.question.number}} 题：{{review.score}} / {{review.question.score}}</view>
+          <view wx:if="{{review.comment}}" class="row-sub">{{review.comment}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="history">
+      <view class="section-title">提交历史</view>
+      <view wx:if="{{item.versions.length === 0}}" class="muted">尚未提交。</view>
+      <view wx:for="{{item.versions}}" wx:key="id" wx:for-item="version" class="history-row">
+        <view>
+          <view class="row-title">第 {{version.versionNumber}} 次 · {{version.statusText}}</view>
+          <view class="row-sub">{{version.submittedText}}</view>
+        </view>
+        <button size="mini" bindtap="copySubmissionUrl" data-url="{{version.downloadUrl}}">文件</button>
+      </view>
+    </view>
+  </view>
+</view>

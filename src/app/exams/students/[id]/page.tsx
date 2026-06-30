@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { ExamWeakPointDialog, type ExamWeakPointTag } from "@/components/exam-weak-point-dialog";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts";
 
 const examTypeLabel: Record<string, string> = { entrance: "摸底", monthly: "阶段测试", quiz: "随堂小测" };
@@ -29,8 +30,16 @@ export default function StudentExamDetailPage() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
+  const [editForm, setEditForm] = useState({ name: "", type: "quiz", score: "", totalScore: "100" });
   const [showForm, setShowForm] = useState(false);
+  const [weakPointTags, setWeakPointTags] = useState<ExamWeakPointTag[]>([]);
+  const [pendingNewExam, setPendingNewExam] = useState<{
+    name: string;
+    type: string;
+    score: number;
+    totalScore: number;
+    date: string;
+  } | null>(null);
 
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("quiz");
@@ -40,14 +49,16 @@ export default function StudentExamDetailPage() {
 
   useEffect(() => {
     async function load() {
-      const [studentsRes, examsRes] = await Promise.all([
+      const [studentsRes, examsRes, tagsRes] = await Promise.all([
         fetch("/api/students"), fetch(`/api/exams?studentId=${studentId}`),
+        fetch("/api/weak-point-tags").catch(() => null),
       ]);
       const allStudents = await studentsRes.json();
       const found = allStudents.find((s: any) => s.id === studentId);
       if (found) setStudent({ name: found.name, grade: found.grade });
       const examsData: Exam[] = await examsRes.json();
       setExams(examsData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+      if (tagsRes?.ok) setWeakPointTags(await tagsRes.json());
       setLoading(false);
     }
     load();
@@ -74,29 +85,77 @@ export default function StudentExamDetailPage() {
     type: examTypeLabel[e.type] || e.type,
   }));
 
-  async function handleSaveScore(examId: string) {
-    const val = parseFloat(editValue);
+  async function handleSaveExam(examId: string) {
+    const val = parseFloat(editForm.score);
+    const total = parseFloat(editForm.totalScore) || 100;
     if (isNaN(val) || val < 0) return;
     try {
-      await fetch("/api/exams", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: examId, score: val }) });
-      setExams(prev => prev.map(e => e.id === examId ? { ...e, score: val } : e));
+      await fetch("/api/exams", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: examId,
+          name: editForm.name.trim(),
+          type: editForm.type,
+          score: val,
+          totalScore: total,
+        }),
+      });
+      setExams(prev => prev.map(e => e.id === examId ? { ...e, name: editForm.name.trim(), type: editForm.type, score: val, totalScore: total } : e));
     } catch (err) { console.error(err); }
     setEditingId(null);
   }
-  function startEdit(exam: Exam) { setEditingId(exam.id); setEditValue(String(exam.score)); }
 
-  async function handleAddExam() {
+  function startEdit(exam: Exam) {
+    setEditingId(exam.id);
+    setEditForm({
+      name: exam.name,
+      type: exam.type,
+      score: String(exam.score),
+      totalScore: String(exam.totalScore),
+    });
+  }
+
+  function handleAddExam() {
     if (!newName.trim() || !newScore) return;
+    setPendingNewExam({
+      name: newName.trim(),
+      type: newType,
+      score: parseFloat(newScore),
+      totalScore: parseFloat(newTotal) || 100,
+      date: new Date(newDate).toISOString(),
+    });
+  }
+
+  async function savePendingNewExam(weakPointDescriptions: string[]) {
+    if (!pendingNewExam) return;
     try {
       const res = await fetch("/api/exams", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, name: newName.trim(), type: newType, score: parseFloat(newScore), totalScore: parseFloat(newTotal) || 100, date: new Date(newDate).toISOString() }),
+        body: JSON.stringify({ studentId, ...pendingNewExam, weakPointDescriptions }),
       });
       if (res.ok) {
         const created = await res.json();
         setExams(prev => [...prev, created].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
         setNewName(""); setNewScore(""); setNewTotal("100"); setNewType("quiz");
+        setPendingNewExam(null);
       }
     } catch (err) { console.error(err); }
+  }
+
+  async function createWeakPointTag(name: string) {
+    const cleanName = name.trim();
+    if (!cleanName) return null;
+    const existing = weakPointTags.find((tag) => tag.name === cleanName);
+    if (existing) return existing;
+    const res = await fetch("/api/weak-point-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: cleanName, category: null }),
+    });
+    if (!res.ok) return null;
+    const created = await res.json();
+    setWeakPointTags((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
+    return created as ExamWeakPointTag;
   }
 
   if (loading) return <div className="p-6"><PageHeader title="加载中..." /></div>;
@@ -202,7 +261,7 @@ export default function StudentExamDetailPage() {
 
       {/* Exam list */}
       <div className="glass-card rounded-xl p-5">
-        <h3 className="font-semibold text-gray-900 mb-4">考试明细 <span className="text-xs text-gray-400 font-normal ml-2">点击分数修改</span></h3>
+        <h3 className="font-semibold text-gray-900 mb-4">考试明细 <span className="text-xs text-gray-400 font-normal ml-2">可修改考试名称、类型和分数</span></h3>
         {exams.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">暂无考试记录</p>
         ) : (
@@ -216,6 +275,7 @@ export default function StudentExamDetailPage() {
                   <th className="p-3 font-semibold">得分</th>
                   <th className="p-3 font-semibold">得分率</th>
                   <th className="p-3 font-semibold">日期</th>
+                  <th className="p-3 font-semibold">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -225,20 +285,33 @@ export default function StudentExamDetailPage() {
                   return (
                     <tr key={e.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
                       <td className="p-3 text-gray-400 font-medium">{exams.length - idx}</td>
-                      <td className="p-3 font-medium text-gray-900">{e.name}</td>
+                      <td className="p-3 font-medium text-gray-900">
+                        {isEditing ? (
+                          <Input className="h-8 min-w-36 text-sm" value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
+                        ) : e.name}
+                      </td>
                       <td className="p-3">
-                        <span className="text-xs font-medium" style={{ color: e.type === "quiz" ? "#f59e0b" : "#3b82f6" }}>
-                          {examTypeLabel[e.type] || e.type}
-                        </span>
+                        {isEditing ? (
+                          <Select value={editForm.type} onValueChange={(type) => setEditForm((current) => ({ ...current, type }))}>
+                            <SelectTrigger className="h-8 min-w-28"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {typeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-xs font-medium" style={{ color: e.type === "quiz" ? "#f59e0b" : "#3b82f6" }}>
+                            {examTypeLabel[e.type] || e.type}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3">
                         {isEditing ? (
                           <div className="flex items-center gap-1">
-                            <Input type="number" step="0.1" className="w-20 h-8 text-sm" value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
-                              onBlur={() => handleSaveScore(e.id)}
-                              onKeyDown={k => k.key === "Enter" && handleSaveScore(e.id)} autoFocus />
-                            <span className="text-gray-400 text-xs">/ {e.totalScore}</span>
+                            <Input type="number" step="0.1" className="w-20 h-8 text-sm" value={editForm.score}
+                              onChange={event => setEditForm((current) => ({ ...current, score: event.target.value }))} />
+                            <span className="text-gray-400 text-xs">/</span>
+                            <Input type="number" step="0.1" className="w-20 h-8 text-sm" value={editForm.totalScore}
+                              onChange={event => setEditForm((current) => ({ ...current, totalScore: event.target.value }))} />
                           </div>
                         ) : (
                           <button onClick={() => startEdit(e)} className="hover:text-blue-500 transition-colors text-left">
@@ -252,6 +325,16 @@ export default function StudentExamDetailPage() {
                         <span className={`font-semibold ${pct >= 80 ? "text-green-500" : pct >= 60 ? "text-orange-500" : "text-red-500"}`}>{pct}%</span>
                       </td>
                       <td className="p-3 text-gray-500">{new Date(e.date).toLocaleDateString("zh-CN")}</td>
+                      <td className="p-3">
+                        {isEditing ? (
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => handleSaveExam(e.id)} disabled={!editForm.name.trim()}>保存</Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>取消</Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => startEdit(e)}>编辑</Button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -260,6 +343,16 @@ export default function StudentExamDetailPage() {
           </div>
         )}
       </div>
+      <ExamWeakPointDialog
+        open={Boolean(pendingNewExam)}
+        title="保存成绩"
+        description={pendingNewExam ? `${student.name} · ${pendingNewExam.name} · ${pendingNewExam.score}/${pendingNewExam.totalScore}` : ""}
+        weakPointTags={weakPointTags}
+        onClose={() => setPendingNewExam(null)}
+        onCreateTag={createWeakPointTag}
+        onSubmit={savePendingNewExam}
+        submitLabel="保存成绩"
+      />
     </div>
   );
 }

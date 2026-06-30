@@ -40,6 +40,15 @@ type AttendanceRecord = {
   contentTags?: string[] | null;
   feedbackTags?: string[] | null;
   weakPointTags?: string[] | null;
+  lessonVideo?: {
+    id: string;
+    title?: string | null;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    createdAt: string;
+    videoUrl: string;
+  } | null;
 };
 
 export type CalendarItem =
@@ -706,6 +715,26 @@ function ScheduleDetail({
           <TeacherTagList label="内容标签" tags={attendance?.contentTags} emptyText="暂无标签" />
           <TeacherTagList label="反馈标签" tags={attendance?.feedbackTags} emptyText="暂无标签" />
           <TeacherTagList label="薄弱点" tags={attendance?.weakPointTags} emptyText="暂无关联薄弱点" />
+          {attendance && (
+            <div className="space-y-1 rounded-md bg-white/70 p-2">
+              <p className="font-semibold text-blue-800">课堂回放</p>
+              {attendance.lessonVideo ? (
+                <div className="space-y-1.5">
+                  <video
+                    className="aspect-video w-full rounded-md bg-black"
+                    controls
+                    preload="metadata"
+                    src={attendance.lessonVideo.videoUrl}
+                  />
+                  <p className="truncate text-[10px] text-blue-500">
+                    {attendance.lessonVideo.title || attendance.lessonVideo.fileName} · {formatFileSize(attendance.lessonVideo.size)}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-blue-500/80">暂无课堂回放</p>
+              )}
+            </div>
+          )}
         </div>
       )}
       {item.kind === "parent_item" && item.seriesId && (
@@ -843,6 +872,13 @@ function attendanceStatusLabel(status: string) {
   if (status === "makeup") return "补课";
   if (status === "absent") return "请假";
   return status || "暂无考勤";
+}
+
+function formatFileSize(size: number) {
+  if (!Number.isFinite(size) || size <= 0) return "0 MB";
+  const mb = size / 1024 / 1024;
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
 const SUBJECT_CARD_CLASSES = [

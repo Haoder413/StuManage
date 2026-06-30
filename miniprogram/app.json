@@ -5,7 +5,8 @@
     "pages/exams/index",
     "pages/calendar/index",
     "pages/progress/index",
-    "pages/resources/index"
+    "pages/resources/index",
+    "pages/homework/index"
   ],
   "window": {
     "navigationBarTitleText": "淘淘数学",

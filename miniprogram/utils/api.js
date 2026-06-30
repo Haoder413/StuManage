@@ -70,4 +70,55 @@ function request(path, options = {}) {
   });
 }
 
-module.exports = { request };
+function fileUrl(path) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const app = getApp();
+  return `${app.globalData.fileBaseUrl}${path}`;
+}
+
+function upload(path, filePath, name = "file") {
+  const config = getAppConfig();
+  const token = getToken();
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: `${config.apiBaseUrl}${path}`,
+      filePath,
+      name,
+      header: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      success(res) {
+        if (res.statusCode === 401) {
+          wx.removeStorageSync("mobileToken");
+          getApp().globalData.token = "";
+          wx.redirectTo({ url: "/pages/login/index" });
+          reject(new Error("unauthorized"));
+          return;
+        }
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          let data = {};
+          try {
+            data = JSON.parse(res.data || "{}");
+          } catch {}
+          const normalizedError = normalizeHttpError({ statusCode: res.statusCode, data });
+          wx.showToast({ title: normalizedError.message, icon: "none", duration: 2500 });
+          reject(normalizedError);
+          return;
+        }
+        try {
+          resolve(JSON.parse(res.data || "{}"));
+        } catch {
+          resolve(res.data);
+        }
+      },
+      fail(error) {
+        const normalizedError = normalizeRequestError(error);
+        wx.showToast({ title: normalizedError.message, icon: "none", duration: 2500 });
+        reject(normalizedError);
+      }
+    });
+  });
+}
+
+module.exports = { request, upload, fileUrl };

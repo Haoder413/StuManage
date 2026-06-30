@@ -4,6 +4,14 @@
     <view class="subtitle">课程、课时、最近上课和成绩概览</view>
   </view>
 
+  <view class="card action-card" bindtap="goHomework">
+    <view>
+      <view class="section-title">作业</view>
+      <view class="subtitle">查看课程作业、上传答案和查看批改</view>
+    </view>
+    <view class="action-arrow">进入</view>
+  </view>
+
   <view wx:if="{{loading}}" class="card muted">加载中...</view>
   <view wx:elif="{{students.length === 0}}" class="card muted">暂无绑定学生</view>
 

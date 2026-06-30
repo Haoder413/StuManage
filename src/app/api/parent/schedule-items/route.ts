@@ -321,6 +321,7 @@ export async function GET() {
                 learningLinkId: { in: linkIds },
               },
               include: {
+                lessonVideo: true,
                 learningLink: {
                   include: {
                     teacher: { select: { id: true, name: true, teachingSubject: true } },
@@ -387,6 +388,17 @@ export async function GET() {
           contentTags: parseTags(record.contentTags),
           feedbackTags: parseTags(record.feedbackTags),
           weakPointTags: parseTags(record.weakPointTags),
+          lessonVideo: record.lessonVideo
+            ? {
+                id: record.lessonVideo.id,
+                title: record.lessonVideo.title,
+                fileName: record.lessonVideo.fileName,
+                mimeType: record.lessonVideo.mimeType,
+                size: record.lessonVideo.size,
+                createdAt: record.lessonVideo.createdAt,
+                videoUrl: `/api/lesson-videos/${record.lessonVideo.id}/file`,
+              }
+            : null,
         })),
     }));
   });

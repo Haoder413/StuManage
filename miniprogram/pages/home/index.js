@@ -48,5 +48,9 @@ Page({
         this.setData({ students });
       })
       .finally(() => this.setData({ loading: false }));
+  },
+
+  goHomework() {
+    wx.navigateTo({ url: "/pages/homework/index" });
   }
 });

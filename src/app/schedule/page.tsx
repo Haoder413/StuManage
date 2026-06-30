@@ -46,7 +46,16 @@ interface Schedule {
     id: string; studentId: string; status: string; date: string;
     lessonContent: string | null; lessonFeedback: string | null;
     contentTags: string | null; feedbackTags: string | null; weakPointTags: string | null;
+    lessonVideo: LessonVideo | null;
   }[];
+}
+interface LessonVideo {
+  id: string;
+  title: string | null;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
 }
 interface Student { id: string; name: string; grade: string | null; }
 interface LessonTag { id: string; name: string; type: "content" | "feedback"; }
@@ -86,6 +95,13 @@ function displayName(schedule: Schedule) {
   return schedule.course?.type === "fixed"
     ? schedule.course.name
     : schedule.student?.name || "未知学生";
+}
+
+function formatFileSize(size: number) {
+  if (!Number.isFinite(size) || size <= 0) return "0 MB";
+  const mb = size / 1024 / 1024;
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
 function TagChips({
@@ -232,6 +248,11 @@ export default function SchedulePage() {
   const [selectedWeakPointTags, setSelectedWeakPointTags] = useState<string[]>([]);
   const [selectedContentTags, setSelectedContentTags] = useState<string[]>([]);
   const [selectedFeedbackTags, setSelectedFeedbackTags] = useState<string[]>([]);
+  const [reviewLessonVideo, setReviewLessonVideo] = useState<LessonVideo | null>(null);
+  const [reviewAttendanceId, setReviewAttendanceId] = useState<string | null>(null);
+  const [reviewVideoFile, setReviewVideoFile] = useState<File | null>(null);
+  const [reviewVideoError, setReviewVideoError] = useState("");
+  const [savingReview, setSavingReview] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -346,7 +367,9 @@ export default function SchedulePage() {
         );
         return { ...s, attendance: [...otherAttendance, att] };
       }));
+      return att;
     }
+    return null;
   }
 
   async function loadStudentWeakPointTags(studentId: string) {
@@ -376,6 +399,10 @@ export default function SchedulePage() {
     setSelectedWeakPointTags(parseTags(existing?.weakPointTags));
     setSelectedContentTags(parseTags(existing?.contentTags));
     setSelectedFeedbackTags(parseTags(existing?.feedbackTags));
+    setReviewLessonVideo(existing?.lessonVideo || null);
+    setReviewAttendanceId(existing?.id || null);
+    setReviewVideoFile(null);
+    setReviewVideoError("");
     setReviewWeakPointTags(weakPointTags);
     setShowReviewForm(true);
     await loadStudentWeakPointTags(targetStudentId);
@@ -383,7 +410,9 @@ export default function SchedulePage() {
 
   async function submitAttendanceReview() {
     if (!pendingAttendance) return;
-    await handleAttendance(
+    setSavingReview(true);
+    setReviewVideoError("");
+    const savedAttendance = await handleAttendance(
       pendingAttendance.scheduleId,
       pendingAttendance.studentId,
       selectedDate,
@@ -396,6 +425,33 @@ export default function SchedulePage() {
         weakPointTags: selectedWeakPointTags,
       }
     );
+    if (!savedAttendance) {
+      setSavingReview(false);
+      setReviewVideoError("考勤保存失败，请稍后重试");
+      return;
+    }
+    if (reviewVideoFile) {
+      const formData = new FormData();
+      formData.append("file", reviewVideoFile);
+      formData.append("title", reviewVideoFile.name);
+      const videoResponse = await fetch(`/api/attendance/${savedAttendance.id}/video`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!videoResponse.ok) {
+        setSavingReview(false);
+        setReviewVideoError("视频上传失败，请确认格式和大小后重试");
+        return;
+      }
+      const lessonVideo = await videoResponse.json();
+      setSchedules(prev => prev.map(s => {
+        if (s.id !== pendingAttendance.scheduleId) return s;
+        return {
+          ...s,
+          attendance: s.attendance.map(a => a.id === savedAttendance.id ? { ...a, lessonVideo } : a),
+        };
+      }));
+    }
     const weakPointDescriptions = Array.from(new Set(selectedWeakPointTags.map(item => item.trim()).filter(Boolean)));
     if (weakPointDescriptions.length > 0) {
       await Promise.all(weakPointDescriptions.map(description =>
@@ -409,6 +465,23 @@ export default function SchedulePage() {
     setShowReviewForm(false);
     setPendingAttendance(null);
     setCourseAttendanceStudentId(null);
+    setReviewLessonVideo(null);
+    setReviewAttendanceId(null);
+    setReviewVideoFile(null);
+    setSavingReview(false);
+  }
+
+  async function deleteReviewLessonVideo() {
+    if (!reviewLessonVideo || !reviewAttendanceId || !pendingAttendance) return;
+    if (!confirm("确定删除这节课的课堂视频？")) return;
+    const response = await fetch(`/api/attendance/${reviewAttendanceId}/video`, { method: "DELETE" });
+    if (!response.ok) return;
+    setReviewLessonVideo(null);
+    setReviewVideoFile(null);
+    setSchedules(prev => prev.map(s => s.id === pendingAttendance.scheduleId ? {
+      ...s,
+      attendance: s.attendance.map(a => a.lessonVideo?.id === reviewLessonVideo.id ? { ...a, lessonVideo: null } : a),
+    } : s));
   }
 
   function toggleTag(name: string, kind: "content" | "feedback") {
@@ -780,9 +853,39 @@ export default function SchedulePage() {
                 />
               </div>
             </div>
+            <div className="rounded-lg border border-gray-100 p-3">
+              <Label className="text-xs text-gray-500">课堂视频</Label>
+              {reviewLessonVideo && (
+                <div className="mt-2 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 truncate">{reviewLessonVideo.title || reviewLessonVideo.fileName}</span>
+                    <button type="button" className="shrink-0 font-semibold text-red-400 hover:text-red-500" onClick={deleteReviewLessonVideo}>
+                      删除
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-400">{formatFileSize(reviewLessonVideo.size)}</p>
+                </div>
+              )}
+              <Input
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime,video/x-m4v"
+                className="mt-2"
+                onChange={(event) => {
+                  setReviewVideoFile(event.target.files?.[0] || null);
+                  setReviewVideoError("");
+                }}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                支持 mp4、webm、mov、m4v。选择新文件后，保存时会上传{reviewLessonVideo ? "并替换当前视频" : ""}。
+              </p>
+              {reviewVideoFile && <p className="mt-1 text-[11px] text-blue-500">已选择：{reviewVideoFile.name}</p>}
+              {reviewVideoError && <p className="mt-1 text-[11px] text-red-500">{reviewVideoError}</p>}
+            </div>
             <div className="sticky bottom-0 flex justify-end gap-2 border-t border-gray-100 bg-background pt-3">
               <Button variant="outline" size="sm" onClick={() => setShowReviewForm(false)}>取消</Button>
-              <Button size="sm" onClick={submitAttendanceReview}>保存考勤与反馈</Button>
+              <Button size="sm" onClick={submitAttendanceReview} disabled={savingReview}>
+                {savingReview ? "保存中..." : "保存考勤与反馈"}
+              </Button>
             </div>
           </div>
         </DialogContent>

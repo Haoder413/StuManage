@@ -30,9 +30,15 @@ model Workspace {
   communicationLogs CommunicationLog[]
   weakPointTags     WeakPointTag[]
   lessonTags        LessonTag[]
+  lessonVideos      LessonVideo[]
   resources         LearningResource[]
   resourcePermissions ResourcePermission[]
   resourceCoursePermissions ResourceCoursePermission[]
+  homeworkAssignments HomeworkAssignment[]
+  homeworkQuestions HomeworkQuestion[]
+  homeworkSubmissions HomeworkSubmission[]
+  homeworkSubmissionVersions HomeworkSubmissionVersion[]
+  homeworkQuestionReviews HomeworkQuestionReview[]
   learningLinks     LearningLink[]
   parentScheduleItems ParentScheduleItem[]
   parentScheduleSubjects ParentScheduleSubject[]
@@ -55,7 +61,12 @@ model User {
   learningLinksAsParent LearningLink[] @relation("ParentLearningLinks")
   learningLinksAsTeacher LearningLink[] @relation("TeacherLearningLinks")
   uploadedResources LearningResource[]
+  uploadedLessonVideos LessonVideo[]
   resourcePermissions ResourcePermission[]
+  createdHomeworkAssignments HomeworkAssignment[] @relation("HomeworkCreatedBy")
+  submittedHomeworkVersions HomeworkSubmissionVersion[] @relation("HomeworkSubmittedBy")
+  gradedHomeworkVersions HomeworkSubmissionVersion[] @relation("HomeworkVersionGradedBy")
+  gradedHomeworkSubmissions HomeworkSubmission[] @relation("HomeworkSubmissionGradedBy")
   parentScheduleItems ParentScheduleItem[]
   parentScheduleSubjects ParentScheduleSubject[]
 }
@@ -81,6 +92,7 @@ model LearningLink {
   kpProgress  StudentKpProgress[]
   weakPoints  WeakPoint[]
   parentScheduleItems ParentScheduleItem[]
+  lessonVideos LessonVideo[]
 
   @@unique([parentId, studentId, teacherId, subject])
 }
@@ -131,6 +143,8 @@ model Student {
   parentLinks      ParentStudent[]
   learningLinks    LearningLink[]
   parentScheduleItems ParentScheduleItem[]
+  homeworkSubmissions HomeworkSubmission[]
+  lessonVideos LessonVideo[]
 }
 
 model Course {
@@ -151,6 +165,7 @@ model Course {
   knowledgePoints KnowledgePoint[]
   learningLinks   LearningLink[]
   resourcePermissions ResourceCoursePermission[]
+  homeworkAssignments HomeworkAssignment[]
 }
 
 model CourseScheduleTime {
@@ -285,6 +300,7 @@ model Schedule {
   student    Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
   course     Course?     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attendance Attendance[]
+  lessonVideos LessonVideo[]
 }
 
 model Attendance {
@@ -307,6 +323,41 @@ model Attendance {
   schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   lessonHourLogs LessonHourLog[]
+  lessonVideo LessonVideo?
+}
+
+model LessonVideo {
+  id             String   @id @default(cuid())
+  workspaceId    String   @default("default-real")
+  attendanceId   String
+  studentId      String
+  learningLinkId String?
+  scheduleId     String
+  title          String?
+  storageProvider String  @default("local")
+  fileName       String
+  storedName     String
+  mimeType       String
+  extension      String
+  size           Int
+  vodFileId      String?
+  vodMediaUrl    String?
+  vodSubAppId    Int?
+  cosObjectKey   String?
+  playbackDomain String?
+  uploadedById   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  workspace      Workspace @relation(fields: [workspaceId], references: [id])
+  attendance     Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  learningLink   LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  schedule       Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  uploadedBy     User @relation(fields: [uploadedById], references: [id])
+
+  @@unique([attendanceId])
+  @@index([workspaceId, studentId, createdAt])
+  @@index([workspaceId, learningLinkId])
 }
 
 model LessonHourLog {
@@ -463,4 +514,138 @@ model ResourcePermission {
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([resourceId, userId])
+}
+
+model HomeworkAssignment {
+  id                       String   @id @default(cuid())
+  workspaceId              String   @default("default-real")
+  courseId                 String
+  createdById              String
+  title                    String
+  description              String?
+  dueAt                    DateTime?
+  status                   String   @default("draft")
+  questionFileName         String
+  questionFileStoredName   String
+  questionFileMimeType     String
+  questionFileExtension    String
+  questionFileSize         Int
+  questionPreviewStoredName String?
+  questionPreviewMimeType   String?
+  questionPreviewExtension  String?
+  questionPreviewSize       Int?
+  answerFileName           String
+  answerFileStoredName     String
+  answerFileMimeType       String
+  answerFileExtension      String
+  answerFileSize           Int
+  answerPreviewStoredName  String?
+  answerPreviewMimeType    String?
+  answerPreviewExtension   String?
+  answerPreviewSize        Int?
+  recognitionProvider      String   @default("local_rules")
+  recognitionStatus        String   @default("pending")
+  rawRecognitionResult     String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  workspace                Workspace @relation(fields: [workspaceId], references: [id])
+  course                   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy                User      @relation("HomeworkCreatedBy", fields: [createdById], references: [id])
+  questions                HomeworkQuestion[]
+  submissions              HomeworkSubmission[]
+
+  @@index([workspaceId, courseId, status])
+  @@index([workspaceId, createdAt])
+}
+
+model HomeworkQuestion {
+  id              String   @id @default(cuid())
+  workspaceId     String   @default("default-real")
+  assignmentId    String
+  number          String
+  type            String   @default("其他")
+  score           Float    @default(0)
+  standardAnswer  String?
+  explanation     String?
+  orderIndex      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id])
+  assignment      HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  reviews         HomeworkQuestionReview[]
+
+  @@index([workspaceId, assignmentId, orderIndex])
+}
+
+model HomeworkSubmission {
+  id               String   @id @default(cuid())
+  workspaceId      String   @default("default-real")
+  assignmentId     String
+  studentId        String
+  status           String   @default("pending")
+  currentVersionId String?  @unique
+  totalScore       Float?
+  overallComment   String?
+  gradedById       String?
+  gradedAt         DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id])
+  assignment       HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student          Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  currentVersion   HomeworkSubmissionVersion? @relation("CurrentHomeworkVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions         HomeworkSubmissionVersion[] @relation("SubmissionVersions")
+  gradedBy         User?              @relation("HomeworkSubmissionGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+
+  @@unique([assignmentId, studentId])
+  @@index([workspaceId, studentId, status])
+  @@index([workspaceId, assignmentId, status])
+}
+
+model HomeworkSubmissionVersion {
+  id             String   @id @default(cuid())
+  workspaceId    String   @default("default-real")
+  submissionId   String
+  versionNumber  Int
+  fileName       String
+  storedName     String
+  mimeType       String
+  extension      String
+  size           Int
+  status         String   @default("submitted")
+  submittedById  String
+  submittedAt    DateTime @default(now())
+  gradedById     String?
+  gradedAt       DateTime?
+  totalScore     Float?
+  overallComment String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id])
+  submission     HomeworkSubmission @relation("SubmissionVersions", fields: [submissionId], references: [id], onDelete: Cascade)
+  currentForSubmission HomeworkSubmission? @relation("CurrentHomeworkVersion")
+  submittedBy    User               @relation("HomeworkSubmittedBy", fields: [submittedById], references: [id], onDelete: Cascade)
+  gradedBy       User?              @relation("HomeworkVersionGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+  reviews        HomeworkQuestionReview[]
+
+  @@unique([submissionId, versionNumber])
+  @@index([workspaceId, submissionId, submittedAt])
+}
+
+model HomeworkQuestionReview {
+  id                  String   @id @default(cuid())
+  workspaceId          String   @default("default-real")
+  submissionVersionId  String
+  questionId           String
+  score                Float    @default(0)
+  comment              String?
+  isCorrect            Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  workspace            Workspace                 @relation(fields: [workspaceId], references: [id])
+  submissionVersion    HomeworkSubmissionVersion @relation(fields: [submissionVersionId], references: [id], onDelete: Cascade)
+  question             HomeworkQuestion          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionVersionId, questionId])
+  @@index([workspaceId, questionId])
 }

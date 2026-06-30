@@ -13,6 +13,7 @@ const navItems = [
   { href: "/progress", label: "学习进度", icon: "📈" },
   { href: "/schedule", label: "排课考勤", icon: "📅" },
   { href: "/resources", label: "资料中心", icon: "📁" },
+  { href: "/homework", label: "作业批改", icon: "✍" },
   { href: "/accounts", label: "账号与学习关系", icon: "🔐", adminOnly: true },
 ];
 

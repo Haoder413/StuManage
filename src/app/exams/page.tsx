@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ExamWeakPointDialog, type ExamWeakPointTag } from "@/components/exam-weak-point-dialog";
 
 interface Exam {
   id: string;
@@ -38,16 +39,10 @@ interface Student {
   grade: string | null;
 }
 
-interface WeakPointTag {
-  id: string;
-  name: string;
-  category: string | null;
-}
-
 export default function ExamsPage() {
   const [studentStats, setStudentStats] = useState<StudentStats[]>([]);
   const [pendingExams, setPendingExams] = useState<Exam[]>([]);
-  const [weakPointTags, setWeakPointTags] = useState<WeakPointTag[]>([]);
+  const [weakPointTags, setWeakPointTags] = useState<ExamWeakPointTag[]>([]);
   const [reviewTarget, setReviewTarget] = useState<{ exam: Exam; action: "approve" | "reject" } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,7 +53,7 @@ export default function ExamsPage() {
       fetch("/api/exams?reviewStatus=pending_review").then(r => r.json()),
       fetch("/api/weak-point-tags").then(r => r.json()).catch(() => []),
     ])
-      .then(([students, exams, pending, tags]: [Student[], Exam[], Exam[], WeakPointTag[]]) => {
+      .then(([students, exams, pending, tags]: [Student[], Exam[], Exam[], ExamWeakPointTag[]]) => {
         setPendingExams(pending);
         setWeakPointTags(tags);
         const grouped: Record<string, Exam[]> = {};
@@ -126,7 +121,7 @@ export default function ExamsPage() {
     if (!res.ok) return null;
     const created = await res.json();
     setWeakPointTags((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
-    return created as WeakPointTag;
+    return created as ExamWeakPointTag;
   }
 
   if (loading) return <div className="p-6"><PageHeader title="成绩管理" description="加载中..." /></div>;
@@ -199,69 +194,47 @@ export default function ExamsPage() {
           );
         })}
       </div>
-      <ReviewExamDialog
-        target={reviewTarget}
+      <ExamWeakPointDialog
+        open={reviewTarget?.action === "approve"}
+        title="通过成绩审核"
+        description={reviewTarget ? `${reviewTarget.exam.student.name} · ${reviewTarget.exam.name} · ${reviewTarget.exam.score}/${reviewTarget.exam.totalScore}` : ""}
         weakPointTags={weakPointTags}
         onClose={() => setReviewTarget(null)}
         onCreateTag={createWeakPointTag}
-        onSubmit={reviewExam}
+        onSubmit={(weakPointDescriptions) => reviewTarget ? reviewExam(reviewTarget.exam.id, "approve", weakPointDescriptions, "") : Promise.resolve()}
+        submitLabel="通过"
+      />
+      <RejectExamDialog
+        target={reviewTarget?.action === "reject" ? reviewTarget.exam : null}
+        onClose={() => setReviewTarget(null)}
+        onSubmit={(examId, rejectionReason) => reviewExam(examId, "reject", [], rejectionReason)}
       />
     </div>
   );
 }
 
-function ReviewExamDialog({
+function RejectExamDialog({
   target,
-  weakPointTags,
   onClose,
-  onCreateTag,
   onSubmit,
 }: {
-  target: { exam: Exam; action: "approve" | "reject" } | null;
-  weakPointTags: WeakPointTag[];
+  target: Exam | null;
   onClose: () => void;
-  onCreateTag: (name: string) => Promise<WeakPointTag | null>;
-  onSubmit: (examId: string, action: "approve" | "reject", weakPointDescriptions: string[], rejectionReason: string) => Promise<void>;
+  onSubmit: (examId: string, rejectionReason: string) => Promise<void>;
 }) {
-  const [searchTag, setSearchTag] = useState("");
-  const [selectedWeakPoints, setSelectedWeakPoints] = useState<string[]>([]);
   const [rejectionReason, setRejectionReason] = useState("成绩信息需要更正");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!target) return;
-    setSearchTag("");
-    setSelectedWeakPoints([]);
     setRejectionReason("成绩信息需要更正");
     setSaving(false);
-  }, [target?.exam.id, target?.action]);
-
-  const filteredTags = weakPointTags.filter((tag) =>
-    !searchTag.trim() || tag.name.toLowerCase().includes(searchTag.trim().toLowerCase())
-  );
-
-  function toggleTag(name: string) {
-    setSelectedWeakPoints((current) =>
-      current.includes(name) ? current.filter((item) => item !== name) : [...current, name]
-    );
-  }
-
-  async function addSearchTag() {
-    const tag = await onCreateTag(searchTag);
-    if (!tag) return;
-    setSelectedWeakPoints((current) => current.includes(tag.name) ? current : [...current, tag.name]);
-    setSearchTag("");
-  }
+  }, [target?.id]);
 
   async function submit() {
     if (!target) return;
     setSaving(true);
-    await onSubmit(
-      target.exam.id,
-      target.action,
-      target.action === "approve" ? selectedWeakPoints : [],
-      target.action === "reject" ? rejectionReason.trim() || "成绩信息需要更正" : ""
-    );
+    await onSubmit(target.id, rejectionReason.trim() || "成绩信息需要更正");
     setSaving(false);
   }
 
@@ -269,73 +242,21 @@ function ReviewExamDialog({
     <Dialog open={Boolean(target)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{target?.action === "approve" ? "通过成绩审核" : "驳回成绩"}</DialogTitle>
+          <DialogTitle>驳回成绩</DialogTitle>
           <DialogDescription>
-            {target ? `${target.exam.student.name} · ${target.exam.name} · ${target.exam.score}/${target.exam.totalScore}` : ""}
+            {target ? `${target.student.name} · ${target.name} · ${target.score}/${target.totalScore}` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        {target?.action === "approve" ? (
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-gray-500">薄弱点</p>
-            <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-              <Button type="button" variant="outline" className="h-12 text-base font-semibold text-gray-600" onClick={addSearchTag}>
-                新增标签
-              </Button>
-              <Input
-                className="h-12 text-base"
-                placeholder="搜索标签"
-                value={searchTag}
-                onChange={(event) => setSearchTag(event.target.value)}
-              />
-            </div>
-
-            <div className="flex min-h-10 flex-wrap gap-2">
-              {selectedWeakPoints.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => toggleTag(name)}
-                  className="rounded-full border bg-white px-3 py-1.5 text-sm font-medium text-gray-500 shadow-sm"
-                >
-                  {name} <span className="ml-1 text-gray-300">×</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="max-h-40 overflow-auto rounded-lg border bg-gray-50 p-2">
-              {filteredTags.length === 0 ? (
-                <p className="px-2 py-4 text-center text-sm text-gray-400">暂无匹配标签</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {filteredTags.map((tag) => {
-                    const active = selectedWeakPoints.includes(tag.name);
-                    return (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() => toggleTag(tag.name)}
-                        className={`rounded-full border px-3 py-1.5 text-sm font-medium ${active ? "border-sky-200 bg-sky-50 text-sky-700" : "bg-white text-gray-500 hover:border-gray-300"}`}
-                      >
-                        {tag.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-500">驳回原因</label>
-            <Input value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} />
-          </div>
-        )}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-gray-500">驳回原因</label>
+          <Input value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} />
+        </div>
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>取消</Button>
           <Button type="button" onClick={submit} disabled={saving}>
-            {saving ? "保存中..." : target?.action === "approve" ? "通过" : "驳回"}
+            {saving ? "保存中..." : "驳回"}
           </Button>
         </div>
       </DialogContent>
