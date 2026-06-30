@@ -38,6 +38,8 @@ assertIncludes(storage, "storage\", \"lesson-videos", "video storage path");
 assertIncludes(storage, ".mp4", "mp4 allowed");
 assertIncludes(storage, ".webm", "webm allowed");
 assertIncludes(storage, "MAX_LESSON_VIDEO_BYTES", "video size limit");
+assertIncludes(storage, "LESSON_VIDEO_MAX_MB", "video size limit should be configurable");
+assertIncludes(storage, "2048", "default video size limit should align with nginx upload limit");
 assertIncludes(storage, "getLessonVideoStorageProvider", "storage should expose provider selection");
 assertIncludes(storage, "uploadLessonVideo", "storage should expose provider-agnostic upload");
 assertIncludes(storage, "deleteLessonVideo", "storage should expose provider-agnostic delete");
@@ -52,6 +54,8 @@ assertIncludes(uploadRoute, "lessonVideo.upsert", "upload route replaces existin
 assertIncludes(uploadRoute, "storageProvider", "upload route persists storage provider");
 assertIncludes(uploadRoute, "vodFileId", "upload route persists VOD id");
 assertIncludes(uploadRoute, "DELETE", "upload route deletes video");
+assertIncludes(uploadRoute, "lesson_video_too_large", "upload route should classify oversized videos");
+assertIncludes(uploadRoute, "status: 413", "upload route should return request-too-large for oversized videos");
 
 assertIncludes(fileRoute, "requireCurrentUser", "file route authenticates users");
 assertIncludes(fileRoute, "canAccessLessonVideo", "file route checks video permissions");
@@ -70,6 +74,7 @@ assertMatches(schedulePage, /type="file"[\s\S]*accept="video\/mp4,video\/webm,vi
 assertIncludes(schedulePage, "renderAttendanceControls", "schedule page should centralize attendance controls");
 assertIncludes(schedulePage, "修改", "recorded attendance should expose an edit action");
 assertIncludes(schedulePage, "已记录", "recorded attendance should show a saved status instead of repeat action buttons");
+assertIncludes(schedulePage, "视频超过系统上传上限", "teacher UI should explain application size limit");
 
 assertIncludes(serverInit, "client_max_body_size 2048m;", "nginx should allow large lesson video uploads");
 assertIncludes(serverInit, "proxy_read_timeout 1800s;", "nginx should keep long video uploads alive");

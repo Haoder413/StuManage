@@ -455,8 +455,15 @@ export default function SchedulePage() {
       });
       if (!videoResponse.ok) {
         setSavingReview(false);
+        let errorCode = "";
+        try {
+          const errorResult = await videoResponse.json();
+          errorCode = String(errorResult.error || "");
+        } catch {}
         setReviewVideoError(videoResponse.status === 413
-          ? "视频上传失败：服务器上传上限不足，请先调整 Nginx 上传大小后重试"
+          ? errorCode === "lesson_video_too_large"
+            ? "视频超过系统上传上限，请压缩后重试，或调整服务器 LESSON_VIDEO_MAX_MB 配置"
+            : "视频上传失败：服务器上传上限不足，请先调整 Nginx 上传大小后重试"
           : "视频上传失败，请确认格式和大小后重试");
         return;
       }

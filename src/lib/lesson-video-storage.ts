@@ -24,7 +24,14 @@ export type LessonVideoPlayback =
   | { kind: "redirect"; url: string };
 
 export const LESSON_VIDEO_UPLOAD_DIR = path.join(process.cwd(), "storage", "lesson-videos");
-export const MAX_LESSON_VIDEO_BYTES = 1024 * 1024 * 500;
+
+function getMaxLessonVideoBytes() {
+  const configuredMb = Number(process.env.LESSON_VIDEO_MAX_MB || "2048");
+  const maxMb = Number.isFinite(configuredMb) && configuredMb > 0 ? configuredMb : 2048;
+  return Math.floor(maxMb * 1024 * 1024);
+}
+
+export const MAX_LESSON_VIDEO_BYTES = getMaxLessonVideoBytes();
 
 const extensionToMime: Record<string, string> = {
   ".mp4": "video/mp4",
