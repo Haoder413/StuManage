@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "仪表盘", icon: "📊" },
+  { href: "/dashboard", label: "仪表盘", icon: "📊" },
   { href: "/students", label: "学生管理", icon: "👤" },
   { href: "/courses", label: "课程管理", icon: "📚" },
   { href: "/exams", label: "成绩管理", icon: "📝" },
@@ -40,7 +40,7 @@ export function Sidebar({ initialRole }: { initialRole: string | null }) {
       .catch(() => {});
   }, []);
 
-  if (pathname.startsWith("/login") || pathname.startsWith("/parent")) return null;
+  if (pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/parent")) return null;
 
   function toggleCollapse() {
     setCollapsed((prev) => {

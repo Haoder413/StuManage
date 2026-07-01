@@ -5,6 +5,8 @@ const SESSION_COOKIE = "student_management_session";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAuthRoute = pathname.startsWith("/api/auth");
+  const isPublicHome = pathname === "/";
+  const isPublicMaterials = pathname.startsWith("/materials");
   const isLogin = pathname.startsWith("/login");
   const isDisclaimer = pathname.startsWith("/disclaimer");
   const isPublicAsset =
@@ -12,7 +14,7 @@ export function middleware(request: NextRequest) {
     pathname === "/favicon.ico" ||
     pathname.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js)$/);
 
-  if (isAuthRoute || isLogin || isDisclaimer || isPublicAsset) return NextResponse.next();
+  if (isAuthRoute || isPublicHome || isPublicMaterials || isLogin || isDisclaimer || isPublicAsset) return NextResponse.next();
 
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
   if (hasSession) {
