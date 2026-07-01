@@ -30,6 +30,6 @@ export async function POST(request: NextRequest) {
 
   const cookieSecure = getCookieSecure(request);
   await createSession(user.id, cookieSecure);
-  const redirectTo = user.role === "parent" ? "/parent" : "/";
+  const redirectTo = user.role === "parent" ? "/parent" : "/dashboard";
   return NextResponse.json({ redirectTo });
 }

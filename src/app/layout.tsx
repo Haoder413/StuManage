@@ -4,8 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "学管 - 学生管理系统",
-  description: "数学补习班学生管理系统",
+  title: "个人学习分享博客",
+  description: "个人学习分享博客与资料中心",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

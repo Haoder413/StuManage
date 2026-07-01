@@ -82,12 +82,12 @@ export async function requireTeacherLike() {
 
 export async function requireAdmin() {
   const user = await requireCurrentUser();
-  if (user.role !== "admin") redirect("/");
+  if (user.role !== "admin") redirect("/dashboard");
   return user;
 }
 
 export async function requireParent() {
   const user = await requireCurrentUser();
-  if (user.role !== "parent") redirect("/");
+  if (user.role !== "parent") redirect("/dashboard");
   return user;
 }

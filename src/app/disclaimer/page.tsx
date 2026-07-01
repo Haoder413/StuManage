@@ -1,7 +1,7 @@
 import { SiteDisclaimer } from "@/components/site-disclaimer";
 
 export const metadata = {
-  title: "免责声明 - 学生管理系统",
+  title: "免责声明 - 个人学习分享博客",
 };
 
 export default function DisclaimerPage() {
