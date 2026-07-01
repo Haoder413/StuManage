@@ -8,7 +8,7 @@ export function LogoutButton({ className }: { className?: string }) {
   async function logout() {
     const res = await fetch("/api/auth/logout", { method: "POST" });
     const data = await res.json();
-    router.replace(data.redirectTo || "/login");
+    router.replace(data.redirectTo || "/");
     router.refresh();
   }
 

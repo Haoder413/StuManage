@@ -37,7 +37,7 @@ export function SettingsClient({ role, initialBackups }: { role: string; initial
       setPasswordMessage(data.error || "修改失败");
       return;
     }
-    router.replace(data.redirectTo || "/login");
+    router.replace(data.redirectTo || "/");
     router.refresh();
   }
 

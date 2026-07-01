@@ -40,7 +40,7 @@ export function Sidebar({ initialRole }: { initialRole: string | null }) {
       .catch(() => {});
   }, []);
 
-  if (pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/parent")) return null;
+  if (pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/teacher-login-2026") || pathname.startsWith("/parent")) return null;
 
   function toggleCollapse() {
     setCollapsed((prev) => {
@@ -53,7 +53,7 @@ export function Sidebar({ initialRole }: { initialRole: string | null }) {
   async function logout() {
     const res = await fetch("/api/auth/logout", { method: "POST" });
     const data = await res.json();
-    router.replace(data.redirectTo || "/login");
+    router.replace(data.redirectTo || "/");
     router.refresh();
   }
 

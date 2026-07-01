@@ -28,5 +28,5 @@ export async function POST(request: NextRequest) {
   });
   await clearSession();
 
-  return NextResponse.json({ redirectTo: "/login" });
+  return NextResponse.json({ redirectTo: "/" });
 }
