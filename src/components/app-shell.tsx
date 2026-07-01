@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 export function AppShell({ children, initialRole }: { children: React.ReactNode; initialRole: string | null }) {
   const pathname = usePathname();
-  const isFullScreenRoute = pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/teacher-login-2026") || pathname.startsWith("/parent");
+  const isFullScreenRoute = !initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/teacher-login-2026") || pathname.startsWith("/parent");
 
   return (
     <body className="min-h-screen">

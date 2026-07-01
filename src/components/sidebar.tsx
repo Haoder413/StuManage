@@ -40,7 +40,7 @@ export function Sidebar({ initialRole }: { initialRole: string | null }) {
       .catch(() => {});
   }, []);
 
-  if (pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/teacher-login-2026") || pathname.startsWith("/parent")) return null;
+  if (!initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/teacher-login-2026") || pathname.startsWith("/parent")) return null;
 
   function toggleCollapse() {
     setCollapsed((prev) => {

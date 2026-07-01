@@ -49,7 +49,6 @@ function LoginForm() {
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
               className="mt-2 w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-sky-500"
-              placeholder="teacher / parent / demo"
             />
           </label>
 
@@ -73,7 +72,6 @@ function LoginForm() {
           >
             {submitting ? "登录中..." : "登录"}
           </button>
-          <a className="mt-4 block text-center text-xs font-semibold text-sky-600" href="/disclaimer">查看网站免责声明</a>
         </form>
         <div className="w-full lg:max-w-xl">
           <SiteDisclaimer compact />

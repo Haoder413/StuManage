@@ -116,6 +116,8 @@ bash /opt/student-management/current/deploy/rollback.sh
 - 上传文件：`/opt/student-management/shared/storage/resources`
 - 数据库备份：`/opt/student-management/backups`
 
+隐藏后台登录地址由 `/opt/student-management/shared/.env` 中的 `HIDDEN_LOGIN_PATH` 控制，默认值为 `/teacher-login-2026`。修改该变量后需要重新部署，或执行 `sudo pm2 restart student-management --update-env` 让当前服务读取新环境变量。
+
 ## 7. 常用账号提醒
 
 如果执行过 seed，默认会生成：
