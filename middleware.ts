@@ -7,14 +7,14 @@ export function middleware(request: NextRequest) {
   const isAuthRoute = pathname.startsWith("/api/auth");
   const isPublicHome = pathname === "/";
   const isPublicMaterials = pathname.startsWith("/materials");
-  const isLogin = pathname.startsWith("/login");
+  const isHiddenLogin = pathname.startsWith("/teacher-login-2026");
   const isDisclaimer = pathname.startsWith("/disclaimer");
   const isPublicAsset =
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js)$/);
 
-  if (isAuthRoute || isPublicHome || isPublicMaterials || isLogin || isDisclaimer || isPublicAsset) return NextResponse.next();
+  if (isAuthRoute || isPublicHome || isPublicMaterials || isHiddenLogin || isDisclaimer || isPublicAsset) return NextResponse.next();
 
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
   if (hasSession) {
@@ -25,10 +25,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = "/login";
-  loginUrl.searchParams.set("next", pathname);
-  return NextResponse.redirect(loginUrl);
+  const homeUrl = request.nextUrl.clone();
+  homeUrl.pathname = "/";
+  homeUrl.search = "";
+  return NextResponse.redirect(homeUrl);
 }
 
 export const config = {
