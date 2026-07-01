@@ -24,6 +24,7 @@ const parentItemsRoute = read("src/app/api/parent/schedule-items/route.ts");
 const parentClient = read("src/components/parent-time-management-client.tsx");
 const schedulePage = read("src/app/schedule/page.tsx");
 const serverInit = read("deploy/server-init.sh");
+const nextConfig = read("next.config.mjs");
 
 assertIncludes(schema, "model LessonVideo", "schema should define lesson videos");
 assertIncludes(schema, "lessonVideo LessonVideo?", "attendance should expose one lesson video");
@@ -47,6 +48,10 @@ assertIncludes(storage, "getLessonVideoPlayback", "storage should expose provide
 assertIncludes(storage, "uploadLessonVideoToVod", "storage should support VOD upload adapter");
 assertIncludes(storage, "storageProvider: \"vod\"", "VOD uploads should mark provider");
 assertIncludes(storage, "storageProvider: \"cos\"", "COS provider should be reserved for later migration");
+assertIncludes(nextConfig, "serverComponentsExternalPackages", "Next config should keep Node SDKs external on server builds");
+assertIncludes(nextConfig, "vod-node-sdk", "VOD upload SDK should stay external in server builds");
+assertIncludes(nextConfig, "tencentcloud-sdk-nodejs", "Tencent Cloud SDK should stay external in server builds");
+assertIncludes(nextConfig, "cos-nodejs-sdk-v5", "COS SDK should stay external in server builds");
 
 assertIncludes(uploadRoute, "requireTeacherLike", "upload route teacher permissions");
 assertIncludes(uploadRoute, "uploadLessonVideo", "upload route saves video through adapter");
