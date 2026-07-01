@@ -1,4 +1,5 @@
 import { SiteDisclaimer } from "@/components/site-disclaimer";
+import { IcpFooter } from "@/components/icp-footer";
 import { listPublicMaterials, PublicMaterial } from "@/lib/public-materials";
 
 export const metadata = {
@@ -28,6 +29,8 @@ export default async function PublicHomePage() {
             ))}
           </div>
         </section>
+
+        <IcpFooter />
       </div>
     </main>
   );
