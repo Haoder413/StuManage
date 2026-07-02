@@ -1,5 +1,9 @@
 const DEFAULT_HIDDEN_LOGIN_PATH = "/teacher-login-2026";
 
+export function isLoginEnabled() {
+  return process.env.LOGIN_ENABLED !== "false";
+}
+
 export function getHiddenLoginPath() {
   const configured = process.env.HIDDEN_LOGIN_PATH?.trim();
   if (!configured) return DEFAULT_HIDDEN_LOGIN_PATH;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isDefaultHiddenLoginPath, isHiddenLoginPath } from "@/lib/hidden-login-path";
+import { isDefaultHiddenLoginPath, isHiddenLoginPath, isLoginEnabled } from "@/lib/hidden-login-path";
 
 const SESSION_COOKIE = "student_management_session";
 
@@ -14,6 +14,13 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js)$/);
+
+  if (!isLoginEnabled() && isHiddenLogin) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/";
+    homeUrl.search = "";
+    return NextResponse.redirect(homeUrl);
+  }
 
   if (isHiddenLogin && !isDefaultHiddenLoginPath(pathname)) {
     const rewriteUrl = request.nextUrl.clone();

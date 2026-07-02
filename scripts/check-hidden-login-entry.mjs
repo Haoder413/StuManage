@@ -8,12 +8,17 @@ function assert(condition, message) {
 
 const middleware = readFileSync("middleware.ts", "utf8");
 const hiddenLoginPath = readFileSync("src/lib/hidden-login-path.ts", "utf8");
+const loginRoute = readFileSync("src/app/api/auth/login/route.ts", "utf8");
 const loginPage = readFileSync("src/app/teacher-login-2026/page.tsx", "utf8");
 const serverInit = readFileSync("deploy/server-init.sh", "utf8");
 
 assert(hiddenLoginPath.includes("HIDDEN_LOGIN_PATH"), "hidden login helper must read HIDDEN_LOGIN_PATH");
+assert(hiddenLoginPath.includes("LOGIN_ENABLED"), "hidden login helper must read LOGIN_ENABLED");
+assert(middleware.includes("isLoginEnabled"), "middleware must check whether login is enabled");
+assert(loginRoute.includes("isLoginEnabled"), "login API must check whether login is enabled");
 assert(middleware.includes("NextResponse.rewrite"), "middleware must rewrite configured hidden login path");
 assert(serverInit.includes('HIDDEN_LOGIN_PATH="/teacher-login-2026"'), "server env template must include HIDDEN_LOGIN_PATH");
+assert(serverInit.includes('LOGIN_ENABLED="true"'), "server env template must include LOGIN_ENABLED");
 assert(!loginPage.includes('placeholder="teacher / parent / demo"'), "login account placeholder must be empty or removed");
 assert(!loginPage.includes("查看网站免责声明"), "login disclaimer link must be removed");
 
