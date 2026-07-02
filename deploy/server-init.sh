@@ -37,6 +37,7 @@ DATABASE_URL="file:$APP_ROOT/shared/dev.db"
 NODE_ENV="production"
 PORT="$PORT"
 HIDDEN_LOGIN_PATH="/teacher-login-2026"
+LOGIN_ENABLED="true"
 ENV
 fi
 

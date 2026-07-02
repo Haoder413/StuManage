@@ -118,6 +118,8 @@ bash /opt/student-management/current/deploy/rollback.sh
 
 隐藏后台登录地址由 `/opt/student-management/shared/.env` 中的 `HIDDEN_LOGIN_PATH` 控制，默认值为 `/teacher-login-2026`。如果不需要隐藏入口，可设置为 `HIDDEN_LOGIN_PATH="/login"`。修改该变量后需要重新部署，或执行 `sudo pm2 restart student-management --update-env` 让当前服务读取新环境变量。
 
+`HIDDEN_LOGIN_PATH` 只用于修改登录路径，不用于关闭登录。删除该变量会回到默认隐藏入口。若审核期间需要只展示公开首页、不开放后台登录，可设置 `LOGIN_ENABLED="false"`；需要恢复登录时设置 `LOGIN_ENABLED="true"`。首次增加代码开关需要重新部署一次，之后只调整 `.env` 变量值时执行 `sudo pm2 restart student-management --update-env` 即可。
+
 ## 7. 常用账号提醒
 
 如果执行过 seed，默认会生成：

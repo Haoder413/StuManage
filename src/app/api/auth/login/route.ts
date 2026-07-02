@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { createSession } from "@/lib/auth";
+import { isLoginEnabled } from "@/lib/hidden-login-path";
 
 function getCookieSecure(request: NextRequest) {
   const forwardedProto = request.headers.get("x-forwarded-proto");
@@ -10,6 +11,10 @@ function getCookieSecure(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isLoginEnabled()) {
+    return NextResponse.json({ error: "login_disabled" }, { status: 404 });
+  }
+
   const data = await request.json();
   const identifier = String(data.identifier || "").trim();
   const password = String(data.password || "");
