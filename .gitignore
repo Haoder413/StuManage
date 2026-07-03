@@ -33,4 +33,6 @@ pnpm-debug.log*
 
 # Local tooling state
 .superpowers/
+AGENTS.md
 docs/
+output/
