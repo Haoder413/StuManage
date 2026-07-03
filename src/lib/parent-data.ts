@@ -61,7 +61,16 @@ export async function getParentStudents(user: { id: string; workspaceId: string 
           attendance: {
             where: getParentVisibleAttendanceWhere(linkIds),
             orderBy: { date: "desc" },
-            include: { schedule: true, lessonVideo: true },
+            include: {
+              schedule: { include: { course: true } },
+              lessonVideo: true,
+              learningLink: {
+                include: {
+                  teacher: { select: { id: true, name: true, teachingSubject: true } },
+                  course: true,
+                },
+              },
+            },
           },
           exams: { orderBy: { date: "desc" } },
           schedules: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] },

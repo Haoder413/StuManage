@@ -10,6 +10,7 @@ const parentNavItems = [
   { href: "/parent/lessons", label: "时间管理", icon: "📅" },
   { href: "/parent/exams", label: "成绩记录", icon: "📝" },
   { href: "/parent/progress", label: "学习进度", icon: "📈" },
+  { href: "/parent/archive", label: "学习档案", icon: "🎞" },
   { href: "/parent/resources", label: "资料中心", icon: "📁" },
   { href: "/parent/homework", label: "作业", icon: "✍" },
   { href: "/parent/settings", label: "账号设置", icon: "⚙" },
