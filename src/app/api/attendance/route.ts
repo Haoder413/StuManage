@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
 
   const payload = {
       workspaceId: user.workspaceId,
+      learningLinkId: learningLink?.id || null,
       scheduleId: data.scheduleId,
       studentId: data.studentId,
       date,

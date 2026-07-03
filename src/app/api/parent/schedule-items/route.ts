@@ -48,6 +48,49 @@ function formatLocalCalendarDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function attendanceDateKey(date: Date) {
+  return formatLocalCalendarDate(date);
+}
+
+function visibleAttendanceWhere(studentIds: string[], linkIds: string[]) {
+  return {
+    studentId: { in: studentIds },
+    OR: [
+      { learningLinkId: { in: linkIds } },
+      { learningLinkId: null },
+    ],
+  };
+}
+
+function attendanceScore(record: {
+  learningLinkId: string | null;
+  lessonVideo?: unknown | null;
+  createdAt: Date;
+}) {
+  return (record.lessonVideo ? 100 : 0) + (record.learningLinkId ? 10 : 0) + record.createdAt.getTime() / 100000000000000;
+}
+
+function dedupeAttendanceRecords<T extends {
+  scheduleId: string;
+  studentId: string;
+  date: Date;
+  learningLinkId: string | null;
+  lessonVideo?: unknown | null;
+  createdAt: Date;
+}>(records: T[]) {
+  const byLesson = new Map<string, T>();
+
+  for (const record of records) {
+    const key = `${record.scheduleId}:${record.studentId}:${attendanceDateKey(record.date)}`;
+    const current = byLesson.get(key);
+    if (!current || attendanceScore(record) > attendanceScore(current)) {
+      byLesson.set(key, record);
+    }
+  }
+
+  return [...byLesson.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
+}
+
 async function ensureParentOwnsStudent(user: ParentUser, studentId: string) {
   if (!studentId) return null;
   return prisma.parentStudent.findFirst({
@@ -324,10 +367,7 @@ export async function GET() {
             student: true,
             course: true,
             attendance: {
-              where: {
-                studentId: { in: studentIds },
-                learningLinkId: { in: linkIds },
-              },
+              where: visibleAttendanceWhere(studentIds, linkIds),
               include: {
                 lessonVideo: true,
                 learningLink: {
@@ -392,8 +432,8 @@ export async function GET() {
       startTime: schedule.startTime,
       endTime: schedule.endTime,
       notes: schedule.notes,
-      attendance: schedule.attendance
-        .filter((record) => record.studentId === link.studentId && record.learningLinkId === link.id)
+      attendance: dedupeAttendanceRecords(schedule.attendance
+        .filter((record) => record.studentId === link.studentId && (record.learningLinkId === link.id || record.learningLinkId === null)))
         .map((record) => ({
           ...record,
           contentTags: parseTags(record.contentTags),
