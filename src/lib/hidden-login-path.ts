@@ -25,3 +25,7 @@ export function isHiddenLoginPath(pathname: string) {
 export function isDefaultHiddenLoginPath(pathname: string) {
   return normalizeLoginPath(pathname) === DEFAULT_HIDDEN_LOGIN_PATH;
 }
+
+export function getLogoutRedirectPath() {
+  return getHiddenLoginPath();
+}
