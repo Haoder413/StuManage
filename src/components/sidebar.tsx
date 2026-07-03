@@ -23,7 +23,16 @@ const bottomItems = [
   { href: "/settings", label: "系统设置", icon: "⚙" },
 ];
 
-export function Sidebar({ initialRole }: { initialRole: string | null }) {
+function normalizePath(pathname: string) {
+  const normalized = pathname.replace(/\/+$/, "");
+  return normalized || "/";
+}
+
+function isHiddenLoginRoute(pathname: string, hiddenLoginPath: string) {
+  return normalizePath(pathname) === normalizePath(hiddenLoginPath);
+}
+
+export function Sidebar({ initialRole, hiddenLoginPath }: { initialRole: string | null; hiddenLoginPath: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -40,7 +49,7 @@ export function Sidebar({ initialRole }: { initialRole: string | null }) {
       .catch(() => {});
   }, []);
 
-  if (!initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || pathname.startsWith("/teacher-login-2026") || pathname.startsWith("/parent")) return null;
+  if (!initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || isHiddenLoginRoute(pathname, hiddenLoginPath) || pathname.startsWith("/parent")) return null;
 
   function toggleCollapse() {
     setCollapsed((prev) => {
