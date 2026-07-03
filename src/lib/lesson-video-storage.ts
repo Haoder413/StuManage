@@ -23,6 +23,10 @@ export type LessonVideoPlayback =
   | { kind: "local"; bytes: Buffer; mimeType: string; fileName: string }
   | { kind: "redirect"; url: string };
 
+type UploadLessonVideoOptions = {
+  workspaceId?: string;
+};
+
 export const LESSON_VIDEO_UPLOAD_DIR = path.join(process.cwd(), "storage", "lesson-videos");
 
 function getMaxLessonVideoBytes() {
@@ -78,6 +82,42 @@ function getVodRegion() {
   return process.env.TENCENT_VOD_REGION || "ap-guangzhou";
 }
 
+function getCosRegion() {
+  return process.env.TENCENT_COS_REGION || "ap-guangzhou";
+}
+
+function getLessonVideoPlaybackExpiresSeconds() {
+  const configured = Number(process.env.LESSON_VIDEO_PLAYBACK_EXPIRES_SECONDS || "600");
+  return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 600;
+}
+
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`missing_${name.toLowerCase()}`);
+  return value;
+}
+
+function getCosClient() {
+  const COS = require("cos-nodejs-sdk-v5");
+  return new COS({
+    SecretId: getRequiredEnv("TENCENTCLOUD_SECRET_ID"),
+    SecretKey: getRequiredEnv("TENCENTCLOUD_SECRET_KEY"),
+  });
+}
+
+function buildLessonVideoCosObjectKey(extension: string, workspaceId?: string) {
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const safeWorkspaceId = (workspaceId || "default").replace(/[^a-zA-Z0-9_-]/g, "-");
+  return `lesson-videos/${safeWorkspaceId}/${year}/${month}/${randomUUID()}${extension}`;
+}
+
+function getCosPlaybackBaseUrl() {
+  const configured = process.env.TENCENT_COS_PUBLIC_BASE_URL;
+  return configured ? configured.replace(/\/+$/, "") : "";
+}
+
 async function fileToTempPath(file: File, extension: string) {
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length > MAX_LESSON_VIDEO_BYTES) {
@@ -114,13 +154,56 @@ export async function saveUploadedLessonVideoFile(file: File): Promise<StoredLes
   };
 }
 
-export async function uploadLessonVideo(file: File): Promise<StoredLessonVideo> {
+export async function uploadLessonVideo(file: File, options: UploadLessonVideoOptions = {}): Promise<StoredLessonVideo> {
   const provider = getLessonVideoStorageProvider();
   if (provider === "vod") return uploadLessonVideoToVod(file);
-  if (provider === "cos") {
-    throw new Error("cos_lesson_video_storage_not_configured");
-  }
+  if (provider === "cos") return uploadLessonVideoToCos(file, options);
   return saveUploadedLessonVideoFile(file);
+}
+
+export async function uploadLessonVideoToCos(file: File, options: UploadLessonVideoOptions = {}): Promise<StoredLessonVideo> {
+  const extension = getLessonVideoExtension(file.name);
+  if (!isAllowedLessonVideoExtension(extension)) {
+    throw new Error("unsupported_lesson_video_type");
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  if (bytes.length > MAX_LESSON_VIDEO_BYTES) {
+    throw new Error("lesson_video_too_large");
+  }
+
+  const bucket = getRequiredEnv("TENCENT_COS_BUCKET");
+  const region = getCosRegion();
+  const cosObjectKey = buildLessonVideoCosObjectKey(extension, options.workspaceId);
+  const mimeType = getLessonVideoMimeType(extension, file.type);
+  const cos = getCosClient();
+
+  await new Promise<void>((resolve, reject) => {
+    cos.putObject(
+      {
+        Bucket: bucket,
+        Region: region,
+        Key: cosObjectKey,
+        Body: bytes,
+        ContentType: mimeType,
+      },
+      (error: Error | null) => {
+        if (error) reject(error);
+        else resolve();
+      }
+    );
+  });
+
+  return {
+    storageProvider: "cos",
+    fileName: file.name,
+    storedName: cosObjectKey,
+    extension,
+    size: bytes.length,
+    mimeType,
+    cosObjectKey,
+    playbackDomain: getCosPlaybackBaseUrl() || null,
+  };
 }
 
 export async function uploadLessonVideoToVod(file: File): Promise<StoredLessonVideo> {
@@ -203,17 +286,78 @@ export async function deleteVodLessonVideo(vodFileId?: string | null, vodSubAppI
   });
 }
 
+export async function deleteCosLessonVideo(cosObjectKey?: string | null) {
+  if (!cosObjectKey) return;
+  const bucket = process.env.TENCENT_COS_BUCKET;
+  const secretId = process.env.TENCENTCLOUD_SECRET_ID;
+  const secretKey = process.env.TENCENTCLOUD_SECRET_KEY;
+  if (!bucket || !secretId || !secretKey) return;
+
+  const cos = getCosClient();
+  await new Promise<void>((resolve, reject) => {
+    cos.deleteObject(
+      {
+        Bucket: bucket,
+        Region: getCosRegion(),
+        Key: cosObjectKey,
+      },
+      (error: Error | null) => {
+        if (error) reject(error);
+        else resolve();
+      }
+    );
+  });
+}
+
 export async function deleteLessonVideo(video: {
   storageProvider?: string | null;
   storedName?: string | null;
   vodFileId?: string | null;
   vodSubAppId?: number | null;
+  cosObjectKey?: string | null;
 }) {
   if (video.storageProvider === "vod") {
     await deleteVodLessonVideo(video.vodFileId, video.vodSubAppId);
     return;
   }
+  if (video.storageProvider === "cos") {
+    try {
+      await deleteCosLessonVideo(video.cosObjectKey || video.storedName);
+    } catch (error) {
+      console.error("Failed to delete COS lesson video", {
+        cosObjectKey: video.cosObjectKey || video.storedName,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return;
+  }
   await deleteStoredLessonVideo(video.storedName);
+}
+
+export async function getCosLessonVideoPlaybackUrl(cosObjectKey?: string | null) {
+  if (!cosObjectKey) throw new Error("cos_video_missing_object_key");
+  const bucket = getRequiredEnv("TENCENT_COS_BUCKET");
+  const region = getCosRegion();
+  const expires = getLessonVideoPlaybackExpiresSeconds();
+  const cos = getCosClient();
+
+  return new Promise<string>((resolve, reject) => {
+    cos.getObjectUrl(
+      {
+        Bucket: bucket,
+        Region: region,
+        Key: cosObjectKey,
+        Sign: true,
+        Expires: expires,
+        Protocol: "https:",
+      },
+      (error: Error | null, data: { Url?: string }) => {
+        if (error) reject(error);
+        else if (!data?.Url) reject(new Error("cos_signed_url_missing"));
+        else resolve(data.Url);
+      }
+    );
+  });
 }
 
 export async function getLessonVideoPlayback(video: {
@@ -222,6 +366,7 @@ export async function getLessonVideoPlayback(video: {
   fileName: string;
   mimeType: string;
   vodMediaUrl?: string | null;
+  cosObjectKey?: string | null;
 }): Promise<LessonVideoPlayback> {
   if (video.storageProvider === "vod") {
     if (!video.vodMediaUrl) throw new Error("vod_video_missing_playback_url");
@@ -229,7 +374,7 @@ export async function getLessonVideoPlayback(video: {
   }
 
   if (video.storageProvider === "cos") {
-    throw new Error("cos_lesson_video_storage_not_configured");
+    return { kind: "redirect", url: await getCosLessonVideoPlaybackUrl(video.cosObjectKey || video.storedName) };
   }
 
   return {

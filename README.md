@@ -115,6 +115,42 @@ REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-ma
 bash /opt/student-management/current/deploy/rollback.sh
 ```
 
+## 登录入口与关闭登录
+
+生产环境的登录入口由服务器环境变量控制，配置文件位置是：
+
+```bash
+sudo nano /opt/student-management/shared/.env
+```
+
+默认隐藏登录地址：
+
+```env
+HIDDEN_LOGIN_PATH="/teacher-login-2026"
+LOGIN_ENABLED="true"
+```
+
+如果希望使用普通登录地址 `/login`：
+
+```env
+HIDDEN_LOGIN_PATH="/login"
+LOGIN_ENABLED="true"
+```
+
+如果审核期间只展示公开首页，不开放登录页和登录接口：
+
+```env
+LOGIN_ENABLED="false"
+```
+
+修改 `.env` 后，执行：
+
+```bash
+sudo pm2 restart student-management --update-env
+```
+
+注意：`HIDDEN_LOGIN_PATH` 只负责修改登录路径，不负责关闭登录。删除或留空 `HIDDEN_LOGIN_PATH` 会回到默认隐藏地址 `/teacher-login-2026`。首次新增登录开关代码后需要重新部署一次；之后只切换 `LOGIN_ENABLED` 或 `HIDDEN_LOGIN_PATH` 时，重启 PM2 即可。
+
 ## 数据与文件说明
 
 以下内容属于本地或服务器运行数据，不上传到代码仓库：

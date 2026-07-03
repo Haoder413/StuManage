@@ -116,9 +116,39 @@ bash /opt/student-management/current/deploy/rollback.sh
 - 上传文件：`/opt/student-management/shared/storage/resources`
 - 数据库备份：`/opt/student-management/backups`
 
-隐藏后台登录地址由 `/opt/student-management/shared/.env` 中的 `HIDDEN_LOGIN_PATH` 控制，默认值为 `/teacher-login-2026`。如果不需要隐藏入口，可设置为 `HIDDEN_LOGIN_PATH="/login"`。修改该变量后需要重新部署，或执行 `sudo pm2 restart student-management --update-env` 让当前服务读取新环境变量。
+后台登录入口由 `/opt/student-management/shared/.env` 中的 `HIDDEN_LOGIN_PATH` 和 `LOGIN_ENABLED` 控制。修改配置：
 
-`HIDDEN_LOGIN_PATH` 只用于修改登录路径，不用于关闭登录。删除该变量会回到默认隐藏入口。若审核期间需要只展示公开首页、不开放后台登录，可设置 `LOGIN_ENABLED="false"`；需要恢复登录时设置 `LOGIN_ENABLED="true"`。首次增加代码开关需要重新部署一次，之后只调整 `.env` 变量值时执行 `sudo pm2 restart student-management --update-env` 即可。
+```bash
+sudo nano /opt/student-management/shared/.env
+```
+
+默认隐藏登录地址：
+
+```env
+HIDDEN_LOGIN_PATH="/teacher-login-2026"
+LOGIN_ENABLED="true"
+```
+
+使用普通登录地址 `/login`：
+
+```env
+HIDDEN_LOGIN_PATH="/login"
+LOGIN_ENABLED="true"
+```
+
+审核期间只展示公开首页、不开放登录页和登录接口：
+
+```env
+LOGIN_ENABLED="false"
+```
+
+修改 `.env` 后重启服务：
+
+```bash
+sudo pm2 restart student-management --update-env
+```
+
+`HIDDEN_LOGIN_PATH` 只用于修改登录路径，不用于关闭登录。删除或留空该变量会回到默认隐藏入口 `/teacher-login-2026`。首次增加登录开关代码需要重新部署一次；之后只调整 `.env` 变量值时重启 PM2 即可。
 
 ## 7. 常用账号提醒
 

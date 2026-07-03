@@ -13,6 +13,19 @@ type NormalizedScheduleTime = {
   orderIndex: number;
 };
 
+type DesiredSchedule = {
+  workspaceId: string;
+  studentId?: string | null;
+  courseId: string;
+  type: "fixed";
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  isActive: boolean;
+};
+
 function parseOptionalDate(value: unknown) {
   if (typeof value !== "string" || !value) return null;
   const date = new Date(`${value}T00:00:00`);
@@ -55,6 +68,118 @@ function normalizeStudentIds(data: unknown) {
           .map((id: string) => id.trim())
       ))
     : [];
+}
+
+function scheduleDateKey(date: Date | null | undefined) {
+  return date ? date.toISOString().slice(0, 10) : "";
+}
+
+function scheduleMatchKey(schedule: {
+  studentId?: string | null;
+  dayOfWeek: number | null;
+  startTime: string | null;
+  endTime: string | null;
+  startDate: Date | null;
+  endDate: Date | null;
+}) {
+  return [
+    schedule.studentId || "",
+    schedule.dayOfWeek ?? "",
+    schedule.startTime || "",
+    schedule.endTime || "",
+    scheduleDateKey(schedule.startDate),
+    scheduleDateKey(schedule.endDate),
+  ].join("|");
+}
+
+function buildDesiredSchedules(
+  workspaceId: string,
+  courseId: string,
+  type: string,
+  scheduleTimes: NormalizedScheduleTime[],
+  studentIds: string[]
+) {
+  if (type === "fixed") {
+    return scheduleTimes.map((time) => ({
+      workspaceId,
+      courseId,
+      type: "fixed" as const,
+      dayOfWeek: time.dayOfWeek,
+      startTime: time.startTime,
+      endTime: time.endTime,
+      startDate: time.startDate,
+      endDate: time.endDate,
+      isActive: true,
+    }));
+  }
+
+  return studentIds.flatMap((studentId) =>
+    scheduleTimes.map((time) => ({
+      workspaceId,
+      studentId,
+      courseId,
+      type: "fixed" as const,
+      dayOfWeek: time.dayOfWeek,
+      startTime: time.startTime,
+      endTime: time.endTime,
+      startDate: time.startDate,
+      endDate: time.endDate,
+      isActive: true,
+    }))
+  );
+}
+
+function removeMatchedDesiredSchedule(desiredSchedules: DesiredSchedule[], existingSchedule: {
+  studentId?: string | null;
+  dayOfWeek: number | null;
+  startTime: string | null;
+  endTime: string | null;
+  startDate: Date | null;
+  endDate: Date | null;
+}) {
+  const key = scheduleMatchKey(existingSchedule);
+  const index = desiredSchedules.findIndex((schedule) => scheduleMatchKey(schedule) === key);
+  if (index === -1) return false;
+  desiredSchedules.splice(index, 1);
+  return true;
+}
+
+async function deleteSchedulesWithoutAttendance(
+  tx: Prisma.TransactionClient,
+  workspaceId: string,
+  courseId: string
+) {
+  await tx.schedule.deleteMany({
+    where: { workspaceId, courseId, attendance: { none: {} } },
+  });
+}
+
+async function preserveAttendedSchedules(
+  tx: Prisma.TransactionClient,
+  workspaceId: string,
+  courseId: string,
+  desiredSchedules: DesiredSchedule[]
+) {
+  const attendedSchedules = await tx.schedule.findMany({
+    where: { workspaceId, courseId, attendance: { some: {} } },
+    select: {
+      id: true,
+      studentId: true,
+      dayOfWeek: true,
+      startTime: true,
+      endTime: true,
+      startDate: true,
+      endDate: true,
+    },
+  });
+
+  for (const schedule of attendedSchedules) {
+    const stillMatchesCourseTime = removeMatchedDesiredSchedule(desiredSchedules, schedule);
+    await tx.schedule.update({
+      where: { id: schedule.id },
+      data: { isActive: stillMatchesCourseTime },
+    });
+  }
 }
 
 async function syncCourseStudents(
@@ -107,46 +232,14 @@ async function syncCourseSchedules(
   scheduleTimes: NormalizedScheduleTime[],
   studentIds: string[]
 ) {
-  await tx.schedule.updateMany({
-    where: { workspaceId, courseId, isActive: true },
-    data: { isActive: false },
-  });
+  const desiredSchedules = buildDesiredSchedules(workspaceId, courseId, type, scheduleTimes, studentIds);
 
-  if (scheduleTimes.length === 0) return;
+  await deleteSchedulesWithoutAttendance(tx, workspaceId, courseId);
+  await preserveAttendedSchedules(tx, workspaceId, courseId, desiredSchedules);
 
-  if (type === "fixed") {
+  if (desiredSchedules.length > 0) {
     await tx.schedule.createMany({
-      data: scheduleTimes.map((time) => ({
-        workspaceId,
-        courseId,
-        type: "fixed",
-        dayOfWeek: time.dayOfWeek,
-        startTime: time.startTime,
-        endTime: time.endTime,
-        startDate: time.startDate,
-        endDate: time.endDate,
-        isActive: true,
-      })),
-    });
-    return;
-  }
-
-  if (studentIds.length > 0) {
-    await tx.schedule.createMany({
-      data: studentIds.flatMap((studentId) =>
-        scheduleTimes.map((time) => ({
-          workspaceId,
-          studentId,
-          courseId,
-          type: "fixed",
-          dayOfWeek: time.dayOfWeek,
-          startTime: time.startTime,
-          endTime: time.endTime,
-          startDate: time.startDate,
-          endDate: time.endDate,
-          isActive: true,
-        }))
-      ),
+      data: desiredSchedules,
     });
   }
 }

@@ -44,6 +44,10 @@ function inTeacherScheduleRange(item, date) {
   return true;
 }
 
+function isHistoricalTeacherScheduleOnDate(item, date) {
+  return (item.attendance || []).some((record) => sameDay(parseDate(record.date), date));
+}
+
 function addDays(date, amount) {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + amount);
@@ -94,7 +98,10 @@ function getItemsForDate(items, date) {
   return (items || [])
     .filter((item) => {
       if (item.kind === "teacher_schedule") {
-        if (item.courseType === "fixed" && item.dayOfWeek === dayOfWeek) return inTeacherScheduleRange(item, date);
+        if (item.courseType === "fixed" && item.dayOfWeek === dayOfWeek) {
+          if (!item.isActive) return isHistoricalTeacherScheduleOnDate(item, date);
+          return inTeacherScheduleRange(item, date);
+        }
         return item.date ? sameDay(parseDate(item.date), date) : false;
       }
       return sameDay(parseDate(item.date), date);

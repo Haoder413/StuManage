@@ -232,7 +232,18 @@ export async function GET(request: NextRequest) {
   const [schedules, parentItems] = await Promise.all([
     scheduleFilters.length > 0
       ? prisma.schedule.findMany({
-          where: { workspaceId: user.workspaceId, OR: scheduleFilters },
+          where: {
+            workspaceId: user.workspaceId,
+            AND: [
+              { OR: scheduleFilters },
+              {
+                OR: [
+                  { isActive: true },
+                  { attendance: { some: { studentId: { in: studentIds }, learningLinkId: { in: linkIds } } } },
+                ],
+              },
+            ],
+          },
           include: {
             student: true,
             course: true,
@@ -274,6 +285,7 @@ export async function GET(request: NextRequest) {
       title: schedule.course?.name || link.subject || "老师安排",
       courseName: schedule.course?.name || null,
       courseType: schedule.type,
+      isActive: schedule.isActive,
       dayOfWeek: schedule.dayOfWeek,
       date: schedule.date ? formatCalendarDate(schedule.date) : null,
       startDate: schedule.startDate ? formatCalendarDate(schedule.startDate) : null,

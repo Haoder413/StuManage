@@ -64,8 +64,11 @@ export type CalendarItem =
       title: string;
       courseName: string | null;
       courseType: string;
+      isActive: boolean;
       dayOfWeek: number | null;
       date: string | null;
+      startDate: string | null;
+      endDate: string | null;
       startTime: string | null;
       endTime: string | null;
       notes: string | null;
@@ -815,13 +818,27 @@ function getItemsForDate(items: CalendarItem[], date: Date) {
   return items
     .filter((item) => {
       if (item.kind === "teacher_schedule") {
-        if (item.courseType === "fixed" && item.dayOfWeek === dayOfWeek) return true;
+        if (item.courseType === "fixed" && item.dayOfWeek === dayOfWeek) {
+          if (!item.isActive) return isHistoricalTeacherScheduleOnDate(item, date);
+          return isTeacherScheduleInDateRange(item, date);
+        }
         if (item.date) return isSameDay(parseCalendarDate(item.date), date);
         return false;
       }
       return isSameDay(parseCalendarDate(item.date), date);
     })
     .sort((a, b) => (a.startTime || "99:99").localeCompare(b.startTime || "99:99"));
+}
+
+function isTeacherScheduleInDateRange(item: Extract<CalendarItem, { kind: "teacher_schedule" }>, date: Date) {
+  const target = startOfDay(date);
+  if (item.startDate && target < startOfDay(parseCalendarDate(item.startDate))) return false;
+  if (item.endDate && target > startOfDay(parseCalendarDate(item.endDate))) return false;
+  return true;
+}
+
+function isHistoricalTeacherScheduleOnDate(item: Extract<CalendarItem, { kind: "teacher_schedule" }>, date: Date) {
+  return item.attendance.some((record) => isSameDay(parseCalendarDate(record.date), date));
 }
 
 function parseCalendarDate(value: string) {

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   let saved;
   try {
-    saved = await uploadLessonVideo(file);
+    saved = await uploadLessonVideo(file, { workspaceId: user.workspaceId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "failed to save lesson video";
     console.error("Lesson video upload failed", {

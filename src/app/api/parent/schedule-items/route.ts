@@ -310,7 +310,15 @@ export async function GET() {
       ? prisma.schedule.findMany({
           where: {
             workspaceId: user.workspaceId,
-            OR: scheduleFilters,
+            AND: [
+              { OR: scheduleFilters },
+              {
+                OR: [
+                  { isActive: true },
+                  { attendance: { some: { studentId: { in: studentIds }, learningLinkId: { in: linkIds } } } },
+                ],
+              },
+            ],
           },
           include: {
             student: true,
@@ -376,6 +384,7 @@ export async function GET() {
       title: schedule.course?.name || link.subject || "老师安排",
       courseName: schedule.course?.name || null,
       courseType: schedule.type,
+      isActive: schedule.isActive,
       dayOfWeek: schedule.dayOfWeek,
       date: schedule.date,
       startDate: schedule.startDate,
