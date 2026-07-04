@@ -18,6 +18,52 @@ function formatTeacherFeedback(data: {
   return parts.length > 0 ? parts.join("；") : null;
 }
 
+function reusableAttendanceScore(record: {
+  learningLinkId: string | null;
+  lessonVideo?: unknown | null;
+  lessonContent?: string | null;
+  lessonFeedback?: string | null;
+  contentTags?: string | null;
+  feedbackTags?: string | null;
+  weakPointTags?: string | null;
+  createdAt: Date;
+}) {
+  return (
+    (record.lessonVideo ? 100 : 0) +
+    (record.learningLinkId ? 20 : 0) +
+    (record.lessonContent ? 10 : 0) +
+    (record.lessonFeedback ? 10 : 0) +
+    (record.contentTags ? 1 : 0) +
+    (record.feedbackTags ? 1 : 0) +
+    (record.weakPointTags ? 1 : 0) +
+    record.createdAt.getTime() / 100000000000000
+  );
+}
+
+async function findReusableAttendance(data: {
+  workspaceId: string;
+  learningLinkId: string | null;
+  scheduleId: string;
+  studentId: string;
+  startOfDay: Date;
+  endOfDay: Date;
+}) {
+  const records = await prisma.attendance.findMany({
+    where: {
+      workspaceId: data.workspaceId,
+      scheduleId: data.scheduleId,
+      studentId: data.studentId,
+      date: { gte: data.startOfDay, lt: data.endOfDay },
+      OR: data.learningLinkId
+        ? [{ learningLinkId: data.learningLinkId }, { learningLinkId: null }]
+        : [{ learningLinkId: null }],
+    },
+    include: { lessonVideo: true },
+  });
+
+  return records.sort((a, b) => reusableAttendanceScore(b) - reusableAttendanceScore(a))[0] || null;
+}
+
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
@@ -70,14 +116,13 @@ export async function POST(request: NextRequest) {
   const endOfDay = new Date(startOfDay);
   endOfDay.setDate(endOfDay.getDate() + 1);
 
-  const existing = await prisma.attendance.findFirst({
-    where: {
-      workspaceId: user.workspaceId,
-      learningLinkId: learningLink?.id || null,
-      scheduleId: data.scheduleId,
-      studentId: data.studentId,
-      date: { gte: startOfDay, lt: endOfDay },
-    },
+  const existing = await findReusableAttendance({
+    workspaceId: user.workspaceId,
+    learningLinkId: learningLink?.id || null,
+    scheduleId: data.scheduleId,
+    studentId: data.studentId,
+    startOfDay,
+    endOfDay,
   });
 
   const payload = {

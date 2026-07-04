@@ -19,7 +19,7 @@ if (!route.includes("shouldRestoreLessonHour")) {
   throw new Error("attendance API should restore a consumed lesson hour if present is changed to non-present");
 }
 
-if (!schedulePage.includes("handleAttendance(s.id, student.id, selectedDate, st)")) {
+if (!schedulePage.includes("handleAttendance(schedule.id, student.id, selectedDate, status)")) {
   throw new Error("class attendance should save attendance per student");
 }
 
