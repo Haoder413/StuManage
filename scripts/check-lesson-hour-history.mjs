@@ -26,6 +26,14 @@ if (!studentEditor.includes("增加课时") || !studentEditor.includes("使用�
   throw new Error("student editor should provide lesson hour action buttons");
 }
 
+if (!studentEditor.includes("occurredAt") || !studentEditor.includes('type="datetime-local"')) {
+  throw new Error("lesson hour dialog should let teachers set the operation time");
+}
+
+if (!studentsRoute.includes("createdAt: lessonHourOccurredAt")) {
+  throw new Error("student lesson hour API should persist the selected operation time");
+}
+
 if (!studentPage.includes("课时历史") || !studentPage.includes("lessonHourLogs")) {
   throw new Error("student page should display lesson hour history");
 }

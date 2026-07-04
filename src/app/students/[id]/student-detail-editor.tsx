@@ -34,6 +34,16 @@ function formatDateInput(value: string) {
   return value.slice(0, 10);
 }
 
+function formatDateTimeInput(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
 function methodLabel(method: string) {
   const labels: Record<string, string> = { phone: "电话", wechat: "微信", in_person: "面谈" };
   return labels[method] || method;
@@ -64,6 +74,7 @@ export function StudentDetailEditor({
 
   const [lessonHourForm, setLessonHourForm] = useState({
     amount: "1",
+    occurredAt: formatDateTimeInput(),
     note: "",
   });
 
@@ -121,7 +132,7 @@ export function StudentDetailEditor({
 
   function openLessonHourDialog(action: "add" | "use") {
     setLessonHourAction(action);
-    setLessonHourForm({ amount: "1", note: "" });
+    setLessonHourForm({ amount: "1", occurredAt: formatDateTimeInput(), note: "" });
   }
 
   async function saveLessonHourAction() {
@@ -133,6 +144,7 @@ export function StudentDetailEditor({
         id: student.id,
         action: lessonHourAction,
         amount: parseInt(lessonHourForm.amount) || 0,
+        occurredAt: lessonHourForm.occurredAt,
         note: lessonHourForm.note,
       }),
     });
@@ -278,6 +290,14 @@ export function StudentDetailEditor({
                 min="1"
                 value={lessonHourForm.amount}
                 onChange={e => setLessonHourForm(prev => ({ ...prev, amount: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">发生时间</Label>
+              <Input
+                type="datetime-local"
+                value={lessonHourForm.occurredAt}
+                onChange={e => setLessonHourForm(prev => ({ ...prev, occurredAt: e.target.value }))}
               />
             </div>
             <div>

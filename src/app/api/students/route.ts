@@ -183,6 +183,10 @@ export async function PUT(request: NextRequest) {
   const action = String(data.action || "");
   const amount = Number(data.amount);
   const note = String(data.note || "").trim() || null;
+  const requestedOccurredAt = data.occurredAt ? new Date(String(data.occurredAt)) : null;
+  const lessonHourOccurredAt = requestedOccurredAt && !Number.isNaN(requestedOccurredAt.getTime())
+    ? requestedOccurredAt
+    : new Date();
 
   if (!data.id) return NextResponse.json({ error: "missing id" }, { status: 400 });
   if (!LESSON_HOUR_ACTIONS.includes(action as (typeof LESSON_HOUR_ACTIONS)[number])) {
@@ -233,6 +237,7 @@ export async function PUT(request: NextRequest) {
         afterRemainingHours: afterStudent.remainingLessonHours,
         note,
         teacherFeedback: null,
+        createdAt: lessonHourOccurredAt,
       },
     });
 
