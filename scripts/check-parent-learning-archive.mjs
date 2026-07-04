@@ -13,6 +13,8 @@ assert(sidebar.includes("/parent/archive"), "parent sidebar should include the l
 assert(sidebar.includes("学习档案"), "parent sidebar should label the new entry as 学习档案");
 assert(archivePage.includes("requireParent"), "learning archive page should require parent login");
 assert(archivePage.includes("getParentStudents"), "learning archive page should use parent-visible student data");
+assert(archivePage.includes("dedupeArchiveLessons"), "learning archive should dedupe legacy duplicate attendance cards");
+assert(archivePage.includes("archiveLessonKey"), "learning archive should compare lesson identity by visible lesson fields");
 assert(archivePage.includes("课堂回放"), "learning archive should show lesson video playback");
 assert(archivePage.includes("上课内容"), "learning archive should show lesson content");
 assert(archivePage.includes("上课反馈"), "learning archive should show lesson feedback");

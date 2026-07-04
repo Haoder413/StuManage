@@ -15,6 +15,7 @@ type ArchiveLesson = {
   contentTags: string[];
   feedbackTags: string[];
   weakPointTags: string[];
+  createdAt: Date;
   lessonVideo: {
     id: string;
     title: string | null;
@@ -26,8 +27,8 @@ type ArchiveLesson = {
 export default async function ParentLearningArchivePage() {
   const user = await requireParent();
   const parentStudents = await getParentStudents(user);
-  const lessons = parentStudents
-    .flatMap(({ student }) =>
+  const lessons = dedupeArchiveLessons(
+    parentStudents.flatMap(({ student }) =>
       student.attendance.map((attendance): ArchiveLesson => ({
         id: attendance.id,
         date: attendance.date,
@@ -41,6 +42,7 @@ export default async function ParentLearningArchivePage() {
         contentTags: parseTags(attendance.contentTags),
         feedbackTags: parseTags(attendance.feedbackTags),
         weakPointTags: parseTags(attendance.weakPointTags),
+        createdAt: attendance.createdAt,
         lessonVideo: attendance.lessonVideo
           ? {
               id: attendance.lessonVideo.id,
@@ -51,6 +53,7 @@ export default async function ParentLearningArchivePage() {
           : null,
       }))
     )
+  )
     .sort((a, b) => b.date.getTime() - a.date.getTime());
 
   return (
@@ -157,4 +160,48 @@ function formatFileSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)}MB`;
   if (size >= 1024) return `${Math.round(size / 1024)}KB`;
   return `${size}B`;
+}
+
+function dedupeArchiveLessons(lessons: ArchiveLesson[]) {
+  const byLesson = new Map<string, ArchiveLesson>();
+
+  for (const lesson of lessons) {
+    const key = archiveLessonKey(lesson);
+    const current = byLesson.get(key);
+    if (!current || archiveLessonScore(lesson) > archiveLessonScore(current)) {
+      byLesson.set(key, lesson);
+    }
+  }
+
+  return [...byLesson.values()];
+}
+
+function archiveLessonKey(lesson: ArchiveLesson) {
+  return [
+    formatArchiveDateKey(lesson.date),
+    lesson.studentName,
+    lesson.courseName,
+    lesson.teacherName,
+    lesson.subject,
+    lesson.status,
+  ].join(":");
+}
+
+function archiveLessonScore(lesson: ArchiveLesson) {
+  return (
+    (lesson.lessonVideo ? 100 : 0) +
+    (lesson.lessonContent ? 10 : 0) +
+    (lesson.lessonFeedback ? 10 : 0) +
+    lesson.contentTags.length +
+    lesson.feedbackTags.length +
+    lesson.weakPointTags.length +
+    lesson.createdAt.getTime() / 100000000000000
+  );
+}
+
+function formatArchiveDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
