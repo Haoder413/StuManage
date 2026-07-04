@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
@@ -47,9 +48,18 @@ interface Schedule {
     lessonContent: string | null; lessonFeedback: string | null;
     contentTags: string | null; feedbackTags: string | null; weakPointTags: string | null;
     lessonVideo: LessonVideo | null;
+    lessonAttachments: LessonAttachment[];
   }[];
 }
 interface LessonVideo {
+  id: string;
+  title: string | null;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+interface LessonAttachment {
   id: string;
   title: string | null;
   fileName: string;
@@ -269,10 +279,15 @@ export default function SchedulePage() {
   const [selectedWeakPointTags, setSelectedWeakPointTags] = useState<string[]>([]);
   const [selectedContentTags, setSelectedContentTags] = useState<string[]>([]);
   const [selectedFeedbackTags, setSelectedFeedbackTags] = useState<string[]>([]);
+  const [reviewLessonContentText, setReviewLessonContentText] = useState("");
+  const [reviewLessonFeedbackText, setReviewLessonFeedbackText] = useState("");
   const [reviewLessonVideo, setReviewLessonVideo] = useState<LessonVideo | null>(null);
+  const [reviewLessonAttachments, setReviewLessonAttachments] = useState<LessonAttachment[]>([]);
   const [reviewAttendanceId, setReviewAttendanceId] = useState<string | null>(null);
   const [reviewVideoFile, setReviewVideoFile] = useState<File | null>(null);
+  const [reviewAttachmentFiles, setReviewAttachmentFiles] = useState<File[]>([]);
   const [reviewVideoError, setReviewVideoError] = useState("");
+  const [reviewAttachmentError, setReviewAttachmentError] = useState("");
   const [savingReview, setSavingReview] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [editingAttendanceKey, setEditingAttendanceKey] = useState<string | null>(null);
@@ -423,10 +438,15 @@ export default function SchedulePage() {
     setSelectedWeakPointTags(parseTags(existing?.weakPointTags));
     setSelectedContentTags(parseTags(existing?.contentTags));
     setSelectedFeedbackTags(parseTags(existing?.feedbackTags));
+    setReviewLessonContentText(existing?.lessonContent || "");
+    setReviewLessonFeedbackText(existing?.lessonFeedback || "");
     setReviewLessonVideo(existing?.lessonVideo || null);
+    setReviewLessonAttachments(existing?.lessonAttachments || []);
     setReviewAttendanceId(existing?.id || null);
     setReviewVideoFile(null);
+    setReviewAttachmentFiles([]);
     setReviewVideoError("");
+    setReviewAttachmentError("");
     setReviewWeakPointTags(weakPointTags);
     setShowReviewForm(true);
     await loadStudentWeakPointTags(targetStudentId);
@@ -436,6 +456,7 @@ export default function SchedulePage() {
     if (!pendingAttendance) return;
     setSavingReview(true);
     setReviewVideoError("");
+    setReviewAttachmentError("");
     setUploadProgress(0);
     const savedAttendance = await handleAttendance(
       pendingAttendance.scheduleId,
@@ -443,8 +464,8 @@ export default function SchedulePage() {
       selectedDate,
       pendingAttendance.status,
       {
-        lessonContent: "",
-        lessonFeedback: "",
+        lessonContent: reviewLessonContentText.trim(),
+        lessonFeedback: reviewLessonFeedbackText.trim(),
         contentTags: selectedContentTags,
         feedbackTags: selectedFeedbackTags,
         weakPointTags: selectedWeakPointTags,
@@ -483,6 +504,32 @@ export default function SchedulePage() {
         return;
       }
     }
+    if (reviewAttachmentFiles.length > 0) {
+      const formData = new FormData();
+      reviewAttachmentFiles.forEach((file) => formData.append("files", file));
+      try {
+        const response = await fetch(`/api/attendance/${savedAttendance.id}/attachments`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) throw new Error("upload_failed");
+        const lessonAttachments: LessonAttachment[] = await response.json();
+        setReviewLessonAttachments(prev => [...prev, ...lessonAttachments]);
+        setSchedules(prev => prev.map(s => {
+          if (s.id !== pendingAttendance.scheduleId) return s;
+          return {
+            ...s,
+            attendance: s.attendance.map(a => a.id === savedAttendance.id
+              ? { ...a, lessonAttachments: [...(a.lessonAttachments || []), ...lessonAttachments] }
+              : a),
+          };
+        }));
+      } catch {
+        setSavingReview(false);
+        setReviewAttachmentError("课堂资料上传失败，请确认格式后重试");
+        return;
+      }
+    }
     const weakPointDescriptions = Array.from(new Set(selectedWeakPointTags.map(item => item.trim()).filter(Boolean)));
     if (weakPointDescriptions.length > 0) {
       await Promise.all(weakPointDescriptions.map(description =>
@@ -496,9 +543,14 @@ export default function SchedulePage() {
     setShowReviewForm(false);
     setPendingAttendance(null);
     setCourseAttendanceStudentId(null);
+    setReviewLessonContentText("");
+    setReviewLessonFeedbackText("");
     setReviewLessonVideo(null);
+    setReviewLessonAttachments([]);
     setReviewAttendanceId(null);
     setReviewVideoFile(null);
+    setReviewAttachmentFiles([]);
+    setReviewAttachmentError("");
     setUploadProgress(0);
     setSavingReview(false);
   }
@@ -542,6 +594,21 @@ export default function SchedulePage() {
     setSchedules(prev => prev.map(s => s.id === pendingAttendance.scheduleId ? {
       ...s,
       attendance: s.attendance.map(a => a.lessonVideo?.id === reviewLessonVideo.id ? { ...a, lessonVideo: null } : a),
+    } : s));
+  }
+
+  async function deleteReviewLessonAttachment(attachment: LessonAttachment) {
+    if (!pendingAttendance) return;
+    if (!confirm(`确定删除课堂资料「${attachment.title || attachment.fileName}」？`)) return;
+    const response = await fetch(`/api/lesson-attachments/${attachment.id}`, { method: "DELETE" });
+    if (!response.ok) return;
+    setReviewLessonAttachments(prev => prev.filter(item => item.id !== attachment.id));
+    setSchedules(prev => prev.map(s => s.id === pendingAttendance.scheduleId ? {
+      ...s,
+      attendance: s.attendance.map(a => ({
+        ...a,
+        lessonAttachments: (a.lessonAttachments || []).filter(item => item.id !== attachment.id),
+      })),
     } : s));
   }
 
@@ -924,6 +991,13 @@ export default function SchedulePage() {
           <div className="space-y-4 pt-2">
             <div>
               <Label className="text-xs text-gray-500">上课内容</Label>
+              <Textarea
+                value={reviewLessonContentText}
+                onChange={(event) => setReviewLessonContentText(event.target.value)}
+                placeholder="记录本节课讲了哪些内容"
+                className="mt-1 min-h-20 text-sm"
+                disabled={savingReview}
+              />
               <div className="mt-1">
                 <TagChips
                   type="content"
@@ -938,6 +1012,13 @@ export default function SchedulePage() {
             </div>
             <div>
               <Label className="text-xs text-gray-500">上课反馈</Label>
+              <Textarea
+                value={reviewLessonFeedbackText}
+                onChange={(event) => setReviewLessonFeedbackText(event.target.value)}
+                placeholder="写给家长看的课堂评语"
+                className="mt-1 min-h-20 text-sm"
+                disabled={savingReview}
+              />
               <div className="mt-1">
                 <TagChips
                   type="feedback"
@@ -1012,6 +1093,59 @@ export default function SchedulePage() {
                 </div>
               )}
               {reviewVideoError && <p className="mt-1 text-[11px] text-red-500">{reviewVideoError}</p>}
+            </div>
+            <div className="rounded-lg border border-gray-100 p-3">
+              <Label className="text-xs text-gray-500">课堂资料</Label>
+              {reviewLessonAttachments.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {reviewLessonAttachments.map((attachment) => (
+                    <div key={attachment.id} className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate">{attachment.title || attachment.fileName}</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <a
+                            href={`/api/lesson-attachments/${attachment.id}/file?mode=preview`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold text-blue-500 hover:text-blue-600"
+                          >
+                            预览
+                          </a>
+                          <button
+                            type="button"
+                            className="font-semibold text-red-400 hover:text-red-500"
+                            onClick={() => deleteReviewLessonAttachment(attachment)}
+                            disabled={savingReview}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-400">{formatFileSize(attachment.size)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.txt"
+                className="mt-2"
+                disabled={savingReview}
+                onChange={(event) => {
+                  setReviewAttachmentFiles(Array.from(event.target.files || []));
+                  setReviewAttachmentError("");
+                }}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                支持 PDF、Word、PPT、图片和文本文件。新选择的资料会追加到这节课。
+              </p>
+              {reviewAttachmentFiles.length > 0 && (
+                <div className="mt-1 space-y-0.5 text-[11px] text-blue-500">
+                  {reviewAttachmentFiles.map((file) => <p key={`${file.name}-${file.size}`}>已选择：{file.name}</p>)}
+                </div>
+              )}
+              {reviewAttachmentError && <p className="mt-1 text-[11px] text-red-500">{reviewAttachmentError}</p>}
             </div>
             <div className="sticky bottom-0 flex justify-end gap-2 border-t border-gray-100 bg-background pt-3">
               <Button variant="outline" size="sm" onClick={() => setShowReviewForm(false)} disabled={savingReview}>取消</Button>

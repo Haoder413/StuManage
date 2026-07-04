@@ -22,6 +22,13 @@ type ArchiveLesson = {
     fileName: string;
     size: number;
   } | null;
+  lessonAttachments: {
+    id: string;
+    title: string | null;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }[];
 };
 
 export default async function ParentLearningArchivePage() {
@@ -51,6 +58,13 @@ export default async function ParentLearningArchivePage() {
               size: attendance.lessonVideo.size,
             }
           : null,
+        lessonAttachments: attendance.lessonAttachments.map((attachment) => ({
+          id: attachment.id,
+          title: attachment.title,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          size: attachment.size,
+        })),
       }))
     )
   )
@@ -92,6 +106,7 @@ export default async function ParentLearningArchivePage() {
                   <TagBlock title="薄弱点" tags={lesson.weakPointTags} />
                 </div>
 
+                <div className="space-y-3">
                 <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
                   <p className="mb-2 text-sm font-bold text-slate-800">课堂回放</p>
                   {lesson.lessonVideo ? (
@@ -111,6 +126,40 @@ export default async function ParentLearningArchivePage() {
                       暂无课堂回放
                     </div>
                   )}
+                </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                  <p className="mb-2 text-sm font-bold text-slate-800">课堂资料</p>
+                  {lesson.lessonAttachments.length > 0 ? (
+                    <div className="space-y-2">
+                      {lesson.lessonAttachments.map((attachment) => (
+                        <div key={attachment.id} className="rounded-md bg-white px-3 py-2 text-xs text-slate-600">
+                          <p className="truncate font-semibold text-slate-700">{attachment.title || attachment.fileName}</p>
+                          <p className="mt-1 text-slate-400">{formatFileSize(attachment.size)}</p>
+                          <div className="mt-2 flex gap-2">
+                            <a
+                              href={`/api/lesson-attachments/${attachment.id}/file?mode=preview`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-sky-600 hover:text-sky-700"
+                            >
+                              预览
+                            </a>
+                            <a
+                              href={`/api/lesson-attachments/${attachment.id}/file?mode=download`}
+                              className="font-semibold text-slate-500 hover:text-slate-700"
+                            >
+                              下载
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-24 items-center justify-center rounded-md bg-white text-sm text-slate-400">
+                      暂无课堂资料
+                    </div>
+                  )}
+                </div>
                 </div>
               </div>
             </article>
@@ -190,6 +239,7 @@ function archiveLessonKey(lesson: ArchiveLesson) {
 function archiveLessonScore(lesson: ArchiveLesson) {
   return (
     (lesson.lessonVideo ? 100 : 0) +
+    (lesson.lessonAttachments.length ? 50 : 0) +
     (lesson.lessonContent ? 10 : 0) +
     (lesson.lessonFeedback ? 10 : 0) +
     lesson.contentTags.length +

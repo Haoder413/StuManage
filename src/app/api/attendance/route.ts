@@ -21,6 +21,7 @@ function formatTeacherFeedback(data: {
 function reusableAttendanceScore(record: {
   learningLinkId: string | null;
   lessonVideo?: unknown | null;
+  lessonAttachments?: unknown[] | null;
   lessonContent?: string | null;
   lessonFeedback?: string | null;
   contentTags?: string | null;
@@ -30,6 +31,7 @@ function reusableAttendanceScore(record: {
 }) {
   return (
     (record.lessonVideo ? 100 : 0) +
+    (record.lessonAttachments?.length ? 50 : 0) +
     (record.learningLinkId ? 20 : 0) +
     (record.lessonContent ? 10 : 0) +
     (record.lessonFeedback ? 10 : 0) +
@@ -58,7 +60,7 @@ async function findReusableAttendance(data: {
         ? [{ learningLinkId: data.learningLinkId }, { learningLinkId: null }]
         : [{ learningLinkId: null }],
     },
-    include: { lessonVideo: true },
+    include: { lessonVideo: true, lessonAttachments: true },
   });
 
   return records.sort((a, b) => reusableAttendanceScore(b) - reusableAttendanceScore(a))[0] || null;
@@ -217,5 +219,10 @@ export async function POST(request: NextRequest) {
     return savedAttendance;
   });
 
-  return NextResponse.json(attendance, { status: 201 });
+  const attendanceWithRelations = await prisma.attendance.findFirst({
+    where: { id: attendance.id, workspaceId: user.workspaceId },
+    include: { lessonVideo: true, lessonAttachments: true },
+  });
+
+  return NextResponse.json(attendanceWithRelations || attendance, { status: 201 });
 }

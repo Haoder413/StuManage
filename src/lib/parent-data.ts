@@ -20,9 +20,15 @@ export function getParentVisibleAttendanceWhere(linkIds: string[]) {
 function attendanceScore(record: {
   learningLinkId: string | null;
   lessonVideo?: unknown | null;
+  lessonAttachments?: unknown[] | null;
   createdAt: Date;
 }) {
-  return (record.lessonVideo ? 100 : 0) + (record.learningLinkId ? 10 : 0) + record.createdAt.getTime() / 100000000000000;
+  return (
+    (record.lessonVideo ? 100 : 0) +
+    (record.lessonAttachments?.length ? 50 : 0) +
+    (record.learningLinkId ? 10 : 0) +
+    record.createdAt.getTime() / 100000000000000
+  );
 }
 
 export function dedupeAttendanceRecords<T extends {
@@ -31,6 +37,7 @@ export function dedupeAttendanceRecords<T extends {
   date: Date;
   learningLinkId: string | null;
   lessonVideo?: unknown | null;
+  lessonAttachments?: unknown[] | null;
   createdAt: Date;
 }>(records: T[]) {
   const byLesson = new Map<string, T>();
@@ -64,6 +71,7 @@ export async function getParentStudents(user: { id: string; workspaceId: string 
             include: {
               schedule: { include: { course: true } },
               lessonVideo: true,
+              lessonAttachments: true,
               learningLink: {
                 include: {
                   teacher: { select: { id: true, name: true, teachingSubject: true } },
