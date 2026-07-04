@@ -29,7 +29,13 @@ fi
 
 npm install -g pm2
 
-mkdir -p "$APP_ROOT/releases" "$APP_ROOT/shared/storage/resources" "$APP_ROOT/backups"
+mkdir -p \
+  "$APP_ROOT/releases" \
+  "$APP_ROOT/shared/storage/resources" \
+  "$APP_ROOT/shared/storage/public-materials" \
+  "$APP_ROOT/shared/storage/lesson-videos" \
+  "$APP_ROOT/shared/storage/lesson-attachments" \
+  "$APP_ROOT/backups"
 
 if [ ! -f "$APP_ROOT/shared/.env" ]; then
   cat > "$APP_ROOT/shared/.env" <<ENV

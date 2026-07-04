@@ -18,7 +18,13 @@ TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 RELEASE_DIR="$APP_ROOT/releases/$TIMESTAMP"
 SHARED_DIR="$APP_ROOT/shared"
 
-mkdir -p "$APP_ROOT/releases" "$SHARED_DIR/storage/resources" "$SHARED_DIR/storage/public-materials" "$APP_ROOT/backups"
+mkdir -p \
+  "$APP_ROOT/releases" \
+  "$SHARED_DIR/storage/resources" \
+  "$SHARED_DIR/storage/public-materials" \
+  "$SHARED_DIR/storage/lesson-videos" \
+  "$SHARED_DIR/storage/lesson-attachments" \
+  "$APP_ROOT/backups"
 
 if [ -f "$SHARED_DIR/dev.db" ]; then
   cp "$SHARED_DIR/dev.db" "$APP_ROOT/backups/dev-$TIMESTAMP.db"
@@ -32,6 +38,8 @@ ln -sfn "$SHARED_DIR/.env" ".env"
 mkdir -p storage
 ln -sfn "$SHARED_DIR/storage/resources" "storage/resources"
 ln -sfn "$SHARED_DIR/storage/public-materials" "storage/public-materials"
+ln -sfn "$SHARED_DIR/storage/lesson-videos" "storage/lesson-videos"
+ln -sfn "$SHARED_DIR/storage/lesson-attachments" "storage/lesson-attachments"
 
 npm ci
 npx prisma generate
