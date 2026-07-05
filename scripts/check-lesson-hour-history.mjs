@@ -5,6 +5,7 @@ const studentsRoute = fs.readFileSync("src/app/api/students/route.ts", "utf8");
 const attendanceRoute = fs.readFileSync("src/app/api/attendance/route.ts", "utf8");
 const studentEditor = fs.readFileSync("src/app/students/[id]/student-detail-editor.tsx", "utf8");
 const studentPage = fs.readFileSync("src/app/students/[id]/page.tsx", "utf8");
+const lessonHourHistoryEditor = fs.readFileSync("src/app/students/[id]/lesson-hour-history-editor.tsx", "utf8");
 
 if (!schema.includes("model LessonHourLog")) {
   throw new Error("schema should include LessonHourLog");
@@ -34,7 +35,7 @@ if (!studentsRoute.includes("createdAt: lessonHourOccurredAt")) {
   throw new Error("student lesson hour API should persist the selected operation time");
 }
 
-if (!studentPage.includes("课时历史") || !studentPage.includes("lessonHourLogs")) {
+if (!studentPage.includes("LessonHourHistoryEditor") || !studentPage.includes("lessonHourLogs") || !lessonHourHistoryEditor.includes("课时历史")) {
   throw new Error("student page should display lesson hour history");
 }
 
