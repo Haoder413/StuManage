@@ -15,12 +15,18 @@ assert.match(kpRoute, /export async function POST/, "knowledge point API should 
 assert.match(kpRoute, /data\.items/, "knowledge point API should support batch importing nodes");
 assert.match(kpRoute, /export async function PATCH/, "knowledge point API should support renaming nodes");
 assert.match(kpRoute, /export async function DELETE/, "knowledge point API should support deleting nodes");
+assert.match(kpRoute, /deleteKnowledgePoints/, "knowledge point API should support batch deleting nodes");
+assert.match(kpRoute, /data\.ids/, "knowledge point API should accept a list of ids for batch delete");
 assert.match(editor, /新增子知识点/, "outline editor should support adding child knowledge points");
+assert.match(editor, /新增知识点/, "outline editor should support adding root knowledge points");
 assert.match(editor, /批量导入/, "outline editor should support bulk paste import");
+assert.match(editor, /批量删除/, "outline editor should support bulk delete");
+assert.match(editor, /selectedKnowledgePointIds/, "outline editor should track selected nodes for bulk delete");
 assert.match(editor, /parseOutlineText/, "outline editor should parse pasted tree outlines");
 assert.match(editor, /粘贴知识点大纲/, "outline editor should provide a paste dialog");
+assert.match(editor, /每深入一级缩进 2 个半角空格或 1 个 Tab/, "outline import help should explain indentation rules");
+assert.match(editor, /多级标题/, "outline import help should say multi-level titles are supported");
 assert.match(editor, /重命名/, "outline editor should support renaming knowledge points");
 assert.match(editor, /删除/, "outline editor should support deleting knowledge points");
-assert.doesNotMatch(editor, /onClick=\{\(\) => addPoint\(null\)\}>新增知识点/, "root add knowledge point button should be removed");
 
 console.log("Course outline editing is present.");

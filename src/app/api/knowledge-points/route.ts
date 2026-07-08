@@ -11,6 +11,21 @@ async function collectChildIds(parentId: string, workspaceId: string): Promise<s
   return [...children.map((child) => child.id), ...nested.flat()];
 }
 
+async function deleteKnowledgePoints(ids: string[], workspaceId: string) {
+  const rootIds = Array.from(new Set(ids.filter(Boolean)));
+  const nestedIds = (await Promise.all(rootIds.map((id) => collectChildIds(id, workspaceId)))).flat();
+  const childIds = Array.from(new Set(nestedIds));
+
+  if (childIds.length > 0) {
+    await prisma.knowledgePoint.deleteMany({ where: { id: { in: childIds.reverse() }, workspaceId } });
+  }
+  if (rootIds.length > 0) {
+    await prisma.knowledgePoint.deleteMany({ where: { id: { in: rootIds }, workspaceId } });
+  }
+
+  return { deletedIds: Array.from(new Set([...rootIds, ...childIds])) };
+}
+
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
@@ -69,12 +84,14 @@ export async function DELETE(request: NextRequest) {
   const user = await requireTeacherLike();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+  const data = await request.json().catch(() => ({}));
+  const ids = Array.isArray(data.ids)
+    ? data.ids.map((item: unknown) => String(item || "")).filter(Boolean)
+    : id
+      ? [id]
+      : [];
+  if (ids.length === 0) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
-  const childIds = await collectChildIds(id, user.workspaceId);
-  if (childIds.length > 0) {
-    await prisma.knowledgePoint.deleteMany({ where: { id: { in: childIds.reverse() }, workspaceId: user.workspaceId } });
-  }
-  await prisma.knowledgePoint.deleteMany({ where: { id, workspaceId: user.workspaceId } });
-  return NextResponse.json({ success: true });
+  const result = await deleteKnowledgePoints(ids, user.workspaceId);
+  return NextResponse.json({ success: true, ...result });
 }
