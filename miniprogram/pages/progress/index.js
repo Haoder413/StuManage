@@ -1,9 +1,9 @@
 const { request } = require("../../utils/api");
 
 const statusText = {
-  mastered: "已掌握",
+  mastered: "已学习",
   learning: "学习中",
-  not_started: "未开始"
+  not_started: "学习中"
 };
 
 const weakPointFilters = [
@@ -63,7 +63,7 @@ function decorateStudent(student) {
     masteredWeakPointCount: student.masteredWeakPointCount || 0,
     knowledgePoints: (student.knowledgePoints || []).map((kp) => ({
       ...kp,
-      statusText: statusText[kp.status] || "未开始"
+      statusText: statusText[kp.status] || "学习中"
     })),
     weakPoints
   };

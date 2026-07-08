@@ -27,7 +27,7 @@ export default async function ReportsPage() {
               <CardContent className="p-4 pt-0 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-[#1a1a2e]/40">平均得分率</span><span className="font-medium text-[#1a1a2e]">{avgScore}%</span></div>
                 <div className="flex justify-between"><span className="text-[#1a1a2e]/40">考试次数</span><span className="text-[#1a1a2e]/70">{s.exams.length}</span></div>
-                <div className="flex justify-between"><span className="text-[#1a1a2e]/40">已掌握知识点</span><span className="text-[#1a1a2e]/70">{totalKp > 0 ? `${Math.round((mastered / totalKp) * 100)}%` : "-"}</span></div>
+                <div className="flex justify-between"><span className="text-[#1a1a2e]/40">已学习知识点</span><span className="text-[#1a1a2e]/70">{totalKp > 0 ? `${Math.round((mastered / totalKp) * 100)}%` : "-"}</span></div>
                 <div className="text-xs text-[#1a1a2e]/30 mt-2">最新考试: {s.exams[0] ? `${s.exams[0].name} (${s.exams[0].score}/${s.exams[0].totalScore})` : "无"}</div>
               </CardContent>
             </Card>

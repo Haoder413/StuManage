@@ -135,6 +135,7 @@ export function CourseOutlineEditor({
   return (
     <div className="space-y-3">
       <div className="flex justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={() => addPoint(null)}>新增知识点</Button>
         <Button size="sm" variant="outline" onClick={() => setShowImportDialog(true)}>批量导入</Button>
       </div>
       {tree.length === 0 ? (

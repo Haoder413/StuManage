@@ -20,7 +20,7 @@ export default async function ProgressPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {students.map((s) => {
           const mastered = s.kpProgress.filter((p) => p.status === "mastered").length;
-          const learning = s.kpProgress.filter((p) => p.status === "learning").length;
+          const learning = Math.max(totalKps - mastered, 0);
           const progressPct = totalKps > 0 ? Math.round((mastered / totalKps) * 100) : 0;
           const activeWeak = s.weakPoints.length;
 
@@ -35,7 +35,7 @@ export default async function ProgressPage() {
                 {/* Progress bar */}
                 <div className="mb-3">
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>知识点掌握</span>
+                    <span>知识点已学习</span>
                     <span>{mastered}/{totalKps} ({progressPct}%)</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">

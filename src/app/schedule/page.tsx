@@ -80,6 +80,20 @@ interface Student { id: string; name: string; grade: string | null; }
 interface LessonTag { id: string; name: string; type: "content" | "feedback"; }
 interface WeakPointTag { id: string; name: string; category: string | null; }
 interface WeakPoint { id: string; description: string; }
+interface KnowledgePointProgress {
+  id: string;
+  studentId: string;
+  knowledgePointId: string;
+  status: string;
+  knowledgePoint: {
+    id: string;
+    name: string;
+    parentId: string | null;
+    orderIndex: number;
+    courseId: string;
+    course?: { id: string; name: string } | null;
+  };
+}
 interface PendingAttendance {
   scheduleId: string;
   studentId: string;
@@ -139,6 +153,19 @@ function formatFileSize(size: number) {
 function getAttendanceLessonHourAmount(attendance?: Schedule["attendance"][number]) {
   const consumed = -(attendance?.lessonHourLogs || []).reduce((sum, log) => sum + log.deltaRemainingHours, 0);
   return consumed > 0 ? consumed : 1;
+}
+
+function compareKnowledgePointProgress(a: KnowledgePointProgress, b: KnowledgePointProgress) {
+  const courseNameA = a.knowledgePoint.course?.name || "";
+  const courseNameB = b.knowledgePoint.course?.name || "";
+  if (courseNameA !== courseNameB) return courseNameA.localeCompare(courseNameB, "zh-CN");
+  if ((a.knowledgePoint.parentId || "") !== (b.knowledgePoint.parentId || "")) {
+    return (a.knowledgePoint.parentId || "").localeCompare(b.knowledgePoint.parentId || "");
+  }
+  if (a.knowledgePoint.orderIndex !== b.knowledgePoint.orderIndex) {
+    return a.knowledgePoint.orderIndex - b.knowledgePoint.orderIndex;
+  }
+  return a.knowledgePoint.name.localeCompare(b.knowledgePoint.name, "zh-CN");
 }
 
 function TagChips({
@@ -285,6 +312,9 @@ export default function SchedulePage() {
   const [selectedWeakPointTags, setSelectedWeakPointTags] = useState<string[]>([]);
   const [selectedContentTags, setSelectedContentTags] = useState<string[]>([]);
   const [selectedFeedbackTags, setSelectedFeedbackTags] = useState<string[]>([]);
+  const [reviewKnowledgePoints, setReviewKnowledgePoints] = useState<KnowledgePointProgress[]>([]);
+  const [selectedKnowledgePointIds, setSelectedKnowledgePointIds] = useState<string[]>([]);
+  const [loadingKnowledgePoints, setLoadingKnowledgePoints] = useState(false);
   const [reviewLessonContentText, setReviewLessonContentText] = useState("");
   const [reviewLessonFeedbackText, setReviewLessonFeedbackText] = useState("");
   const [reviewLessonHourAmount, setReviewLessonHourAmount] = useState("1");
@@ -396,7 +426,15 @@ export default function SchedulePage() {
     studentId: string,
     date: Date,
     status: string,
-    review?: { lessonContent: string; lessonFeedback: string; lessonHourAmount?: number; contentTags: string[]; feedbackTags: string[]; weakPointTags: string[] }
+    review?: {
+      lessonContent: string;
+      lessonFeedback: string;
+      lessonHourAmount?: number;
+      contentTags: string[];
+      feedbackTags: string[];
+      weakPointTags: string[];
+      knowledgePointProgressUpdates?: { knowledgePointId: string; status: "mastered" }[];
+    }
   ) {
     const res = await fetch("/api/attendance", {
       method: "POST",
@@ -427,6 +465,34 @@ export default function SchedulePage() {
     } catch {}
   }
 
+  async function loadStudentPendingKnowledgePoints(studentId: string) {
+    setLoadingKnowledgePoints(true);
+    setReviewKnowledgePoints([]);
+    setSelectedKnowledgePointIds([]);
+    try {
+      const res = await fetch("/api/progress");
+      if (!res.ok) return;
+      const progress: KnowledgePointProgress[] = await res.json();
+      const progressByKnowledgePoint = new Map<string, KnowledgePointProgress[]>();
+      progress
+        .filter((item) => item.studentId === studentId)
+        .forEach((item) => {
+          const items = progressByKnowledgePoint.get(item.knowledgePointId) || [];
+          items.push(item);
+          progressByKnowledgePoint.set(item.knowledgePointId, items);
+        });
+      const pending = Array.from(progressByKnowledgePoint.values())
+        .filter((items) => items.every((item) => item.status !== "mastered"))
+        .map((items) => items[0])
+        .sort(compareKnowledgePointProgress);
+      setReviewKnowledgePoints(pending);
+    } catch {
+      setReviewKnowledgePoints([]);
+    } finally {
+      setLoadingKnowledgePoints(false);
+    }
+  }
+
   async function openAttendanceReview(
     schedule: Schedule,
     status: "present" | "makeup",
@@ -445,6 +511,9 @@ export default function SchedulePage() {
     setSelectedWeakPointTags(parseTags(existing?.weakPointTags));
     setSelectedContentTags(parseTags(existing?.contentTags));
     setSelectedFeedbackTags(parseTags(existing?.feedbackTags));
+    setReviewKnowledgePoints([]);
+    setSelectedKnowledgePointIds([]);
+    setLoadingKnowledgePoints(true);
     setReviewLessonContentText(existing?.lessonContent || "");
     setReviewLessonFeedbackText(existing?.lessonFeedback || "");
     setReviewLessonHourAmount(status === "present" ? String(getAttendanceLessonHourAmount(existing)) : "0");
@@ -457,7 +526,10 @@ export default function SchedulePage() {
     setReviewAttachmentError("");
     setReviewWeakPointTags(weakPointTags);
     setShowReviewForm(true);
-    await loadStudentWeakPointTags(targetStudentId);
+    await Promise.all([
+      loadStudentWeakPointTags(targetStudentId),
+      loadStudentPendingKnowledgePoints(targetStudentId),
+    ]);
   }
 
   async function submitAttendanceReview() {
@@ -478,6 +550,10 @@ export default function SchedulePage() {
         contentTags: selectedContentTags,
         feedbackTags: selectedFeedbackTags,
         weakPointTags: selectedWeakPointTags,
+        knowledgePointProgressUpdates: selectedKnowledgePointIds.map((knowledgePointId) => ({
+          knowledgePointId,
+          status: "mastered",
+        })),
       }
     );
     if (!savedAttendance) {
@@ -561,6 +637,9 @@ export default function SchedulePage() {
     setReviewVideoFile(null);
     setReviewAttachmentFiles([]);
     setReviewAttachmentError("");
+    setSelectedKnowledgePointIds([]);
+    setReviewKnowledgePoints([]);
+    setLoadingKnowledgePoints(false);
     setUploadProgress(0);
     setSavingReview(false);
   }
@@ -700,6 +779,14 @@ export default function SchedulePage() {
 
   function toggleWeakPointTag(name: string) {
     setSelectedWeakPointTags(prev => prev.includes(name) ? prev.filter(tag => tag !== name) : [...prev, name]);
+  }
+
+  function toggleKnowledgePointProgress(knowledgePointId: string) {
+    setSelectedKnowledgePointIds(prev =>
+      prev.includes(knowledgePointId)
+        ? prev.filter(id => id !== knowledgePointId)
+        : [...prev, knowledgePointId]
+    );
   }
 
   async function createLessonTag(name: string, type: "content" | "feedback") {
@@ -1058,6 +1145,46 @@ export default function SchedulePage() {
                 </p>
               </div>
             )}
+            <div className="rounded-lg border border-gray-100 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-xs text-gray-500">知识点进度</Label>
+                {selectedKnowledgePointIds.length > 0 && (
+                  <span className="text-[11px] text-green-600">本节已学习 {selectedKnowledgePointIds.length} 个</span>
+                )}
+              </div>
+              {loadingKnowledgePoints ? (
+                <p className="mt-2 text-xs text-gray-400">正在加载知识点...</p>
+              ) : reviewKnowledgePoints.length === 0 ? (
+                <p className="mt-2 text-xs text-gray-400">暂无待学习知识点</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {reviewKnowledgePoints.map((point, index) => {
+                    const selected = selectedKnowledgePointIds.includes(point.knowledgePointId);
+                    const previous = reviewKnowledgePoints[index - 1];
+                    const courseName = point.knowledgePoint.course?.name || "未命名课程";
+                    const showCourse = !previous || previous.knowledgePoint.course?.id !== point.knowledgePoint.course?.id;
+                    return (
+                      <div key={point.knowledgePointId}>
+                        {showCourse && <p className="mb-1 text-[11px] font-semibold text-gray-400">{courseName}</p>}
+                        <button
+                          type="button"
+                          onClick={() => toggleKnowledgePointProgress(point.knowledgePointId)}
+                          disabled={savingReview}
+                          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                            selected
+                              ? "border-green-200 bg-green-50 text-green-700"
+                              : "border-gray-100 bg-white text-gray-600 hover:border-blue-100 hover:bg-blue-50"
+                          }`}
+                        >
+                          <span>{point.knowledgePoint.name}</span>
+                          <span className="ml-3 shrink-0 font-semibold">{selected ? "已学习" : "学习中"}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <div>
               <Label className="text-xs text-gray-500">薄弱点</Label>
               <div className="mt-1">

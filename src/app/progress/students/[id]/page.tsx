@@ -210,7 +210,7 @@ export default function StudentProgressDetailPage() {
 
   const totalKps = kpTree.length;
   const masteredCount = Object.values(kpProgress).filter((s) => s === "mastered").length;
-  const learningCount = Object.values(kpProgress).filter((s) => s === "learning").length;
+  const learningCount = totalKps - masteredCount;
   const progressPct = totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0;
 
   const allReviewWeakPoints = [...weakPoints, ...historyWeakPoints];
@@ -271,7 +271,7 @@ export default function StudentProgressDetailPage() {
           <p className="text-2xl font-bold text-gray-900 mt-1">{totalKps}</p>
         </div>
         <div className="glass-card rounded-xl p-4">
-          <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">已掌握</p>
+          <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">已学习</p>
           <p className="text-2xl font-bold text-green-600 mt-1">{masteredCount}</p>
         </div>
         <div className="glass-card rounded-xl p-4">
@@ -320,21 +320,18 @@ export default function StudentProgressDetailPage() {
           ) : (
             <div className="space-y-1">
               {kpTree.map((kp) => {
-                const status = kpProgress[kp.id] || "not_started";
+                const status = kpProgress[kp.id] === "mastered" ? "mastered" : "learning";
                 const statusColors: Record<string, string> = {
                   mastered: "bg-green-100 text-green-700 border-green-200",
                   learning: "bg-blue-100 text-blue-700 border-blue-200",
-                  not_started: "bg-gray-100 text-gray-500 border-gray-200",
                 };
                 const statusLabels: Record<string, string> = {
-                  mastered: "已掌握",
+                  mastered: "已学习",
                   learning: "学习中",
-                  not_started: "未开始",
                 };
                 const nextStatus: Record<string, string> = {
-                  not_started: "learning",
                   learning: "mastered",
-                  mastered: "not_started",
+                  mastered: "learning",
                 };
 
                 return (

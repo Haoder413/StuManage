@@ -4,9 +4,9 @@ import { getParentStudents } from "@/lib/parent-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const statusLabels: Record<string, string> = {
-  mastered: "已掌握",
+  mastered: "已学习",
   learning: "学习中",
-  not_started: "未开始",
+  not_started: "学习中",
 };
 
 const statusStyles: Record<string, string> = {
@@ -53,7 +53,7 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
                 <CardContent>
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
                     <StatCard title="知识点总数" value={String(totalKps)} />
-                    <StatCard title="已掌握" value={String(masteredCount)} tone="green" />
+                    <StatCard title="已学习" value={String(masteredCount)} tone="green" />
                     <StatCard title="学习中" value={String(learningCount)} tone="blue" />
                     <StatCard title="整体进度" value={`${progressPct}%`} />
                   </div>
@@ -77,12 +77,13 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
                   ) : (
                     <div className="space-y-1">
                       {student.kpProgress.map((item) => {
-                        const style = statusStyles[item.status] || statusStyles.not_started;
+                        const normalizedStatus = item.status === "mastered" ? "mastered" : "learning";
+                        const style = statusStyles[normalizedStatus] || statusStyles.learning;
                         return (
                           <div key={item.id} className="flex flex-col gap-2 border-b border-gray-50 px-3 py-2 last:border-0 sm:flex-row sm:items-center sm:justify-between">
                             <span className="text-sm font-medium text-gray-700">{item.knowledgePoint.name}</span>
                             <span className={`w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${style}`}>
-                              {statusLabels[item.status] || "未开始"}
+                              {statusLabels[normalizedStatus] || "学习中"}
                             </span>
                           </div>
                         );

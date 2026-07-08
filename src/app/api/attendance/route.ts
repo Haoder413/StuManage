@@ -55,6 +55,22 @@ function getRequestedLessonHourAmount(data: { status?: string; lessonHourAmount?
     : null;
 }
 
+function normalizeKnowledgePointProgressUpdates(data: { knowledgePointProgressUpdates?: unknown }) {
+  if (!Array.isArray(data.knowledgePointProgressUpdates)) return [];
+
+  const seen = new Set<string>();
+  return data.knowledgePointProgressUpdates
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const knowledgePointId = String((item as { knowledgePointId?: unknown }).knowledgePointId || "");
+      const status = (item as { status?: unknown }).status === "mastered" ? "mastered" : "learning";
+      if (!knowledgePointId || seen.has(knowledgePointId)) return null;
+      seen.add(knowledgePointId);
+      return { knowledgePointId, status };
+    })
+    .filter((item): item is { knowledgePointId: string; status: "learning" | "mastered" } => Boolean(item));
+}
+
 async function findReusableAttendance(data: {
   workspaceId: string;
   learningLinkId: string | null;
@@ -82,6 +98,7 @@ async function findReusableAttendance(data: {
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const knowledgePointProgressUpdates = normalizeKnowledgePointProgressUpdates(data);
   const schedule = await prisma.schedule.findFirst({
     where: { id: String(data.scheduleId || ""), workspaceId: user.workspaceId },
     include: {
@@ -180,6 +197,83 @@ export async function POST(request: NextRequest) {
     const savedAttendance = existing
       ? await tx.attendance.update({ where: { id: existing.id }, data: payload })
       : await tx.attendance.create({ data: payload });
+
+    if (knowledgePointProgressUpdates.length > 0) {
+      const validKnowledgePoints = await tx.knowledgePoint.findMany({
+        where: {
+          workspaceId: user.workspaceId,
+          id: { in: knowledgePointProgressUpdates.map((item) => item.knowledgePointId) },
+          course: {
+            studentCourses: {
+              some: {
+                workspaceId: user.workspaceId,
+                studentId: data.studentId,
+                status: "active",
+              },
+            },
+          },
+        },
+        select: { id: true },
+      });
+      const validKnowledgePointIds = new Set(validKnowledgePoints.map((point) => point.id));
+
+      for (const update of knowledgePointProgressUpdates) {
+        if (!validKnowledgePointIds.has(update.knowledgePointId)) continue;
+        if (learningLink?.id) {
+          await tx.studentKpProgress.upsert({
+            where: {
+              learningLinkId_knowledgePointId: {
+                learningLinkId: learningLink.id,
+                knowledgePointId: update.knowledgePointId,
+              },
+            },
+            update: {
+              status: update.status,
+              masteredAt: update.status === "mastered" ? new Date() : null,
+            },
+            create: {
+              workspaceId: user.workspaceId,
+              learningLinkId: learningLink.id,
+              studentId: data.studentId,
+              knowledgePointId: update.knowledgePointId,
+              status: update.status,
+              masteredAt: update.status === "mastered" ? new Date() : null,
+            },
+          });
+          continue;
+        }
+
+        const existingProgress = await tx.studentKpProgress.findFirst({
+          where: {
+            workspaceId: user.workspaceId,
+            studentId: data.studentId,
+            knowledgePointId: update.knowledgePointId,
+            learningLinkId: null,
+          },
+          select: { id: true },
+        });
+        if (existingProgress) {
+          await tx.studentKpProgress.update({
+            where: { id: existingProgress.id },
+            data: {
+              status: update.status,
+              masteredAt: update.status === "mastered" ? new Date() : null,
+            },
+          });
+        } else {
+          await tx.studentKpProgress.create({
+            data: {
+              workspaceId: user.workspaceId,
+              learningLinkId: null,
+              studentId: data.studentId,
+              knowledgePointId: update.knowledgePointId,
+              status: update.status,
+              masteredAt: update.status === "mastered" ? new Date() : null,
+            },
+          });
+        }
+      }
+    }
 
     if (beforeStudent && lessonHourAdjustment !== 0) {
       if (lessonHourAdjustment < 0) {

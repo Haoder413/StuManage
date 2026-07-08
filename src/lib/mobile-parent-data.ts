@@ -126,7 +126,7 @@ export async function getMobileParentProgress(user: MobileParentUser) {
     students: parentStudents.map(({ student }) => {
       const totalKps = student.kpProgress.length;
       const masteredCount = student.kpProgress.filter((item) => item.status === "mastered").length;
-      const learningCount = student.kpProgress.filter((item) => item.status === "learning").length;
+      const learningCount = Math.max(totalKps - masteredCount, 0);
       const activeWeakPoints = student.weakPoints.filter((point) => point.status === "active");
       const masteredWeakPoints = student.weakPoints.filter((point) => point.status !== "active");
       return {

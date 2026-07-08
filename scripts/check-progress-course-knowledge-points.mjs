@@ -6,8 +6,8 @@ if (!route.includes("studentCourses")) {
   throw new Error("progress API should read active student courses");
 }
 
-if (!route.includes("not_started")) {
-  throw new Error("progress API should synthesize missing course knowledge points as not_started");
+if (!route.includes('status: "learning"')) {
+  throw new Error("progress API should synthesize missing course knowledge points as learning");
 }
 
 if (!route.includes("progressKeys")) {

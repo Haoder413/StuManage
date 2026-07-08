@@ -21,7 +21,10 @@ export async function GET() {
         { learningLinkId: null },
       ],
     },
-    include: { student: true, knowledgePoint: true },
+    include: {
+      student: true,
+      knowledgePoint: { include: { course: { select: { id: true, name: true } } } },
+    },
   });
 
   const progressKeys = new Set(progress.map((item) => progressKey(item.studentId, item.knowledgePointId, item.learningLinkId)));
@@ -51,11 +54,14 @@ export async function GET() {
           learningLinkId: null,
           studentId: student.id,
           knowledgePointId: knowledgePoint.id,
-          status: "not_started",
+          status: "learning",
           masteredAt: null,
           updatedAt: new Date(0),
           student,
-          knowledgePoint,
+          knowledgePoint: {
+            ...knowledgePoint,
+            course: studentCourse.course,
+          },
         }))
     )
   );
@@ -82,10 +88,11 @@ export async function POST(request: NextRequest) {
       ...(learningLink ? { learningLinkId: learningLink.id } : { studentId: data.studentId, learningLinkId: null }),
     },
   });
+  const requestedStatus = data.status === "mastered" ? "mastered" : "learning";
   const progress = existing
     ? await prisma.studentKpProgress.update({
         where: { id: existing.id },
-        data: { status: data.status, masteredAt: data.status === "mastered" ? new Date() : null },
+        data: { status: requestedStatus, masteredAt: requestedStatus === "mastered" ? new Date() : null },
       })
     : await prisma.studentKpProgress.create({
       data: {
@@ -93,7 +100,8 @@ export async function POST(request: NextRequest) {
       learningLinkId: learningLink?.id || null,
       studentId: learningLink?.studentId || data.studentId,
       knowledgePointId: data.knowledgePointId,
-      status: data.status || "not_started",
+      status: requestedStatus,
+      masteredAt: requestedStatus === "mastered" ? new Date() : null,
       },
     });
   return NextResponse.json(progress, { status: 201 });
