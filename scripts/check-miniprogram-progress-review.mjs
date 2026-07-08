@@ -32,7 +32,6 @@ const required = {
     ".weak-filter",
     ".weak-card",
     ".weak-status",
-    ".next-review",
   ],
 };
 

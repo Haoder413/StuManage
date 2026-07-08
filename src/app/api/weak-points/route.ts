@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getDefaultNextReviewDate, getTodayReviewDate, parseReviewDate } from "@/lib/review-scheduler";
+import { getTodayReviewDate } from "@/lib/review-scheduler";
 import { requireTeacherLike } from "@/lib/auth";
 import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+
+function normalizeDescription(value: unknown) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function dedupeWeakPointsForResponse<T extends { description: string; reviewSchedules: any[]; createdAt: Date }>(weakPoints: T[]) {
+  const byDescription = new Map<string, T>();
+  for (const weakPoint of weakPoints) {
+    const key = normalizeDescription(weakPoint.description);
+    const existing = byDescription.get(key);
+    if (!existing) {
+      byDescription.set(key, weakPoint);
+      continue;
+    }
+    existing.reviewSchedules = [...existing.reviewSchedules, ...weakPoint.reviewSchedules]
+      .sort((a, b) => new Date(b.lastReviewedAt || b.createdAt).getTime() - new Date(a.lastReviewedAt || a.createdAt).getTime());
+  }
+  return [...byDescription.values()];
+}
 
 export async function GET(request: NextRequest) {
   const user = await requireTeacherLike();
@@ -21,7 +40,7 @@ export async function GET(request: NextRequest) {
     },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json(weakPoints);
+  return NextResponse.json(dedupeWeakPointsForResponse(weakPoints));
 }
 
 export async function POST(request: NextRequest) {
@@ -30,13 +49,12 @@ export async function POST(request: NextRequest) {
   const learningLink = data.learningLinkId
     ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
     : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
-  const description = String(data.description || "").trim();
+  const description = normalizeDescription(data.description);
   if (!description) return NextResponse.json({ error: "description required" }, { status: 400 });
 
   const existing = await prisma.weakPoint.findFirst({
     where: {
       workspaceId: user.workspaceId,
-      learningLinkId: learningLink?.id || null,
       studentId: data.studentId,
       description,
     },
@@ -54,7 +72,7 @@ export async function POST(request: NextRequest) {
     if (existing.status !== "active") {
       await prisma.weakPoint.update({
         where: { id: existing.id },
-        data: { status: "active", masteredAt: null },
+        data: { status: "active", masteredAt: null, learningLinkId: existing.learningLinkId || learningLink?.id || null },
       });
     }
     if (!existing.reviewSchedules[0]) {
@@ -120,21 +138,6 @@ export async function PATCH(request: NextRequest) {
       where: { id: data.id, workspaceId: user.workspaceId },
       data: { status: "active", masteredAt: null },
     });
-    const pendingSchedule = await prisma.reviewSchedule.findFirst({
-      where: { workspaceId: user.workspaceId, weakPointId: data.id, status: "pending" },
-      orderBy: { nextReviewAt: "asc" },
-    });
-    if (!pendingSchedule) {
-      await prisma.reviewSchedule.create({
-        data: {
-          workspaceId: user.workspaceId,
-          weakPointId: data.id,
-          stage: 1,
-          nextReviewAt: parseReviewDate(data.nextReviewAt, getTodayReviewDate()),
-          status: "pending",
-        },
-      });
-    }
     return NextResponse.json({ success: true });
   }
 
@@ -148,13 +151,15 @@ export async function PATCH(request: NextRequest) {
         where: { id: schedule.id },
         data: { status: "completed", lastReviewedAt: new Date() },
       });
+    } else {
       await prisma.reviewSchedule.create({
         data: {
           workspaceId: user.workspaceId,
           weakPointId: data.id,
           stage: 1,
-          nextReviewAt: parseReviewDate(data.nextReviewAt, getDefaultNextReviewDate()),
-          status: "pending",
+          nextReviewAt: getTodayReviewDate(),
+          status: "completed",
+          lastReviewedAt: new Date(),
         },
       });
     }

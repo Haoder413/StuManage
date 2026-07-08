@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { isOverdue } from "@/lib/review-scheduler";
 
 interface KPNode {
   id: string;
@@ -42,22 +41,8 @@ interface WeakPointTag {
 interface ReviewSchedule {
   id: string;
   stage: number;
-  nextReviewAt: string;
   status: string;
   lastReviewedAt: string | null;
-}
-
-function formatDateInput(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function getDateInputDaysLater(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return formatDateInput(date);
 }
 
 export default function StudentProgressDetailPage() {
@@ -77,8 +62,6 @@ export default function StudentProgressDetailPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagCategory, setNewTagCategory] = useState("");
-  const [reviewTarget, setReviewTarget] = useState<WeakPoint | null>(null);
-  const [nextReviewAt, setNextReviewAt] = useState(getDateInputDaysLater(7));
 
   useEffect(() => {
     async function load() {
@@ -190,29 +173,20 @@ export default function StudentProgressDetailPage() {
     if (res.ok) await refreshWeakPoints();
   }
 
-  function openReviewDialog(wp: WeakPoint) {
-    setReviewTarget(wp);
-    setNextReviewAt(getDateInputDaysLater(7));
-  }
-
-  async function markReviewCompleted() {
-    if (!reviewTarget) return;
+  async function markReviewCompleted(wpId: string) {
     const res = await fetch("/api/weak-points", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: reviewTarget.id, reviewCompleted: true, nextReviewAt }),
+      body: JSON.stringify({ id: wpId, reviewCompleted: true }),
     });
-    if (res.ok) {
-      setReviewTarget(null);
-      await refreshWeakPoints();
-    }
+    if (res.ok) await refreshWeakPoints();
   }
 
   async function reactivateWeakPoint(wpId: string) {
     const res = await fetch("/api/weak-points", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: wpId, status: "active", nextReviewAt: formatDateInput(new Date()) }),
+      body: JSON.stringify({ id: wpId, status: "active" }),
     });
     if (res.ok) await refreshWeakPoints();
   }
@@ -256,9 +230,7 @@ export default function StudentProgressDetailPage() {
     });
     return merged;
   })();
-  const pendingReviewCount = allReviewWeakPoints.filter((wp) =>
-    wp.reviewSchedules?.some((rs) => rs.status === "pending")
-  ).length;
+  const pendingReviewCount = weakPoints.length;
 
   const tabs = [
     { key: "knowledge" as const, label: "📖 知识点进度", count: totalKps },
@@ -272,16 +244,12 @@ export default function StudentProgressDetailPage() {
   ];
 
   const filteredWeakPoints = allReviewWeakPoints.filter((wp) => {
-    const hasPending = wp.reviewSchedules?.some((rs) => rs.status === "pending");
-    if (reviewFilter === "pending") return hasPending;
+    if (reviewFilter === "pending") return wp.status === "active";
     if (reviewFilter === "mastered") return wp.status !== "active";
     return true;
   }).sort((a, b) => {
-    const aPending = a.reviewSchedules?.find((rs) => rs.status === "pending");
-    const bPending = b.reviewSchedules?.find((rs) => rs.status === "pending");
-    if (aPending && bPending) return new Date(aPending.nextReviewAt).getTime() - new Date(bPending.nextReviewAt).getTime();
-    if (aPending) return -1;
-    if (bPending) return 1;
+    if (a.status === "active" && b.status !== "active") return -1;
+    if (a.status !== "active" && b.status === "active") return 1;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
@@ -440,13 +408,11 @@ export default function StudentProgressDetailPage() {
             ) : (
               <div className="space-y-3">
                 {filteredWeakPoints.map((wp) => {
-                  const pendingReview = wp.reviewSchedules?.find((rs) => rs.status === "pending");
                   const completedCount = wp.reviewSchedules?.filter((rs) => rs.status === "completed").length || 0;
                   const lastReviewed = wp.reviewSchedules
                     ?.filter((rs) => rs.lastReviewedAt)
                     .sort((a, b) => new Date(b.lastReviewedAt || "").getTime() - new Date(a.lastReviewedAt || "").getTime())[0];
                   const isMastered = wp.status !== "active";
-                  const overdue = pendingReview ? isOverdue(new Date(pendingReview.nextReviewAt)) : false;
                   const statusLabel = isMastered ? "已掌握" : "待复习";
 
                   return (
@@ -467,15 +433,10 @@ export default function StudentProgressDetailPage() {
                             <span> · 已复习 {completedCount} 次</span>
                             <span> · 最近复习 {lastReviewed?.lastReviewedAt ? new Date(lastReviewed.lastReviewedAt).toLocaleDateString("zh-CN") : "-"}</span>
                           </p>
-                          <p className={`text-xs mt-1 ${overdue ? "text-red-500" : pendingReview ? "text-blue-500" : "text-gray-400"}`}>
-                            {pendingReview
-                              ? `下次复习：${overdue ? "已逾期" : new Date(pendingReview.nextReviewAt).toLocaleDateString("zh-CN")}`
-                              : "暂无待复习"}
-                          </p>
                         </div>
                         <div className="flex gap-2 shrink-0">
-                          {pendingReview && (
-                            <Button size="sm" variant="outline" onClick={() => openReviewDialog(wp)}>已复习</Button>
+                          {wp.status === "active" && (
+                            <Button size="sm" variant="outline" onClick={() => markReviewCompleted(wp.id)}>已复习</Button>
                           )}
                           {wp.status === "active" ? (
                             <Button size="sm" onClick={() => markWeakpointMastered(wp.id)}>已掌握</Button>
@@ -492,28 +453,6 @@ export default function StudentProgressDetailPage() {
           </div>
         </div>
       )}
-
-      <Dialog open={!!reviewTarget} onOpenChange={(open) => !open && setReviewTarget(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-gray-900">记录已复习</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">{reviewTarget?.description}</p>
-              <p className="mt-1 text-xs text-gray-500">本次复习会计入历史，并生成下一次待复习提醒。</p>
-            </div>
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">下次复习日期</span>
-              <Input type="date" value={nextReviewAt} onChange={(e) => setNextReviewAt(e.target.value)} className="mt-2" />
-            </label>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setReviewTarget(null)}>取消</Button>
-              <Button onClick={markReviewCompleted}>确认</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Tag Manager Dialog */}
       <Dialog open={showTagManager} onOpenChange={setShowTagManager}>

@@ -12,12 +12,6 @@ const weakPointFilters = [
   { key: "mastered", label: "已掌握" }
 ];
 
-function formatDate(value) {
-  if (!value) return "暂无待复习";
-  const date = new Date(value);
-  return `下次复习：${date.getMonth() + 1}月${date.getDate()}日`;
-}
-
 function formatPlainDate(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -25,7 +19,6 @@ function formatPlainDate(value) {
 }
 
 function decorateWeakPoint(point) {
-  const hasPendingReview = Boolean(point.nextReviewAt);
   const statusLabel = point.statusLabel || (point.status === "active" ? "待复习" : "已掌握");
   return {
     ...point,
@@ -34,9 +27,7 @@ function decorateWeakPoint(point) {
     createdText: `创建于 ${formatPlainDate(point.createdAt) || "-"}`,
     masteredText: point.masteredAt ? `掌握于 ${formatPlainDate(point.masteredAt)}` : "",
     completedReviewCount: point.completedReviewCount || 0,
-    hasPendingReview,
     lastReviewedText: point.lastReviewedAt ? formatPlainDate(point.lastReviewedAt) : "-",
-    nextReviewText: hasPendingReview ? `下次复习：${formatPlainDate(point.nextReviewAt)}` : "暂无待复习"
   };
 }
 
@@ -56,7 +47,7 @@ function buildWeakPointFilters(student) {
 }
 
 function filterWeakPoints(weakPoints, filter) {
-  if (filter === "pending") return weakPoints.filter((point) => point.hasPendingReview);
+  if (filter === "pending") return weakPoints.filter((point) => point.status === "active");
   if (filter === "mastered") return weakPoints.filter((point) => point.status !== "active");
   return weakPoints;
 }

@@ -128,7 +128,6 @@ export async function getMobileParentProgress(user: MobileParentUser) {
       const masteredCount = student.kpProgress.filter((item) => item.status === "mastered").length;
       const learningCount = student.kpProgress.filter((item) => item.status === "learning").length;
       const activeWeakPoints = student.weakPoints.filter((point) => point.status === "active");
-      const pendingWeakPoints = student.weakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
       const masteredWeakPoints = student.weakPoints.filter((point) => point.status !== "active");
       return {
         id: student.id,
@@ -137,7 +136,7 @@ export async function getMobileParentProgress(user: MobileParentUser) {
         masteredCount,
         learningCount,
         currentWeakPointCount: activeWeakPoints.length,
-        pendingWeakPointCount: pendingWeakPoints.length,
+        pendingWeakPointCount: activeWeakPoints.length,
         masteredWeakPointCount: masteredWeakPoints.length,
         progressPercent: totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0,
         knowledgePoints: student.kpProgress.map((item) => ({
@@ -146,7 +145,6 @@ export async function getMobileParentProgress(user: MobileParentUser) {
           status: item.status,
         })),
         weakPoints: student.weakPoints.map((point) => {
-          const pendingReview = point.reviewSchedules.find((schedule) => schedule.status === "pending");
           const completedReviewCount = point.reviewSchedules.filter((schedule) => schedule.status === "completed").length;
           const lastReviewed = point.reviewSchedules
             .filter((schedule) => schedule.lastReviewedAt)
@@ -160,8 +158,6 @@ export async function getMobileParentProgress(user: MobileParentUser) {
             masteredAt: isoDate(point.masteredAt),
             completedReviewCount,
             lastReviewedAt: isoDate(lastReviewed?.lastReviewedAt),
-            nextReviewAt: isoDate(pendingReview?.nextReviewAt),
-            reviewStage: pendingReview?.stage || null,
           };
         }),
       };

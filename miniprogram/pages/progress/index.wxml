@@ -66,7 +66,6 @@
           {{point.createdText}} · 已复习 {{point.completedReviewCount}} 次 · 最近复习 {{point.lastReviewedText}}
         </view>
         <view wx:if="{{point.masteredText}}" class="row-sub">{{point.masteredText}}</view>
-        <view class="next-review">{{point.nextReviewText}}</view>
       </view>
     </view>
   </block>

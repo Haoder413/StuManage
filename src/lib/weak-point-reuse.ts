@@ -6,7 +6,7 @@ export function normalizeWeakPointDescriptions(values: unknown) {
   const seen = new Set<string>();
   const descriptions: string[] = [];
   for (const value of values) {
-    const description = String(value || "").trim();
+    const description = String(value || "").trim().replace(/\s+/g, " ");
     if (!description || seen.has(description)) continue;
     seen.add(description);
     descriptions.push(description);
@@ -31,7 +31,6 @@ export async function applyExamWeakPoints({
     const existing = await tx.weakPoint.findFirst({
       where: {
         workspaceId,
-        learningLinkId,
         studentId,
         description,
       },
@@ -52,7 +51,7 @@ export async function applyExamWeakPoints({
       if (existing.status !== "active") {
         await tx.weakPoint.update({
           where: { id: existing.id },
-          data: { status: "active", masteredAt: null },
+          data: { status: "active", masteredAt: null, learningLinkId: existing.learningLinkId || learningLinkId },
         });
       }
       await tx.reviewSchedule.create({

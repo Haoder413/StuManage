@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireParent } from "@/lib/auth";
 import { getParentStudents } from "@/lib/parent-data";
-import { isOverdue } from "@/lib/review-scheduler";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const statusLabels: Record<string, string> = {
@@ -36,7 +35,7 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
           const masteredCount = student.kpProgress.filter((item) => item.status === "mastered").length;
           const learningCount = student.kpProgress.filter((item) => item.status === "learning").length;
           const progressPct = totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0;
-          const pendingWeakPoints = student.weakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+          const pendingWeakPoints = student.weakPoints.filter((point) => point.status === "active");
           const masteredWeakPoints = student.weakPoints.filter((point) => point.status !== "active");
           const reviewFilters = [
             { key: "all" as const, label: "全部", count: student.weakPoints.length },
@@ -118,13 +117,11 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
                   ) : (
                     <div className="space-y-3">
                       {filteredWeakPoints.map((point) => {
-                        const pendingReview = point.reviewSchedules.find((schedule) => schedule.status === "pending");
                         const completedCount = point.reviewSchedules.filter((schedule) => schedule.status === "completed").length;
                         const lastReviewed = point.reviewSchedules
                           .filter((schedule) => schedule.lastReviewedAt)
                           .sort((a, b) => (b.lastReviewedAt?.getTime() || 0) - (a.lastReviewedAt?.getTime() || 0))[0];
                         const isMastered = point.status !== "active";
-                        const overdue = pendingReview ? isOverdue(pendingReview.nextReviewAt) : false;
                         const statusLabel = isMastered ? "已掌握" : "待复习";
 
                         return (
@@ -146,11 +143,6 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
                                   {point.masteredAt && <span> · 掌握于 {point.masteredAt.toLocaleDateString("zh-CN")}</span>}
                                   <span> · 已复习 {completedCount} 次</span>
                                   <span> · 最近复习 {lastReviewed?.lastReviewedAt ? lastReviewed.lastReviewedAt.toLocaleDateString("zh-CN") : "-"}</span>
-                                </p>
-                                <p className={`mt-1 text-xs ${overdue ? "text-red-500" : pendingReview ? "text-blue-500" : "text-gray-400"}`}>
-                                  {pendingReview
-                                    ? `下次复习：${overdue ? "已逾期" : pendingReview.nextReviewAt.toLocaleDateString("zh-CN")}`
-                                    : "暂无待复习"}
                                 </p>
                               </div>
                             </div>
@@ -175,7 +167,7 @@ function getReviewFilter(value?: string): ReviewFilter {
 }
 
 function filterWeakPoints<T extends { status: string; reviewSchedules: { status: string }[] }>(weakPoints: T[], filter: ReviewFilter) {
-  if (filter === "pending") return weakPoints.filter((point) => point.reviewSchedules.some((schedule) => schedule.status === "pending"));
+  if (filter === "pending") return weakPoints.filter((point) => point.status === "active");
   if (filter === "mastered") return weakPoints.filter((point) => point.status !== "active");
   return weakPoints;
 }
