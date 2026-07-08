@@ -42,6 +42,19 @@ function reusableAttendanceScore(record: {
   );
 }
 
+function currentAttendanceLessonHourDelta(logs: { deltaRemainingHours: number }[] = []) {
+  return logs.reduce((sum, log) => sum + log.deltaRemainingHours, 0);
+}
+
+function getRequestedLessonHourAmount(data: { status?: string; lessonHourAmount?: unknown }) {
+  if (data.status !== "present") return 0;
+  if (data.lessonHourAmount === undefined || data.lessonHourAmount === null || data.lessonHourAmount === "") return 1;
+  const requestedLessonHourAmount = Number(data.lessonHourAmount);
+  return Number.isInteger(requestedLessonHourAmount) && requestedLessonHourAmount > 0
+    ? requestedLessonHourAmount
+    : null;
+}
+
 async function findReusableAttendance(data: {
   workspaceId: string;
   learningLinkId: string | null;
@@ -60,7 +73,7 @@ async function findReusableAttendance(data: {
         ? [{ learningLinkId: data.learningLinkId }, { learningLinkId: null }]
         : [{ learningLinkId: null }],
     },
-    include: { lessonVideo: true, lessonAttachments: true },
+    include: { lessonVideo: true, lessonAttachments: true, lessonHourLogs: true },
   });
 
   return records.sort((a, b) => reusableAttendanceScore(b) - reusableAttendanceScore(a))[0] || null;
@@ -143,57 +156,46 @@ export async function POST(request: NextRequest) {
   };
 
   const isPresentAttendance = data.status === "present";
-  const hasConsumedLessonHour = existing?.status === "present";
-  const shouldUseLessonHour = isPresentAttendance && existing?.status !== "present";
-  const shouldRestoreLessonHour = hasConsumedLessonHour && !isPresentAttendance;
+  const requestedLessonHourAmount = getRequestedLessonHourAmount(data);
+  if (requestedLessonHourAmount === null) {
+    return NextResponse.json({ error: "invalid lesson hour amount" }, { status: 400 });
+  }
+  const currentLessonHourDelta = currentAttendanceLessonHourDelta(existing?.lessonHourLogs || []);
+  const desiredLessonHourDelta = isPresentAttendance ? -requestedLessonHourAmount : 0;
+  const lessonHourAdjustment = desiredLessonHourDelta - currentLessonHourDelta;
 
   const attendance = await prisma.$transaction(async (tx) => {
+    const beforeStudent = lessonHourAdjustment !== 0
+      ? await tx.student.findFirstOrThrow({
+          where: { id: data.studentId, workspaceId: user.workspaceId },
+          select: { totalLessonHours: true, remainingLessonHours: true },
+        })
+      : null;
+
+    if (beforeStudent && lessonHourAdjustment < 0) {
+      const lessonHoursToConsume = Math.abs(lessonHourAdjustment);
+      if (beforeStudent.remainingLessonHours < lessonHoursToConsume) return "insufficient_lesson_hours";
+    }
+
     const savedAttendance = existing
       ? await tx.attendance.update({ where: { id: existing.id }, data: payload })
       : await tx.attendance.create({ data: payload });
 
-    if (shouldUseLessonHour) {
-      const beforeStudent = await tx.student.findFirst({
-        where: { id: data.studentId, workspaceId: user.workspaceId },
-        select: { totalLessonHours: true, remainingLessonHours: true },
-      });
-      await tx.student.updateMany({
-        where: { id: data.studentId, workspaceId: user.workspaceId, remainingLessonHours: { gt: 0 } },
-        data: { remainingLessonHours: { decrement: 1 } },
-      });
-      const afterStudent = await tx.student.findFirst({
-        where: { id: data.studentId, workspaceId: user.workspaceId },
-        select: { totalLessonHours: true, remainingLessonHours: true },
-      });
-      if (beforeStudent && afterStudent && beforeStudent.remainingLessonHours !== afterStudent.remainingLessonHours) {
-        await tx.lessonHourLog.create({
-          data: {
-            workspaceId: user.workspaceId,
-            studentId: data.studentId,
-            attendanceId: savedAttendance.id,
-            type: "attendance_present",
-            deltaTotalHours: 0,
-            deltaRemainingHours: afterStudent.remainingLessonHours - beforeStudent.remainingLessonHours,
-            beforeTotalHours: beforeStudent.totalLessonHours,
-            afterTotalHours: afterStudent.totalLessonHours,
-            beforeRemainingHours: beforeStudent.remainingLessonHours,
-            afterRemainingHours: afterStudent.remainingLessonHours,
-            note: "出勤扣课时",
-            teacherFeedback: formatTeacherFeedback(data),
-          },
+    if (beforeStudent && lessonHourAdjustment !== 0) {
+      if (lessonHourAdjustment < 0) {
+        const lessonHoursToConsume = Math.abs(lessonHourAdjustment);
+        const updated = await tx.student.updateMany({
+          where: { id: data.studentId, workspaceId: user.workspaceId, remainingLessonHours: { gte: lessonHoursToConsume } },
+          data: { remainingLessonHours: { decrement: lessonHoursToConsume } },
+        });
+        if (updated.count === 0) return "insufficient_lesson_hours";
+      } else {
+        await tx.student.update({
+          where: { id: data.studentId },
+          data: { remainingLessonHours: { increment: lessonHourAdjustment } },
         });
       }
-    }
 
-    if (shouldRestoreLessonHour) {
-      const beforeStudent = await tx.student.findFirstOrThrow({
-        where: { id: data.studentId, workspaceId: user.workspaceId },
-        select: { totalLessonHours: true, remainingLessonHours: true },
-      });
-      await tx.student.update({
-        where: { id: data.studentId },
-        data: { remainingLessonHours: { increment: 1 } },
-      });
       const afterStudent = await tx.student.findFirstOrThrow({
         where: { id: data.studentId, workspaceId: user.workspaceId },
         select: { totalLessonHours: true, remainingLessonHours: true },
@@ -203,14 +205,14 @@ export async function POST(request: NextRequest) {
           workspaceId: user.workspaceId,
           studentId: data.studentId,
           attendanceId: savedAttendance.id,
-          type: "attendance_restore",
+          type: lessonHourAdjustment < 0 ? "attendance_present" : "attendance_restore",
           deltaTotalHours: 0,
-          deltaRemainingHours: afterStudent.remainingLessonHours - beforeStudent.remainingLessonHours,
+          deltaRemainingHours: lessonHourAdjustment,
           beforeTotalHours: beforeStudent.totalLessonHours,
           afterTotalHours: afterStudent.totalLessonHours,
           beforeRemainingHours: beforeStudent.remainingLessonHours,
           afterRemainingHours: afterStudent.remainingLessonHours,
-          note: "出勤改为非出勤，恢复课时",
+          note: lessonHourAdjustment < 0 ? `出勤扣课时 ${Math.abs(lessonHourAdjustment)} 节` : `出勤课时调整退回 ${lessonHourAdjustment} 节`,
           teacherFeedback: formatTeacherFeedback(data),
         },
       });
@@ -219,9 +221,13 @@ export async function POST(request: NextRequest) {
     return savedAttendance;
   });
 
+  if (attendance === "insufficient_lesson_hours") {
+    return NextResponse.json({ error: "insufficient lesson hours" }, { status: 400 });
+  }
+
   const attendanceWithRelations = await prisma.attendance.findFirst({
     where: { id: attendance.id, workspaceId: user.workspaceId },
-    include: { lessonVideo: true, lessonAttachments: true },
+    include: { lessonVideo: true, lessonAttachments: true, lessonHourLogs: true },
   });
 
   return NextResponse.json(attendanceWithRelations || attendance, { status: 201 });

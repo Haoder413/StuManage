@@ -7,16 +7,20 @@ if (!route.includes('isPresentAttendance = data.status === "present"')) {
   throw new Error("attendance API should only consume lesson hours for present attendance");
 }
 
-if (!route.includes("existing?.status === \"present\"")) {
-  throw new Error("attendance API should avoid double-consuming a lesson hour on repeated present saves");
+if (!route.includes("currentAttendanceLessonHourDelta")) {
+  throw new Error("attendance API should calculate current lesson hour consumption before saving");
 }
 
-if (!route.includes("remainingLessonHours: { gt: 0 }")) {
+if (!route.includes("remainingLessonHours: { gte: lessonHoursToConsume }")) {
   throw new Error("attendance API should not decrement remaining lesson hours below zero");
 }
 
-if (!route.includes("shouldRestoreLessonHour")) {
-  throw new Error("attendance API should restore a consumed lesson hour if present is changed to non-present");
+if (!route.includes("lessonHourAdjustment")) {
+  throw new Error("attendance API should adjust consumed lesson hours by difference");
+}
+
+if (!schedulePage.includes("lessonHourAmount: parseInt(reviewLessonHourAmount)")) {
+  throw new Error("attendance review should submit selected lesson hour amount");
 }
 
 if (!schedulePage.includes("handleAttendance(schedule.id, student.id, selectedDate, status)")) {

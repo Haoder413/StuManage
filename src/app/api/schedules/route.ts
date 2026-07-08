@@ -42,7 +42,7 @@ export async function GET() {
           },
         },
       },
-      attendance: { include: { lessonVideo: true, lessonAttachments: true } },
+      attendance: { include: { lessonVideo: true, lessonAttachments: true, lessonHourLogs: true } },
     },
     orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
   });
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      attendance: { include: { lessonVideo: true, lessonAttachments: true } },
+      attendance: { include: { lessonVideo: true, lessonAttachments: true, lessonHourLogs: true } },
     },
   });
   return NextResponse.json(schedule, { status: 201 });
@@ -120,7 +120,7 @@ export async function PATCH(request: NextRequest) {
           },
         },
       },
-      attendance: { include: { lessonVideo: true, lessonAttachments: true } },
+      attendance: { include: { lessonVideo: true, lessonAttachments: true, lessonHourLogs: true } },
     },
   });
   if (!schedule) return NextResponse.json({ error: "not found" }, { status: 404 });

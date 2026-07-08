@@ -49,6 +49,7 @@ interface Schedule {
     contentTags: string | null; feedbackTags: string | null; weakPointTags: string | null;
     lessonVideo: LessonVideo | null;
     lessonAttachments: LessonAttachment[];
+    lessonHourLogs: { deltaRemainingHours: number }[];
   }[];
 }
 interface LessonVideo {
@@ -133,6 +134,11 @@ function formatFileSize(size: number) {
   const mb = size / 1024 / 1024;
   if (mb >= 1) return `${mb.toFixed(1)} MB`;
   return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+function getAttendanceLessonHourAmount(attendance?: Schedule["attendance"][number]) {
+  const consumed = -(attendance?.lessonHourLogs || []).reduce((sum, log) => sum + log.deltaRemainingHours, 0);
+  return consumed > 0 ? consumed : 1;
 }
 
 function TagChips({
@@ -281,6 +287,7 @@ export default function SchedulePage() {
   const [selectedFeedbackTags, setSelectedFeedbackTags] = useState<string[]>([]);
   const [reviewLessonContentText, setReviewLessonContentText] = useState("");
   const [reviewLessonFeedbackText, setReviewLessonFeedbackText] = useState("");
+  const [reviewLessonHourAmount, setReviewLessonHourAmount] = useState("1");
   const [reviewLessonVideo, setReviewLessonVideo] = useState<LessonVideo | null>(null);
   const [reviewLessonAttachments, setReviewLessonAttachments] = useState<LessonAttachment[]>([]);
   const [reviewAttendanceId, setReviewAttendanceId] = useState<string | null>(null);
@@ -389,7 +396,7 @@ export default function SchedulePage() {
     studentId: string,
     date: Date,
     status: string,
-    review?: { lessonContent: string; lessonFeedback: string; contentTags: string[]; feedbackTags: string[]; weakPointTags: string[] }
+    review?: { lessonContent: string; lessonFeedback: string; lessonHourAmount?: number; contentTags: string[]; feedbackTags: string[]; weakPointTags: string[] }
   ) {
     const res = await fetch("/api/attendance", {
       method: "POST",
@@ -440,6 +447,7 @@ export default function SchedulePage() {
     setSelectedFeedbackTags(parseTags(existing?.feedbackTags));
     setReviewLessonContentText(existing?.lessonContent || "");
     setReviewLessonFeedbackText(existing?.lessonFeedback || "");
+    setReviewLessonHourAmount(status === "present" ? String(getAttendanceLessonHourAmount(existing)) : "0");
     setReviewLessonVideo(existing?.lessonVideo || null);
     setReviewLessonAttachments(existing?.lessonAttachments || []);
     setReviewAttendanceId(existing?.id || null);
@@ -466,6 +474,7 @@ export default function SchedulePage() {
       {
         lessonContent: reviewLessonContentText.trim(),
         lessonFeedback: reviewLessonFeedbackText.trim(),
+        lessonHourAmount: parseInt(reviewLessonHourAmount) || 0,
         contentTags: selectedContentTags,
         feedbackTags: selectedFeedbackTags,
         weakPointTags: selectedWeakPointTags,
@@ -545,6 +554,7 @@ export default function SchedulePage() {
     setCourseAttendanceStudentId(null);
     setReviewLessonContentText("");
     setReviewLessonFeedbackText("");
+    setReviewLessonHourAmount("1");
     setReviewLessonVideo(null);
     setReviewLessonAttachments([]);
     setReviewAttendanceId(null);
@@ -1031,6 +1041,23 @@ export default function SchedulePage() {
                 />
               </div>
             </div>
+            {pendingAttendance?.status === "present" && (
+              <div className="rounded-lg border border-gray-100 p-3">
+                <Label className="text-xs text-gray-500">本次扣课时</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={reviewLessonHourAmount}
+                  onChange={(event) => setReviewLessonHourAmount(event.target.value)}
+                  disabled={savingReview}
+                  className="mt-1"
+                />
+                <p className="mt-1 text-[11px] text-gray-400">
+                  默认扣 1 节；如果本次上课时长较长，可以改成 2、3 等整数。再次编辑会按差额补扣或退回。
+                </p>
+              </div>
+            )}
             <div>
               <Label className="text-xs text-gray-500">薄弱点</Label>
               <div className="mt-1">

@@ -17,7 +17,7 @@ assert.match(page, /所属课程/, "student detail should show course names inst
 assert.match(page, /课时统计/, "student detail should show lesson hour stats instead of exam count");
 assert.match(page, /student\.remainingLessonHours/, "student detail should read stored remaining lesson hours");
 assert.match(attendanceRoute, /remainingLessonHours/, "attendance should update remaining lesson hours");
-assert.match(attendanceRoute, /existing\?\.status !== "present"/, "attendance should only decrement when status changes into present");
+assert.match(attendanceRoute, /lessonHourAdjustment/, "attendance should adjust lesson hours by saved amount difference");
 assert.doesNotMatch(page, />课程数</, "course count card label should be removed");
 assert.doesNotMatch(page, />考试次数</, "exam count card label should be removed");
 
