@@ -9,9 +9,7 @@ const statusText = {
 const weakPointFilters = [
   { key: "all", label: "全部" },
   { key: "pending", label: "待复习" },
-  { key: "active", label: "当前薄弱" },
-  { key: "mastered", label: "巩固中" },
-  { key: "done", label: "已完成" }
+  { key: "mastered", label: "已掌握" }
 ];
 
 function formatDate(value) {
@@ -28,21 +26,17 @@ function formatPlainDate(value) {
 
 function decorateWeakPoint(point) {
   const hasPendingReview = Boolean(point.nextReviewAt);
-  const isDone = point.status !== "active" && !hasPendingReview;
-  const statusLabel = point.statusLabel || (point.status === "active" ? "当前薄弱" : hasPendingReview ? "巩固中" : "已完成");
-  const reviewStageText = point.reviewStageLabel || (point.reviewStage ? `第${point.reviewStage}次` : "待复习");
+  const statusLabel = point.statusLabel || (point.status === "active" ? "待复习" : "已掌握");
   return {
     ...point,
     statusLabel,
-    statusClass: point.status === "active" ? "weak-status weak-active" : hasPendingReview ? "weak-status weak-pending" : "weak-status weak-done",
+    statusClass: point.status === "active" ? "weak-status weak-active" : "weak-status weak-done",
     createdText: `创建于 ${formatPlainDate(point.createdAt) || "-"}`,
     masteredText: point.masteredAt ? `掌握于 ${formatPlainDate(point.masteredAt)}` : "",
     completedReviewCount: point.completedReviewCount || 0,
     hasPendingReview,
-    isDone,
     lastReviewedText: point.lastReviewedAt ? formatPlainDate(point.lastReviewedAt) : "-",
-    reviewStageText,
-    nextReviewText: hasPendingReview ? `${reviewStageText} · ${formatPlainDate(point.nextReviewAt)}` : "暂无待复习"
+    nextReviewText: hasPendingReview ? `下次复习：${formatPlainDate(point.nextReviewAt)}` : "暂无待复习"
   };
 }
 
@@ -52,11 +46,7 @@ function buildWeakPointFilters(student) {
       ? student.weakPoints.length
       : filter.key === "pending"
         ? student.pendingWeakPointCount
-        : filter.key === "active"
-          ? student.currentWeakPointCount
-          : filter.key === "mastered"
-            ? student.consolidatingWeakPointCount
-            : student.completedWeakPointCount;
+        : student.masteredWeakPointCount;
     return {
       ...filter,
       count,
@@ -67,9 +57,7 @@ function buildWeakPointFilters(student) {
 
 function filterWeakPoints(weakPoints, filter) {
   if (filter === "pending") return weakPoints.filter((point) => point.hasPendingReview);
-  if (filter === "active") return weakPoints.filter((point) => point.status === "active");
-  if (filter === "mastered") return weakPoints.filter((point) => point.status !== "active" && point.hasPendingReview);
-  if (filter === "done") return weakPoints.filter((point) => point.isDone);
+  if (filter === "mastered") return weakPoints.filter((point) => point.status !== "active");
   return weakPoints;
 }
 
@@ -81,8 +69,7 @@ function decorateStudent(student) {
     activeWeakPointFilter,
     currentWeakPointCount: student.currentWeakPointCount || 0,
     pendingWeakPointCount: student.pendingWeakPointCount || 0,
-    consolidatingWeakPointCount: student.consolidatingWeakPointCount || 0,
-    completedWeakPointCount: student.completedWeakPointCount || 0,
+    masteredWeakPointCount: student.masteredWeakPointCount || 0,
     knowledgePoints: (student.knowledgePoints || []).map((kp) => ({
       ...kp,
       statusText: statusText[kp.status] || "未开始"

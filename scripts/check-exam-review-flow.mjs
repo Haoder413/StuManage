@@ -33,7 +33,7 @@ if (!existsSync("src/app/api/exams/review/route.ts")) {
 }
 
 const weakPointReuse = readFileSync("src/lib/weak-point-reuse.ts", "utf8");
-for (const snippet of ["getNextReviewDate", "reviewSchedule.create", "status: \"pending\""]) {
+for (const snippet of ["getTodayReviewDate", "reviewSchedule.create", "status: \"pending\"", "masteredAt: null"]) {
   if (!weakPointReuse.includes(snippet)) missing.push(`src/lib/weak-point-reuse.ts: ${snippet}`);
 }
 

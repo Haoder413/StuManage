@@ -10,9 +10,8 @@ const files = {
     "整体进度",
     "reviewFilters",
     "filteredWeakPoints",
-    "当前薄弱",
-    "巩固中",
-    "已完成",
+    "待复习",
+    "已掌握",
     "最近复习",
   ],
 };

@@ -3,10 +3,8 @@ import { readFileSync } from "node:fs";
 const required = {
   "src/lib/mobile-parent-data.ts": [
     "pendingWeakPointCount",
-    "consolidatingWeakPointCount",
-    "completedWeakPointCount",
+    "masteredWeakPointCount",
     "completedReviewCount",
-    "reviewStageLabel",
     "lastReviewedAt",
     "masteredAt",
   ],
@@ -15,15 +13,12 @@ const required = {
     "filteredWeakPoints",
     "changeWeakPointFilter",
     "activeWeakPointFilter",
-    "当前薄弱",
     "待复习",
     "全部",
-    "巩固中",
-    "已完成",
+    "已掌握",
     "currentWeakPointCount",
     "pendingWeakPointCount",
     "completedReviewCount",
-    "reviewStageText",
     "lastReviewedText",
   ],
   "miniprogram/pages/progress/index.wxml": [

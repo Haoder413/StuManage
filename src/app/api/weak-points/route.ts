@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getNextReviewDate } from "@/lib/review-scheduler";
+import { getDefaultNextReviewDate, getTodayReviewDate, parseReviewDate } from "@/lib/review-scheduler";
 import { requireTeacherLike } from "@/lib/auth";
 import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 
@@ -30,18 +30,63 @@ export async function POST(request: NextRequest) {
   const learningLink = data.learningLinkId
     ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
     : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
+  const description = String(data.description || "").trim();
+  if (!description) return NextResponse.json({ error: "description required" }, { status: 400 });
+
+  const existing = await prisma.weakPoint.findFirst({
+    where: {
+      workspaceId: user.workspaceId,
+      learningLinkId: learningLink?.id || null,
+      studentId: data.studentId,
+      description,
+    },
+    include: {
+      reviewSchedules: {
+        where: { status: "pending" },
+        orderBy: { nextReviewAt: "asc" },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (existing) {
+    if (existing.status !== "active") {
+      await prisma.weakPoint.update({
+        where: { id: existing.id },
+        data: { status: "active", masteredAt: null },
+      });
+    }
+    if (!existing.reviewSchedules[0]) {
+      await prisma.reviewSchedule.create({
+        data: {
+          workspaceId: user.workspaceId,
+          weakPointId: existing.id,
+          stage: 1,
+          nextReviewAt: getTodayReviewDate(),
+          status: "pending",
+        },
+      });
+    }
+    const weakPoint = await prisma.weakPoint.findUnique({
+      where: { id: existing.id },
+      include: { reviewSchedules: { orderBy: { nextReviewAt: "asc" } } },
+    });
+    return NextResponse.json(weakPoint, { status: 200 });
+  }
+
   const weakPoint = await prisma.weakPoint.create({
     data: {
       workspaceId: user.workspaceId,
       learningLinkId: learningLink?.id || null,
       studentId: data.studentId,
       knowledgePointId: data.knowledgePointId || null,
-      description: data.description,
+      description,
       reviewSchedules: {
         create: {
           workspaceId: user.workspaceId,
           stage: 1,
-          nextReviewAt: getNextReviewDate(1),
+          nextReviewAt: getTodayReviewDate(),
           status: "pending",
         },
       },
@@ -63,26 +108,29 @@ export async function PATCH(request: NextRequest) {
       data: { status: "mastered", masteredAt: new Date() },
     });
 
-    const schedule = await prisma.reviewSchedule.findFirst({
+    await prisma.reviewSchedule.updateMany({
       where: { workspaceId: user.workspaceId, weakPointId: data.id, status: "pending" },
-      orderBy: { stage: "asc" },
+      data: { status: "completed", lastReviewedAt: new Date() },
     });
-    const nextStage = schedule ? schedule.stage + 1 : 1;
+    return NextResponse.json({ success: true });
+  }
 
-    if (schedule) {
-      await prisma.reviewSchedule.update({
-        where: { id: schedule.id },
-        data: { status: "completed", lastReviewedAt: new Date() },
-      });
-    }
-
-    if (nextStage <= 6) {
+  if (data.status === "active") {
+    await prisma.weakPoint.updateMany({
+      where: { id: data.id, workspaceId: user.workspaceId },
+      data: { status: "active", masteredAt: null },
+    });
+    const pendingSchedule = await prisma.reviewSchedule.findFirst({
+      where: { workspaceId: user.workspaceId, weakPointId: data.id, status: "pending" },
+      orderBy: { nextReviewAt: "asc" },
+    });
+    if (!pendingSchedule) {
       await prisma.reviewSchedule.create({
         data: {
           workspaceId: user.workspaceId,
           weakPointId: data.id,
-          stage: nextStage,
-          nextReviewAt: getNextReviewDate(nextStage),
+          stage: 1,
+          nextReviewAt: parseReviewDate(data.nextReviewAt, getTodayReviewDate()),
           status: "pending",
         },
       });
@@ -93,24 +141,22 @@ export async function PATCH(request: NextRequest) {
   if (data.reviewCompleted) {
     const schedule = await prisma.reviewSchedule.findFirst({
       where: { workspaceId: user.workspaceId, weakPointId: data.id, status: "pending" },
-      orderBy: { stage: "asc" },
+      orderBy: { nextReviewAt: "asc" },
     });
     if (schedule) {
-      const nextStage = data.stillWeak ? 1 : schedule.stage + 1;
       await prisma.reviewSchedule.update({
         where: { id: schedule.id },
-        data: { status: data.stillWeak ? "reset" : "completed", lastReviewedAt: new Date() },
+        data: { status: "completed", lastReviewedAt: new Date() },
       });
-      if (nextStage <= 6) {
-        await prisma.reviewSchedule.create({
-          data: {
-            workspaceId: user.workspaceId,
-            weakPointId: data.id,
-            stage: nextStage,
-            nextReviewAt: getNextReviewDate(nextStage),
-          },
-        });
-      }
+      await prisma.reviewSchedule.create({
+        data: {
+          workspaceId: user.workspaceId,
+          weakPointId: data.id,
+          stage: 1,
+          nextReviewAt: parseReviewDate(data.nextReviewAt, getDefaultNextReviewDate()),
+          status: "pending",
+        },
+      });
     }
     return NextResponse.json({ success: true });
   }

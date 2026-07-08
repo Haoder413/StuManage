@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { getNextReviewDate } from "@/lib/review-scheduler";
+import { getTodayReviewDate } from "@/lib/review-scheduler";
 
 export function normalizeWeakPointDescriptions(values: unknown) {
   if (!Array.isArray(values)) return [];
@@ -34,10 +34,6 @@ export async function applyExamWeakPoints({
         learningLinkId,
         studentId,
         description,
-        OR: [
-          { status: "active" },
-          { reviewSchedules: { some: { status: "pending" } } },
-        ],
       },
       include: {
         reviewSchedules: {
@@ -53,12 +49,18 @@ export async function applyExamWeakPoints({
     if (pendingSchedule) continue;
 
     if (existing) {
+      if (existing.status !== "active") {
+        await tx.weakPoint.update({
+          where: { id: existing.id },
+          data: { status: "active", masteredAt: null },
+        });
+      }
       await tx.reviewSchedule.create({
         data: {
           workspaceId,
           weakPointId: existing.id,
           stage: 1,
-          nextReviewAt: getNextReviewDate(1),
+          nextReviewAt: getTodayReviewDate(),
           status: "pending",
         },
       });
@@ -79,7 +81,7 @@ export async function applyExamWeakPoints({
         workspaceId,
         weakPointId: weakPoint.id,
         stage: 1,
-        nextReviewAt: getNextReviewDate(1),
+        nextReviewAt: getTodayReviewDate(),
         status: "pending",
       },
     });

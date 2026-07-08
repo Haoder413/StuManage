@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { isOverdue, getStageLabel } from "@/lib/review-scheduler";
+import { isOverdue } from "@/lib/review-scheduler";
 
 interface KPNode {
   id: string;
@@ -47,11 +47,24 @@ interface ReviewSchedule {
   lastReviewedAt: string | null;
 }
 
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDateInputDaysLater(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return formatDateInput(date);
+}
+
 export default function StudentProgressDetailPage() {
   const params = useParams();
   const studentId = params.id as string;
   const [activeTab, setActiveTab] = useState<"knowledge" | "weakness">("knowledge");
-  const [reviewFilter, setReviewFilter] = useState<"all" | "pending" | "active" | "mastered" | "done">("all");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "pending" | "mastered">("all");
   const [student, setStudent] = useState<StudentData | null>(null);
   const [kpTree, setKpTree] = useState<KPNode[]>([]);
   const [kpProgress, setKpProgress] = useState<Record<string, string>>({});
@@ -64,6 +77,8 @@ export default function StudentProgressDetailPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagCategory, setNewTagCategory] = useState("");
+  const [reviewTarget, setReviewTarget] = useState<WeakPoint | null>(null);
+  const [nextReviewAt, setNextReviewAt] = useState(getDateInputDaysLater(7));
 
   useEffect(() => {
     async function load() {
@@ -175,13 +190,31 @@ export default function StudentProgressDetailPage() {
     if (res.ok) await refreshWeakPoints();
   }
 
-  async function markReviewCompleted(wpId: string, stillWeak: boolean) {
-    await fetch("/api/weak-points", {
+  function openReviewDialog(wp: WeakPoint) {
+    setReviewTarget(wp);
+    setNextReviewAt(getDateInputDaysLater(7));
+  }
+
+  async function markReviewCompleted() {
+    if (!reviewTarget) return;
+    const res = await fetch("/api/weak-points", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: wpId, reviewCompleted: true, stillWeak }),
+      body: JSON.stringify({ id: reviewTarget.id, reviewCompleted: true, nextReviewAt }),
     });
-    await refreshWeakPoints();
+    if (res.ok) {
+      setReviewTarget(null);
+      await refreshWeakPoints();
+    }
+  }
+
+  async function reactivateWeakPoint(wpId: string) {
+    const res = await fetch("/api/weak-points", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: wpId, status: "active", nextReviewAt: formatDateInput(new Date()) }),
+    });
+    if (res.ok) await refreshWeakPoints();
   }
 
   function selectWeakPointTag(name: string) {
@@ -235,17 +268,13 @@ export default function StudentProgressDetailPage() {
   const reviewFilters = [
     { key: "all" as const, label: "全部", count: allReviewWeakPoints.length },
     { key: "pending" as const, label: "待复习", count: pendingReviewCount },
-    { key: "active" as const, label: "当前薄弱", count: weakPoints.length },
-    { key: "mastered" as const, label: "巩固中", count: historyWeakPoints.filter((wp) => wp.reviewSchedules?.some((rs) => rs.status === "pending")).length },
-    { key: "done" as const, label: "已完成", count: historyWeakPoints.filter((wp) => !wp.reviewSchedules?.some((rs) => rs.status === "pending")).length },
+    { key: "mastered" as const, label: "已掌握", count: historyWeakPoints.length },
   ];
 
   const filteredWeakPoints = allReviewWeakPoints.filter((wp) => {
     const hasPending = wp.reviewSchedules?.some((rs) => rs.status === "pending");
     if (reviewFilter === "pending") return hasPending;
-    if (reviewFilter === "active") return wp.status === "active";
-    if (reviewFilter === "mastered") return wp.status !== "active" && hasPending;
-    if (reviewFilter === "done") return wp.status !== "active" && !hasPending;
+    if (reviewFilter === "mastered") return wp.status !== "active";
     return true;
   }).sort((a, b) => {
     const aPending = a.reviewSchedules?.find((rs) => rs.status === "pending");
@@ -417,9 +446,8 @@ export default function StudentProgressDetailPage() {
                     ?.filter((rs) => rs.lastReviewedAt)
                     .sort((a, b) => new Date(b.lastReviewedAt || "").getTime() - new Date(a.lastReviewedAt || "").getTime())[0];
                   const isMastered = wp.status !== "active";
-                  const isDone = isMastered && !pendingReview;
                   const overdue = pendingReview ? isOverdue(new Date(pendingReview.nextReviewAt)) : false;
-                  const statusLabel = wp.status === "active" ? "当前薄弱" : pendingReview ? "巩固中" : "已完成";
+                  const statusLabel = isMastered ? "已掌握" : "待复习";
 
                   return (
                     <div key={wp.id} className="border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-colors">
@@ -428,7 +456,7 @@ export default function StudentProgressDetailPage() {
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-gray-900">{wp.description}</p>
                             <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                              wp.status === "active" ? "bg-orange-100 text-orange-600" : isDone ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-600"
+                              wp.status === "active" ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-700"
                             }`}>
                               {statusLabel}
                             </span>
@@ -441,18 +469,19 @@ export default function StudentProgressDetailPage() {
                           </p>
                           <p className={`text-xs mt-1 ${overdue ? "text-red-500" : pendingReview ? "text-blue-500" : "text-gray-400"}`}>
                             {pendingReview
-                              ? `${getStageLabel(pendingReview.stage)} · ${overdue ? "已逾期" : new Date(pendingReview.nextReviewAt).toLocaleDateString("zh-CN")}`
+                              ? `下次复习：${overdue ? "已逾期" : new Date(pendingReview.nextReviewAt).toLocaleDateString("zh-CN")}`
                               : "暂无待复习"}
                           </p>
                         </div>
                         <div className="flex gap-2 shrink-0">
                           {pendingReview && (
-                            <>
-                              <Button size="sm" variant="outline" onClick={() => markReviewCompleted(wp.id, false)}>记住了</Button>
-                              <Button size="sm" variant="outline" onClick={() => markReviewCompleted(wp.id, true)}>忘了</Button>
-                            </>
+                            <Button size="sm" variant="outline" onClick={() => openReviewDialog(wp)}>已复习</Button>
                           )}
-                          {wp.status === "active" && <Button size="sm" onClick={() => markWeakpointMastered(wp.id)}>已掌握</Button>}
+                          {wp.status === "active" ? (
+                            <Button size="sm" onClick={() => markWeakpointMastered(wp.id)}>已掌握</Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => reactivateWeakPoint(wp.id)}>重新激活</Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -463,6 +492,28 @@ export default function StudentProgressDetailPage() {
           </div>
         </div>
       )}
+
+      <Dialog open={!!reviewTarget} onOpenChange={(open) => !open && setReviewTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-900">记录已复习</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">{reviewTarget?.description}</p>
+              <p className="mt-1 text-xs text-gray-500">本次复习会计入历史，并生成下一次待复习提醒。</p>
+            </div>
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-700">下次复习日期</span>
+              <Input type="date" value={nextReviewAt} onChange={(e) => setNextReviewAt(e.target.value)} className="mt-2" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setReviewTarget(null)}>取消</Button>
+              <Button onClick={markReviewCompleted}>确认</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Tag Manager Dialog */}
       <Dialog open={showTagManager} onOpenChange={setShowTagManager}>
