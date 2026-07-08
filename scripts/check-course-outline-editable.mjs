@@ -24,7 +24,8 @@ assert.match(editor, /批量删除/, "outline editor should support bulk delete"
 assert.match(editor, /selectedKnowledgePointIds/, "outline editor should track selected nodes for bulk delete");
 assert.match(editor, /parseOutlineText/, "outline editor should parse pasted tree outlines");
 assert.match(editor, /粘贴知识点大纲/, "outline editor should provide a paste dialog");
-assert.match(editor, /每深入一级缩进 2 个半角空格或 1 个 Tab/, "outline import help should explain indentation rules");
+assert.match(editor, /缩进比上一层更深就是子级/, "outline import help should explain flexible indentation rules");
+assert.match(editor, /normalizeOutlineIndent/, "outline parser should normalize tabs and full-width spaces");
 assert.match(editor, /多级标题/, "outline import help should say multi-level titles are supported");
 assert.match(editor, /重命名/, "outline editor should support renaming knowledge points");
 assert.match(editor, /删除/, "outline editor should support deleting knowledge points");

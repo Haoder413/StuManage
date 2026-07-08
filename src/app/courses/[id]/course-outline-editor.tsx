@@ -41,18 +41,18 @@ function buildTree(items: KnowledgePoint[]) {
 }
 
 function parseOutlineText(text: string): ParsedOutlineItem[] {
-  const stack: { level: number; tempId: string }[] = [];
+  const stack: { indent: number; tempId: string }[] = [];
   const siblingCounts = new Map<string, number>();
   const items: ParsedOutlineItem[] = [];
 
   text.split("\n").forEach((rawLine) => {
     if (!rawLine.trim()) return;
     const indentText = rawLine.match(/^\s*/)?.[0] || "";
-    const level = Math.floor(indentText.replace(/\t/g, "  ").length / 2);
+    const indent = normalizeOutlineIndent(indentText);
     const name = rawLine.trim().replace(/^[-*•]\s*/, "").trim();
     if (!name) return;
 
-    while (stack.length > 0 && stack[stack.length - 1].level >= level) stack.pop();
+    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop();
     const parentTempId = stack[stack.length - 1]?.tempId || null;
     const siblingKey = parentTempId || "root";
     const orderIndex = (siblingCounts.get(siblingKey) || 0) + 1;
@@ -60,10 +60,17 @@ function parseOutlineText(text: string): ParsedOutlineItem[] {
 
     const tempId = `tmp-${items.length + 1}`;
     items.push({ tempId, parentTempId, name, orderIndex });
-    stack.push({ level, tempId });
+    stack.push({ indent, tempId });
   });
 
   return items;
+}
+
+function normalizeOutlineIndent(indentText: string) {
+  return indentText
+    .replace(/\t/g, "    ")
+    .replace(/\u3000/g, "  ")
+    .length;
 }
 
 export function CourseOutlineEditor({
@@ -208,7 +215,7 @@ export function CourseOutlineEditor({
             placeholder={"有理数\n  正负数与数轴\n    数轴上的点\n      动点问题\n  绝对值与相反数\n- 整式的加减\n  - 单项式与多项式"}
           />
           <p className="text-xs text-[#1a1a2e]/40">
-            支持多级标题；每深入一级缩进 2 个半角空格或 1 个 Tab。每行开头可选用 -、* 或 • 作为项目符号。
+            支持多级标题；缩进比上一层更深就是子级，同样缩进就是同级，缩进减少会回到上级。支持空格、Tab 和全角空格；每行开头可选用 -、* 或 • 作为项目符号。
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowImportDialog(false)}>取消</Button>
