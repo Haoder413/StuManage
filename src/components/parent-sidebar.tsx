@@ -20,7 +20,7 @@ export function ParentSidebar() {
 
   return (
     <>
-    <aside className="glass-sidebar sticky top-0 hidden min-h-screen w-48 shrink-0 flex-col md:flex">
+    <aside className="glass-sidebar fixed inset-y-0 left-0 z-30 hidden w-48 shrink-0 flex-col md:flex">
       <div className="px-4 pb-3 pt-6">
         <h1 className="text-xl font-bold tracking-tight text-gray-900">
           <span className="text-sky-500">家</span>长端
