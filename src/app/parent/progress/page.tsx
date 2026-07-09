@@ -51,7 +51,8 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
                   <CardTitle>{student.name} · 学习进度</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:gap-4">
+                    <StatCard title="剩余课时" value={String(student.remainingLessonHours)} tone="orange" />
                     <StatCard title="知识点总数" value={String(totalKps)} />
                     <StatCard title="已学习" value={String(masteredCount)} tone="green" />
                     <StatCard title="学习中" value={String(learningCount)} tone="blue" />
@@ -173,11 +174,19 @@ function filterWeakPoints<T extends { status: string; reviewSchedules: { status:
   return weakPoints;
 }
 
-function StatCard({ title, value, tone }: { title: string; value: string; tone?: "green" | "blue" }) {
+function StatCard({ title, value, tone }: { title: string; value: string; tone?: "green" | "blue" | "orange" }) {
+  const valueClass = tone === "green"
+    ? "text-green-600"
+    : tone === "blue"
+      ? "text-blue-500"
+      : tone === "orange"
+        ? "text-orange-500"
+        : "text-gray-900";
+
   return (
     <div className="rounded-xl bg-slate-50 p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</p>
-      <p className={`mt-1 text-2xl font-bold ${tone === "green" ? "text-green-600" : tone === "blue" ? "text-blue-500" : "text-gray-900"}`}>{value}</p>
+      <p className={`mt-1 text-2xl font-bold ${valueClass}`}>{value}</p>
     </div>
   );
 }

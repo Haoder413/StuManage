@@ -92,24 +92,46 @@ export async function POST(request: NextRequest) {
   const workspaceId = user.role === "admin"
     ? String(formData.get("workspaceId") || user.workspaceId)
     : user.workspaceId;
-  const resource = await prisma.learningResource.create({
-    data: {
-      workspaceId,
-      title: String(formData.get("title") || file.name).trim(),
-      description: normalizeText(formData.get("description")),
-      type: resourceKind === "animation" ? "animation" : "paper",
-      subject: normalizeText(formData.get("subject")) || user.teachingSubject || null,
-      resourceKind,
-      fileName: file.name,
-      storedName: saved.storedName,
-      mimeType: saved.mimeType,
-      extension: saved.extension,
-      size: saved.size,
-      grade: normalizeText(formData.get("grade")),
-      courseId: normalizeText(formData.get("courseId")),
-      keywords: normalizeText(formData.get("keywords")),
-      uploadedById: user.id,
-    },
+  const courseIds = Array.from(new Set(formData.getAll("courseIds").map((value) => String(value || "")).filter(Boolean)));
+  const courses = courseIds.length > 0
+    ? await prisma.course.findMany({
+        where: { id: { in: courseIds }, workspaceId },
+        select: { id: true },
+      })
+    : [];
+
+  const resource = await prisma.$transaction(async (tx) => {
+    const created = await tx.learningResource.create({
+      data: {
+        workspaceId,
+        title: String(formData.get("title") || file.name).trim(),
+        description: normalizeText(formData.get("description")),
+        type: resourceKind === "animation" ? "animation" : "paper",
+        subject: normalizeText(formData.get("subject")) || user.teachingSubject || null,
+        resourceKind,
+        fileName: file.name,
+        storedName: saved.storedName,
+        mimeType: saved.mimeType,
+        extension: saved.extension,
+        size: saved.size,
+        grade: normalizeText(formData.get("grade")),
+        courseId: courses[0]?.id || normalizeText(formData.get("courseId")),
+        keywords: normalizeText(formData.get("keywords")),
+        uploadedById: user.id,
+      },
+    });
+
+    if (courses.length > 0) {
+      await tx.resourceCoursePermission.createMany({
+        data: courses.map((course) => ({
+          workspaceId,
+          resourceId: created.id,
+          courseId: course.id,
+        })),
+      });
+    }
+
+    return created;
   });
 
   return NextResponse.json(resource, { status: 201 });

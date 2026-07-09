@@ -23,6 +23,8 @@ const files = {
     "saveUploadedResourceFile",
     "LearningResource",
     "coursePermissions",
+    "formData.getAll(\"courseIds\")",
+    "resourceCoursePermission.createMany",
   ],
   "src/app/api/resources/[id]/file/route.ts": [
     "canAccessResource",
@@ -50,6 +52,8 @@ const files = {
     "aspect-[16/9]",
     "预览",
     "下载",
+    "同步到家长端课程",
+    "name=\"courseIds\"",
     "授权课程",
     "试卷",
     "动画",

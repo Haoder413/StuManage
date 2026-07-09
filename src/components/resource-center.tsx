@@ -124,6 +124,20 @@ export function ResourceCenter({
               <Input name="keywords" placeholder="关键词" />
               <Input name="file" type="file" accept=".pdf,.doc,.docx,.html,.htm" required />
               <Input name="description" placeholder="说明" className={role === "admin" ? "md:col-span-4" : "md:col-span-5"} />
+              {courses.length > 0 && (
+                <div className="md:col-span-6 rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2">
+                  <p className="mb-2 text-xs font-semibold text-sky-800">同步到家长端课程</p>
+                  <div className="flex flex-wrap gap-3">
+                    {courses.map((course) => (
+                      <label key={course.id} className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <input name="courseIds" value={course.id} type="checkbox" />
+                        {course.name}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-sky-700/70">勾选后，绑定该课程的家长端资料中心会同步显示。</p>
+                </div>
+              )}
               <Button type="submit">上传资料</Button>
             </form>
           </CardContent>

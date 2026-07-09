@@ -243,7 +243,7 @@
 重复数据判断：
 
 - 重复薄弱点主要来自历史数据和旧逻辑查重过窄：旧逻辑按“学生 + 学习关系 + 描述”查重，历史 `learningLinkId` 为空或不同来源的同名薄弱点会被当成不同记录。
-- 当前代码在新增和成绩复用时改为按“同一学生 + 同名描述”复用，并在接口返回时折叠同名记录，避免页面继续显示重复。
+- 当前代码在新增和成绩复用时改为按“同一学生 + 同名描述”复用，并在教师端接口返回、家长端学习进度数据中折叠同名记录，避免页面继续显示重复。
 - 新增 `scripts/cleanup-duplicate-weak-points.mjs` 清理历史重复薄弱点，默认 dry-run 预览，确认后用 `--apply` 合并复习历史并删除重复记录。
 
 ## 测试数据
@@ -600,6 +600,12 @@ npm warn Unknown user config "sass_binary_site".
 - 家长端不显示教师端的修改操作，例如切换知识点状态、添加薄弱点、标记复习结果。
 - 新增检查脚本：`scripts/check-parent-progress.mjs`。
 
+2026-07-09 后续调整：
+
+- 家长端不再保留“孩子首页”导航入口，旧 `/parent` 地址会自动跳转到 `/parent/progress`。
+- 原孩子首页里的“剩余课时”改为显示在家长端“学习进度”顶部统计区。
+- 家长端学习进度中的薄弱点会按同名描述折叠展示，避免历史重复数据在家长端重复出现。
+
 验证：
 
 - `node scripts/check-parent-progress.mjs && node scripts/check-parent-portal.mjs` 通过。
@@ -629,7 +635,7 @@ npm warn Unknown user config "sass_binary_site".
   - `parent`、`demo` 受 `ResourcePermission` 控制。
 - 新增接口：
   - `GET /api/resources`：查询资料，返回 `locked`、`canPreview`、`canDownload`。
-  - `POST /api/resources`：老师/管理员上传资料。
+  - `POST /api/resources`：老师/管理员上传资料；上传时勾选“同步到家长端课程”会同步写入课程授权。
   - `GET /api/resources/[id]/file?mode=preview|download`：按权限预览或下载文件。
   - `POST /api/resource-permissions`：管理员设置资料授权。
 - 新增页面：
@@ -638,6 +644,7 @@ npm warn Unknown user config "sass_binary_site".
 - 侧边栏：
   - 教师/管理员后台侧边栏新增“资料中心”。
   - 家长端侧边栏新增“资料中心”。
+- 家长端资料中心按课程授权和学习关系显示资料；教师端上传后如果未勾选同步课程或未在资料卡片保存课程授权，家长端不会自动可见。
 - 演示数据：
   - seed 会生成一个 demo 工作区 HTML 动画资料，并给 demo 账号授权预览和下载。
 
