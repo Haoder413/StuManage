@@ -91,6 +91,8 @@ export function CourseOutlineEditor({
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const [selectedKnowledgePointIds, setSelectedKnowledgePointIds] = useState<string[]>([]);
   const tree = buildTree(knowledgePoints);
+  const allKnowledgePointIds = knowledgePoints.map((item) => item.id);
+  const isAllSelected = allKnowledgePointIds.length > 0 && selectedKnowledgePointIds.length === allKnowledgePointIds.length;
 
   function toggleBatchDeleteMode() {
     setIsBatchDeleting((prev) => !prev);
@@ -99,6 +101,10 @@ export function CourseOutlineEditor({
 
   function toggleSelectedPoint(id: string) {
     setSelectedKnowledgePointIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
+  }
+
+  function toggleSelectAllPoints() {
+    setSelectedKnowledgePointIds(isAllSelected ? [] : allKnowledgePointIds);
   }
 
   async function addPoint(parentId: string | null) {
@@ -179,6 +185,9 @@ export function CourseOutlineEditor({
         {isBatchDeleting ? (
           <>
             <Button size="sm" variant="outline" onClick={toggleBatchDeleteMode}>取消</Button>
+            <Button size="sm" variant="outline" onClick={toggleSelectAllPoints}>
+              {isAllSelected ? "取消全选" : "全选"}
+            </Button>
             <Button size="sm" onClick={deleteSelectedPoints} disabled={selectedKnowledgePointIds.length === 0}>
               删除选中
             </Button>
