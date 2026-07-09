@@ -16,6 +16,7 @@ const files = {
     "学习进度",
     "剩余课时",
     "知识点进度",
+    "ParentKnowledgeProgressTree",
     "薄弱点复习",
     "整体进度",
     "reviewFilters",
@@ -23,6 +24,16 @@ const files = {
     "待复习",
     "已掌握",
     "最近复习",
+  ],
+  "src/app/parent/progress/parent-knowledge-progress-tree.tsx": [
+    "use client",
+    "buildKnowledgeProgressTree",
+    "expandedIds",
+    "toggleExpanded",
+    "parentId",
+    "children.map",
+    "已学习",
+    "学习中",
   ],
 };
 
