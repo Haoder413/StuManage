@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { normalizeStudentGrade, rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
+import { deletableStudentByIdWhere, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 const LESSON_HOUR_ACTIONS = ["add", "use"] as const;
 
@@ -68,7 +69,7 @@ export async function GET() {
   const user = await requireTeacherLike();
   await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const students = await prisma.student.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleStudentWhere(user),
     include: {
       studentCourses: { include: { course: true } },
       schedules: true,
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
     const created = await tx.student.create({
       data: {
         workspaceId: user.workspaceId,
+        createdById: user.role === "teacher" ? user.id : null,
         name: data.name,
         grade: normalizeStudentGrade(data.grade),
         parentContact: data.parentContact || null,
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     return tx.student.findFirstOrThrow({
-      where: { id: created.id, workspaceId: user.workspaceId },
+      where: visibleStudentByIdWhere(user, created.id),
       include: {
         studentCourses: { include: { course: true } },
         schedules: true,
@@ -140,8 +142,14 @@ export async function PATCH(request: NextRequest) {
   if (!data.id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
   const student = await prisma.$transaction(async (tx) => {
+    const accessibleStudent = await tx.student.findFirst({
+      where: visibleStudentByIdWhere(user, String(data.id)),
+      select: { id: true },
+    });
+    if (!accessibleStudent) return null;
+
     await tx.student.updateMany({
-      where: { id: data.id, workspaceId: user.workspaceId },
+      where: { id: accessibleStudent.id, workspaceId: user.workspaceId },
       data: {
         name: data.name,
         grade: normalizeStudentGrade(data.grade),
@@ -159,13 +167,13 @@ export async function PATCH(request: NextRequest) {
       await syncStudentCourseAndSchedules(
         tx,
         user.workspaceId,
-        data.id,
+        accessibleStudent.id,
         data.courseId === "none" ? null : data.courseId
       );
     }
 
     return tx.student.findFirst({
-      where: { id: data.id, workspaceId: user.workspaceId },
+      where: { id: accessibleStudent.id, workspaceId: user.workspaceId },
       include: {
         studentCourses: { where: { status: "active" }, include: { course: true } },
         schedules: true,
@@ -198,7 +206,7 @@ export async function PUT(request: NextRequest) {
 
   const student = await prisma.$transaction(async (tx) => {
     const beforeStudent = await tx.student.findFirst({
-      where: { id: data.id, workspaceId: user.workspaceId },
+      where: visibleStudentByIdWhere(user, String(data.id)),
       select: { id: true, totalLessonHours: true, remainingLessonHours: true },
     });
     if (!beforeStudent) return null;
@@ -217,7 +225,7 @@ export async function PUT(request: NextRequest) {
 
     await tx.student.update({ where: { id: beforeStudent.id }, data: updateData });
     const afterStudent = await tx.student.findFirstOrThrow({
-      where: { id: beforeStudent.id, workspaceId: user.workspaceId },
+      where: visibleStudentByIdWhere(user, beforeStudent.id),
       include: {
         studentCourses: { where: { status: "active" }, include: { course: true } },
         schedules: true,
@@ -258,7 +266,7 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
   const result = await prisma.student.deleteMany({
-    where: { id, workspaceId: user.workspaceId },
+    where: deletableStudentByIdWhere(user, id),
   });
 
   if (result.count === 0) {

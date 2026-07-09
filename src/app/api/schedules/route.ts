@@ -1,24 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
+import { visibleScheduleWhere, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
-async function validateScheduleRelations(workspaceId: string, data: { studentId?: string | null; courseId?: string | null }) {
+async function validateScheduleRelations(user: { id: string; workspaceId: string; role: string }, data: { studentId?: string | null; courseId?: string | null }) {
   const studentId = data.studentId ? String(data.studentId) : null;
   const courseId = data.courseId ? String(data.courseId) : null;
 
   if (studentId) {
-    const student = await prisma.student.findFirst({ where: { id: studentId, workspaceId }, select: { id: true } });
+    const student = await prisma.student.findFirst({ where: visibleStudentByIdWhere(user, studentId), select: { id: true } });
     if (!student) return "student not found";
   }
 
   if (courseId) {
-    const course = await prisma.course.findFirst({ where: { id: courseId, workspaceId }, select: { id: true } });
+    const course = await prisma.course.findFirst({ where: { id: courseId, workspaceId: user.workspaceId }, select: { id: true } });
     if (!course) return "course not found";
   }
 
   if (studentId && courseId) {
     const studentCourse = await prisma.studentCourse.findFirst({
-      where: { workspaceId, studentId, courseId, status: "active" },
+      where: { workspaceId: user.workspaceId, studentId, courseId, status: "active" },
       select: { id: true },
     });
     if (!studentCourse) return "student is not in this course";
@@ -30,13 +31,13 @@ async function validateScheduleRelations(workspaceId: string, data: { studentId?
 export async function GET() {
   const user = await requireTeacherLike();
   const schedules = await prisma.schedule.findMany({
-    where: { workspaceId: user.workspaceId, isActive: true },
+    where: { ...visibleScheduleWhere(user), isActive: true },
     include: {
       student: true,
       course: {
         include: {
           studentCourses: {
-            where: { status: "active" },
+            where: { status: "active", student: visibleStudentWhere(user) },
             include: { student: true },
             orderBy: { createdAt: "asc" },
           },
@@ -52,7 +53,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
-  const relationError = await validateScheduleRelations(user.workspaceId, data);
+  const relationError = await validateScheduleRelations(user, data);
   if (relationError) return NextResponse.json({ error: relationError }, { status: 400 });
 
   const schedule = await prisma.schedule.create({
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       course: {
         include: {
           studentCourses: {
-            where: { status: "active" },
+            where: { status: "active", student: visibleStudentWhere(user) },
             include: { student: true },
             orderBy: { createdAt: "asc" },
           },
@@ -89,11 +90,11 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
-  const relationError = await validateScheduleRelations(user.workspaceId, data);
+  const relationError = await validateScheduleRelations(user, data);
   if (relationError) return NextResponse.json({ error: relationError }, { status: 400 });
 
   await prisma.schedule.updateMany({
-    where: { id: data.id, workspaceId: user.workspaceId },
+    where: { id: data.id, ...visibleScheduleWhere(user) },
     data: {
       studentId: data.studentId || null,
       courseId: data.courseId || null,
@@ -108,13 +109,13 @@ export async function PATCH(request: NextRequest) {
     },
   });
   const schedule = await prisma.schedule.findFirst({
-    where: { id: data.id, workspaceId: user.workspaceId },
+    where: { id: data.id, ...visibleScheduleWhere(user) },
     include: {
       student: true,
       course: {
         include: {
           studentCourses: {
-            where: { status: "active" },
+            where: { status: "active", student: visibleStudentWhere(user) },
             include: { student: true },
             orderBy: { createdAt: "asc" },
           },
@@ -132,6 +133,6 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
-  await prisma.schedule.deleteMany({ where: { id, workspaceId: user.workspaceId } });
+  await prisma.schedule.deleteMany({ where: { id, ...visibleScheduleWhere(user) } });
   return NextResponse.json({ success: true });
 }

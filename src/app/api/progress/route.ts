@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
-import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+import { teacherSeesAllWorkspaceData, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 function progressKey(studentId: string, knowledgePointId: string, learningLinkId: string | null) {
   return `${studentId}:${knowledgePointId}:${learningLinkId || "legacy"}`;
@@ -16,10 +17,15 @@ export async function GET() {
   const progress = await prisma.studentKpProgress.findMany({
     where: {
       workspaceId: user.workspaceId,
-      OR: [
-        { learningLinkId: { in: teacherLinks.map((link) => link.id) } },
-        { learningLinkId: null },
-      ],
+      student: visibleStudentWhere(user),
+      ...(teacherSeesAllWorkspaceData(user)
+        ? {}
+        : {
+            OR: [
+              { learningLinkId: { in: teacherLinks.map((link) => link.id) } },
+              { learningLinkId: null },
+            ],
+          }),
     },
     include: {
       student: true,
@@ -29,7 +35,7 @@ export async function GET() {
 
   const progressKeys = new Set(progress.map((item) => progressKey(item.studentId, item.knowledgePointId, item.learningLinkId)));
   const studentsWithCourseKnowledge = await prisma.student.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleStudentWhere(user),
     include: {
       studentCourses: {
         where: { status: "active" },
@@ -72,8 +78,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const student = await prisma.student.findFirst({
+    where: visibleStudentByIdWhere(user, String(data.studentId || "")),
+    select: { id: true },
+  });
+  if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });
   const learningLink = data.learningLinkId
-    ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
+    ? user.role === "teacher"
+      ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
+      : await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
     : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
   if (data.learningLinkId && !learningLink) {
     return NextResponse.json({ error: "invalid learning link" }, { status: 400 });

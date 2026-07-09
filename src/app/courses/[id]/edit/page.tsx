@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { CourseEditForm } from "./course-edit-form";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 
 export default async function EditCoursePage({ params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
@@ -20,7 +21,7 @@ export default async function EditCoursePage({ params }: { params: { id: string 
   if (course.status === "completed") notFound();
 
   const students = await prisma.student.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleStudentWhere(user),
     select: { id: true, name: true, grade: true },
     orderBy: { createdAt: "desc" },
   });

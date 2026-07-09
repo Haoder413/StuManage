@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+import { visibleScheduleWhere, visibleStudentByIdWhere } from "@/lib/teacher-visibility";
 
 function formatTeacherFeedback(data: {
   lessonFeedback?: string;
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
   const data = await request.json();
   const knowledgePointProgressUpdates = normalizeKnowledgePointProgressUpdates(data);
   const schedule = await prisma.schedule.findFirst({
-    where: { id: String(data.scheduleId || ""), workspaceId: user.workspaceId },
+    where: { id: String(data.scheduleId || ""), ...visibleScheduleWhere(user) },
     include: {
       course: {
         include: {
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
   if (!schedule) return NextResponse.json({ error: "schedule not found" }, { status: 404 });
 
   const student = await prisma.student.findFirst({
-    where: { id: data.studentId, workspaceId: user.workspaceId },
+    where: visibleStudentByIdWhere(user, String(data.studentId || "")),
     select: { id: true },
   });
   if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });

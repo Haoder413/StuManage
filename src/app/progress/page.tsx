@@ -2,11 +2,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 
 export default async function ProgressPage() {
   const user = await requireTeacherLike();
   const students = await prisma.student.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleStudentWhere(user),
     include: {
       kpProgress: true,
       weakPoints: { where: { status: "active" } },

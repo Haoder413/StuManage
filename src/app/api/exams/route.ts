@@ -6,6 +6,7 @@ import {
   ensureTeacherCanUseLearningLink,
   findLearningLinkForTeacherStudent,
 } from "@/lib/learning-links";
+import { visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 import { applyExamWeakPoints, normalizeWeakPointDescriptions } from "@/lib/weak-point-reuse";
 
 export async function GET(request: NextRequest) {
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
       { learningLinkId: { in: linkIds } },
       { learningLinkId: null },
     ];
+    baseWhere.student = visibleStudentWhere(user);
   } else if (user.role !== "admin" && user.role !== "demo") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
@@ -71,11 +73,27 @@ export async function POST(request: NextRequest) {
   const learningLink = isParentSubmission
     ? await ensureParentCanUseLearningLink(user, String(data.learningLinkId || ""))
     : data.learningLinkId
-      ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
+      ? user.role === "teacher"
+        ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
+        : await prisma.learningLink.findFirst({
+            where: { id: String(data.learningLinkId), workspaceId: user.workspaceId, isActive: true },
+            include: { parent: true, teacher: true, student: true, course: true },
+          })
       : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
 
   if (isParentSubmission && !learningLink) {
     return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
+  }
+  if (data.learningLinkId && isTeacherSubmission && !learningLink) {
+    return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
+  }
+  if (isTeacherSubmission) {
+    const teacherStudentId = learningLink?.studentId || String(data.studentId || "");
+    const student = await prisma.student.findFirst({
+      where: visibleStudentByIdWhere(user, teacherStudentId),
+      select: { id: true },
+    });
+    if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });
   }
 
   const reviewStatus = isParentSubmission ? "pending_review" : "approved";
@@ -127,11 +145,16 @@ export async function PATCH(request: NextRequest) {
   if (data.totalScore !== undefined) updateData.totalScore = parseFloat(data.totalScore);
   if (data.name !== undefined) updateData.name = String(data.name || "").trim();
   if (data.type !== undefined) updateData.type = data.type;
+  const editableExam = await prisma.exam.findFirst({
+    where: { id: data.id, workspaceId: user.workspaceId, student: visibleStudentWhere(user) },
+    select: { id: true },
+  });
+  if (!editableExam) return NextResponse.json({ error: "not found" }, { status: 404 });
   await prisma.exam.updateMany({
-    where: { id: data.id, workspaceId: user.workspaceId },
+    where: { id: editableExam.id, workspaceId: user.workspaceId },
     data: updateData,
   });
-  const exam = await prisma.exam.findFirst({ where: { id: data.id, workspaceId: user.workspaceId } });
+  const exam = await prisma.exam.findFirst({ where: { id: editableExam.id, workspaceId: user.workspaceId } });
   if (!exam) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json(exam);
 }

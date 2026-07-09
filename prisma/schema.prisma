@@ -61,6 +61,7 @@ model User {
   parentStudents ParentStudent[]
   learningLinksAsParent LearningLink[] @relation("ParentLearningLinks")
   learningLinksAsTeacher LearningLink[] @relation("TeacherLearningLinks")
+  createdStudents Student[] @relation("StudentsCreatedByTeacher")
   uploadedResources LearningResource[]
   uploadedLessonVideos LessonVideo[]
   uploadedLessonAttachments LessonAttachment[]
@@ -132,9 +133,11 @@ model Student {
   totalLessonHours Int      @default(0)
   remainingLessonHours Int  @default(0)
   notes            String?
+  createdById      String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   workspace Workspace @relation(fields: [workspaceId], references: [id])
+  createdBy        User?    @relation("StudentsCreatedByTeacher", fields: [createdById], references: [id], onDelete: SetNull)
   studentCourses   StudentCourse[]
   exams            Exam[]
   kpProgress       StudentKpProgress[]

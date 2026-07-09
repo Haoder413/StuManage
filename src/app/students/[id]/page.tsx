@@ -9,6 +9,7 @@ import { StudentDetailEditor } from "./student-detail-editor";
 import { LessonHourHistoryEditor } from "./lesson-hour-history-editor";
 import { requireTeacherLike } from "@/lib/auth";
 import { rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
+import { visibleStudentByIdWhere } from "@/lib/teacher-visibility";
 
 function parseTags(value: string | null) {
   if (!value) return [];
@@ -24,7 +25,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
   const user = await requireTeacherLike();
   await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const student = await prisma.student.findFirst({
-    where: { id: params.id, workspaceId: user.workspaceId },
+    where: visibleStudentByIdWhere(user, params.id),
     include: {
       studentCourses: { include: { course: true } },
       exams: true,

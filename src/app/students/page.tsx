@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { requireTeacherLike } from "@/lib/auth";
 import { DeleteStudentButton } from "@/components/delete-student-button";
 import { rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
+import { canDeleteStudent, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 export default async function StudentsPage() {
   const user = await requireTeacherLike();
   await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const students = await prisma.student.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleStudentWhere(user),
     include: { studentCourses: { where: { status: "active" }, include: { course: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -40,7 +41,7 @@ export default async function StudentsPage() {
                     <Link className="inline-flex items-center justify-center h-9 px-3 rounded-md bg-[#e07a5f]/10 text-xs font-medium text-[#e07a5f] whitespace-nowrap" href={`/students/${s.id}`}>
                       查看详情
                     </Link>
-                    <DeleteStudentButton studentId={s.id} studentName={s.name} />
+                    {canDeleteStudent(user, s) && <DeleteStudentButton studentId={s.id} studentName={s.name} />}
                   </div>
                 </div>
                 <div className="space-y-2 text-sm">

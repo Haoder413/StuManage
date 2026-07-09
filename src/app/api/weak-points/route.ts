@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getTodayReviewDate } from "@/lib/review-scheduler";
 import { requireTeacherLike } from "@/lib/auth";
-import { findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+import { visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 function normalizeDescription(value: unknown) {
   return String(value || "").trim().replace(/\s+/g, " ");
@@ -31,8 +32,8 @@ export async function GET(request: NextRequest) {
   const statusParam = searchParams.get("status");
   const statusFilter = statusParam === "history" ? { not: "active" } : "active";
   const where = studentId
-    ? { workspaceId: user.workspaceId, studentId, ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter }
-    : { workspaceId: user.workspaceId, ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter };
+    ? { workspaceId: user.workspaceId, studentId, student: visibleStudentWhere(user), ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter }
+    : { workspaceId: user.workspaceId, student: visibleStudentWhere(user), ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter };
   const weakPoints = await prisma.weakPoint.findMany({
     where,
     include: {
@@ -46,8 +47,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const student = await prisma.student.findFirst({
+    where: visibleStudentByIdWhere(user, String(data.studentId || "")),
+    select: { id: true },
+  });
+  if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });
   const learningLink = data.learningLinkId
-    ? await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
+    ? user.role === "teacher"
+      ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
+      : await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
     : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
   const description = normalizeDescription(data.description);
   if (!description) return NextResponse.json({ error: "description required" }, { status: 400 });
@@ -56,6 +64,7 @@ export async function POST(request: NextRequest) {
     where: {
       workspaceId: user.workspaceId,
       studentId: data.studentId,
+      student: visibleStudentWhere(user),
       description,
     },
     include: {
@@ -119,15 +128,20 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
+  const weakPoint = await prisma.weakPoint.findFirst({
+    where: { id: data.id, workspaceId: user.workspaceId, student: visibleStudentWhere(user) },
+    select: { id: true },
+  });
+  if (!weakPoint) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   if (data.status === "mastered") {
     await prisma.weakPoint.updateMany({
-      where: { id: data.id, workspaceId: user.workspaceId },
+      where: { id: weakPoint.id, workspaceId: user.workspaceId },
       data: { status: "mastered", masteredAt: new Date() },
     });
 
     await prisma.reviewSchedule.updateMany({
-      where: { workspaceId: user.workspaceId, weakPointId: data.id, status: "pending" },
+      where: { workspaceId: user.workspaceId, weakPointId: weakPoint.id, status: "pending" },
       data: { status: "completed", lastReviewedAt: new Date() },
     });
     return NextResponse.json({ success: true });
@@ -135,7 +149,7 @@ export async function PATCH(request: NextRequest) {
 
   if (data.status === "active") {
     await prisma.weakPoint.updateMany({
-      where: { id: data.id, workspaceId: user.workspaceId },
+      where: { id: weakPoint.id, workspaceId: user.workspaceId },
       data: { status: "active", masteredAt: null },
     });
     return NextResponse.json({ success: true });
@@ -143,7 +157,7 @@ export async function PATCH(request: NextRequest) {
 
   if (data.reviewCompleted) {
     const schedule = await prisma.reviewSchedule.findFirst({
-      where: { workspaceId: user.workspaceId, weakPointId: data.id, status: "pending" },
+      where: { workspaceId: user.workspaceId, weakPointId: weakPoint.id, status: "pending" },
       orderBy: { nextReviewAt: "asc" },
     });
     if (schedule) {
@@ -155,7 +169,7 @@ export async function PATCH(request: NextRequest) {
       await prisma.reviewSchedule.create({
         data: {
           workspaceId: user.workspaceId,
-          weakPointId: data.id,
+          weakPointId: weakPoint.id,
           stage: 1,
           nextReviewAt: getTodayReviewDate(),
           status: "completed",
