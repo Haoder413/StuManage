@@ -1,26 +1,57 @@
 import Link from "next/link";
 import { requireParent } from "@/lib/auth";
-import { getParentStudents } from "@/lib/parent-data";
+import { getParentLearningData } from "@/lib/parent-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ParentKnowledgeProgressTree } from "./parent-knowledge-progress-tree";
 import { ParentProgressSection } from "./parent-progress-section";
 
 type ReviewFilter = "all" | "pending" | "mastered";
 
-export default async function ParentProgressPage({ searchParams }: { searchParams?: { review?: string } }) {
+export default async function ParentProgressPage({ searchParams }: { searchParams?: { link?: string; review?: string } }) {
   const user = await requireParent();
-  const parentStudents = await getParentStudents(user);
+  const { learningLinks, selectedLink, selectedLinkId, parentStudents } = await getParentLearningData(user, searchParams?.link);
   const activeReviewFilter = getReviewFilter(searchParams?.review);
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">学习进度</h1>
-        <p className="mt-1 text-sm text-slate-500">查看知识点进度和薄弱点复习情况</p>
+        <p className="mt-1 text-sm text-slate-500">
+          {selectedLink
+            ? `查看 ${selectedLink.student?.name || "学生"} · ${selectedLink.subject} · ${selectedLink.teacher?.name || "老师"} 的知识点进度和薄弱点复习情况`
+            : "查看知识点进度和薄弱点复习情况"}
+        </p>
       </div>
 
+      {learningLinks.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {learningLinks.map((link) => {
+            const active = link.id === selectedLinkId;
+            return (
+              <Link
+                key={link.id}
+                href={`/parent/progress?link=${link.id}&review=${activeReviewFilter}`}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                {link.student?.name || "学生"} · {link.subject} · {link.teacher?.name || "老师"}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
       <div className="grid gap-6">
-        {parentStudents.map(({ student }) => {
+        {parentStudents.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-sm text-slate-400">
+              暂无可查看的学习关系，请联系老师或管理员配置。
+            </CardContent>
+          </Card>
+        ) : parentStudents.map(({ student }) => {
           const totalKps = student.kpProgress.length;
           const masteredCount = student.kpProgress.filter((item) => item.status === "mastered").length;
           const learningCount = student.kpProgress.filter((item) => item.status === "learning").length;
@@ -56,7 +87,7 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
                   {reviewFilters.map((filter) => (
                     <Link
                       key={filter.key}
-                      href={`/parent/progress?review=${filter.key}`}
+                      href={`/parent/progress?link=${selectedLinkId}&review=${filter.key}`}
                       className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
                         activeReviewFilter === filter.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                       }`}

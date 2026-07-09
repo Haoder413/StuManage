@@ -482,17 +482,11 @@ export async function POST(request: NextRequest) {
   const parentStudent = await ensureParentOwnsStudent(user, studentId);
   if (!parentStudent) return jsonError("student not found", 403);
 
-  const learningLinkId = data.learningLinkId ? String(data.learningLinkId) : null;
-  const learningLink = learningLinkId ? await ensureParentCanUseLink(user, learningLinkId) : null;
-  if (learningLinkId && (!learningLink || learningLink.studentId !== studentId)) {
-    return jsonError("learning link not found", 403);
-  }
-
   try {
     const items = await createParentScheduleItems({
       user,
       studentId,
-      learningLinkId,
+      learningLinkId: null,
       title,
       date,
       startTime,
@@ -538,12 +532,6 @@ export async function PATCH(request: NextRequest) {
   const parentStudent = await ensureParentOwnsStudent(user, studentId);
   if (!parentStudent) return jsonError("student not found", 403);
 
-  const learningLinkId = data.learningLinkId ? String(data.learningLinkId) : null;
-  const learningLink = learningLinkId ? await ensureParentCanUseLink(user, learningLinkId) : null;
-  if (learningLinkId && (!learningLink || learningLink.studentId !== studentId)) {
-    return jsonError("learning link not found", 403);
-  }
-
   const startTime = normalizeTime(data.startTime, existing.startTime);
   const endTime = normalizeTime(data.endTime, existing.endTime);
   const notes = typeof data.notes === "string" && data.notes.trim() ? data.notes.trim() : null;
@@ -553,7 +541,7 @@ export async function PATCH(request: NextRequest) {
       where: { id: existing.id },
       data: {
         studentId,
-        learningLinkId,
+        learningLinkId: null,
         seriesId: null,
         subjectLabel,
         seriesEndDate: null,
@@ -590,7 +578,7 @@ export async function PATCH(request: NextRequest) {
             workspaceId: user.workspaceId,
             parentId: user.id,
             studentId,
-            learningLinkId,
+            learningLinkId: null,
             seriesId: null,
             subjectLabel,
             seriesEndDate: null,
@@ -626,7 +614,7 @@ export async function PATCH(request: NextRequest) {
             workspaceId: user.workspaceId,
             parentId: user.id,
             studentId,
-            learningLinkId,
+            learningLinkId: null,
             seriesId,
             subjectLabel,
             seriesEndDate,

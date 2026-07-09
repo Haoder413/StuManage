@@ -97,7 +97,7 @@ type CalendarDay = { day: number; currentMonth: boolean; date: Date };
 type ViewMode = "month" | "week";
 
 type FormState = {
-  learningLinkId: string;
+  studentId: string;
   title: string;
   date: string;
   startTime: string;
@@ -115,7 +115,7 @@ type SubjectOption = {
 };
 
 const emptyForm: FormState = {
-  learningLinkId: "",
+  studentId: "",
   title: "",
   date: "",
   startTime: "09:00",
@@ -141,7 +141,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
   const [subjectDraft, setSubjectDraft] = useState("");
   const [form, setForm] = useState<FormState>({
     ...emptyForm,
-    learningLinkId: learningLinks[0]?.id || "",
+    studentId: learningLinks[0]?.studentId || "",
     date: formatDateInput(today),
   });
 
@@ -180,6 +180,15 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     [weekStart]
   );
   const selectedItems = useMemo(() => getItemsForDate(items, selectedDate), [items, selectedDate]);
+  const studentOptions = useMemo(() => {
+    const byStudent = new Map<string, { id: string; name: string }>();
+    learningLinks.forEach((link) => {
+      if (!byStudent.has(link.studentId)) {
+        byStudent.set(link.studentId, { id: link.studentId, name: link.studentName });
+      }
+    });
+    return [...byStudent.values()];
+  }, [learningLinks]);
   const selectedSubjectExists = subjectOptions.some((subject) => subject.name === form.subjectLabel.trim());
   const viewTitle =
     viewMode === "month"
@@ -255,7 +264,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     setEditingId(null);
     setForm({
       ...emptyForm,
-      learningLinkId: learningLinks[0]?.id || "",
+      studentId: studentOptions[0]?.id || "",
       subjectLabel: subjectOptions[0]?.name || "其他",
       date: formatDateInput(date),
     });
@@ -266,7 +275,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
     if (item.kind !== "parent_item") return;
     setEditingId(item.id);
     setForm({
-      learningLinkId: item.learningLinkId || learningLinks.find((link) => link.studentId === item.studentId)?.id || "",
+      studentId: item.studentId,
       title: item.title,
       date: item.date,
       startTime: item.startTime,
@@ -280,13 +289,11 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
   }
 
   async function savePersonalItem() {
-    const selectedLink = learningLinks.find((link) => link.id === form.learningLinkId);
-    if (!selectedLink || !form.title.trim() || !form.date || !selectedSubjectExists) return;
+    if (!form.studentId || !form.title.trim() || !form.date || !selectedSubjectExists) return;
 
     const body = {
       ...(editingId ? { id: editingId } : {}),
-      learningLinkId: selectedLink.id,
-      studentId: selectedLink.studentId,
+      studentId: form.studentId,
       title: form.title.trim(),
       date: form.date,
       startTime: form.startTime,
@@ -509,12 +516,12 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pt-2 pr-1">
             <div>
-              <Label className="text-xs text-gray-500">学习关系</Label>
-              <Select value={form.learningLinkId} onValueChange={(value) => updateForm("learningLinkId", value)}>
-                <SelectTrigger><SelectValue placeholder="选择学习关系" /></SelectTrigger>
+              <Label className="text-xs text-gray-500">孩子</Label>
+              <Select value={form.studentId} onValueChange={(value) => updateForm("studentId", value)}>
+                <SelectTrigger><SelectValue placeholder="选择孩子" /></SelectTrigger>
                 <SelectContent>
-                  {learningLinks.map((link) => (
-                    <SelectItem key={link.id} value={link.id}>{link.label}</SelectItem>
+                  {studentOptions.map((student) => (
+                    <SelectItem key={student.id} value={student.id}>{student.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -651,7 +658,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
           </div>
           <div className="flex shrink-0 justify-end gap-2 border-t border-gray-100 pt-3">
             <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>取消</Button>
-            <Button size="sm" onClick={savePersonalItem} disabled={!form.learningLinkId || !form.title.trim() || !form.date || !selectedSubjectExists || (form.repeatDays.length > 0 && !form.seriesEndDate)}>保存</Button>
+            <Button size="sm" onClick={savePersonalItem} disabled={!form.studentId || !form.title.trim() || !form.date || !selectedSubjectExists || (form.repeatDays.length > 0 && !form.seriesEndDate)}>保存</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireParent } from "@/lib/auth";
 import { getParentStudents } from "@/lib/parent-data";
 import { getParentLearningLinks } from "@/lib/learning-links";
@@ -7,18 +8,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const examTypeLabel: Record<string, string> = { entrance: "摸底", monthly: "阶段测试", quiz: "随堂小测" };
 
-export default async function ParentExamsPage() {
+export default async function ParentExamsPage({ searchParams }: { searchParams?: { link?: string } }) {
   const user = await requireParent();
   const [parentStudents, learningLinks] = await Promise.all([
     getParentStudents(user),
     getParentLearningLinks(user),
   ]);
+  const selectedLink = learningLinks.find((link) => link.id === searchParams?.link) || learningLinks[0] || null;
+  const selectedLinkId = selectedLink?.id || "";
   const learningLinkOptions = learningLinks.map((link) => ({
     id: link.id,
     learningLinkId: link.id,
     studentId: link.studentId,
-    label: `${link.student?.name || "学生"} · ${link.subject}`,
+    label: `${link.student?.name || "学生"} · ${link.subject} · ${link.teacher?.name || "老师"}`,
   }));
+  const selectedStudentItems = selectedLink
+    ? parentStudents.filter(({ student }) => student.id === selectedLink.studentId)
+    : [];
 
   return (
     <div>
@@ -34,10 +40,37 @@ export default async function ParentExamsPage() {
         </CardContent>
       </Card>
 
+      {learningLinks.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {learningLinks.map((link) => {
+            const active = link.id === selectedLinkId;
+            return (
+              <Link
+                key={link.id}
+                href={`/parent/exams?link=${link.id}`}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                {link.student?.name || "学生"} · {link.subject} · {link.teacher?.name || "老师"}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
       <div className="grid gap-4">
-        {parentStudents.map(({ student }) => {
-          const officialExams = student.exams.filter((exam) => exam.reviewStatus === "approved");
-          const pendingExams = student.exams.filter((exam) => exam.reviewStatus === "pending_review" || exam.reviewStatus === "rejected");
+        {selectedStudentItems.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-sm text-slate-400">
+              暂无可查看的学习关系，请联系老师或管理员配置。
+            </CardContent>
+          </Card>
+        ) : selectedStudentItems.map(({ student }) => {
+          const officialExams = student.exams.filter((exam) => exam.learningLinkId === selectedLinkId && exam.reviewStatus === "approved");
+          const pendingExams = student.exams.filter((exam) => exam.learningLinkId === selectedLinkId && (exam.reviewStatus === "pending_review" || exam.reviewStatus === "rejected"));
           const exams = [...officialExams].sort((a, b) => a.date.getTime() - b.date.getTime());
           const formal = exams.filter((exam) => exam.type !== "quiz");
           const quizzes = exams.filter((exam) => exam.type === "quiz");
@@ -54,7 +87,7 @@ export default async function ParentExamsPage() {
             <section key={student.id} className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>{student.name} · 成绩分析</CardTitle>
+                  <CardTitle>{student.name} · {selectedLink?.subject || "科目"} · 成绩分析</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:gap-4">
