@@ -64,63 +64,71 @@ export default function StudentProgressDetailPage() {
   const [newTagCategory, setNewTagCategory] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
-      // Get student info
-      const studentsRes = await fetch("/api/students");
-      const allStudents: StudentData[] = await studentsRes.json();
-      const found = allStudents.find((s) => s.id === studentId);
-      if (found) setStudent(found);
+      setLoading(true);
+      try {
+        const [studentsRes, progressRes] = await Promise.all([
+          fetch("/api/students"),
+          fetch("/api/progress"),
+        ]);
+        const allStudents = studentsRes.ok ? await studentsRes.json() : [];
+        const allProgress = progressRes.ok ? await progressRes.json() : [];
+        const studentList: StudentData[] = Array.isArray(allStudents) ? allStudents : [];
+        const progressList: any[] = Array.isArray(allProgress) ? allProgress : [];
+        const found = studentList.find((s) => s.id === studentId) || null;
+        const studentProgress = progressList.filter((p: any) => p.studentId === studentId);
 
-      // Get KPs for the student's courses
-      const coursesRes = await fetch("/api/courses");
-      const allCourses = await coursesRes.json();
-
-      // Fetch KP tree from API - for now, we build from course data
-      const progressRes = await fetch("/api/progress");
-      const allProgress = await progressRes.json();
-
-      // Filter progress for this student
-      const studentProgress = allProgress.filter((p: any) => p.studentId === studentId);
-      const progressMap: Record<string, string> = {};
-      studentProgress.forEach((p: any) => {
-        progressMap[p.knowledgePointId] = p.status;
-      });
-      setKpProgress(progressMap);
-
-      // Build a simple tree from all available KPs
-      // Get KP data from the first course's detail
-      const kpList: any[] = [];
-      for (const c of allCourses) {
-        const detail = await fetch(`/api/courses?id=${c.id}`).catch(() => null);
-      }
-
-      // For now, construct a basic tree from what we can get
-      // The best approach is to use the progress data directly as a flat list
-      if (studentProgress.length > 0) {
+        const progressMap: Record<string, string> = {};
         const tree: KPNode[] = [];
-        // Group by parent structure - flatten for simplicity
         const seen = new Set<string>();
         studentProgress.forEach((p: any) => {
-          if (!seen.has(p.knowledgePoint?.name)) {
-            seen.add(p.knowledgePoint?.name);
-            tree.push({
-              id: p.knowledgePointId,
-              name: p.knowledgePoint?.name || "未知",
-              children: [],
-              status: p.status,
-            });
-          }
+          if (!p.knowledgePointId || seen.has(p.knowledgePointId)) return;
+          seen.add(p.knowledgePointId);
+          progressMap[p.knowledgePointId] = p.status;
+          tree.push({
+            id: p.knowledgePointId,
+            name: p.knowledgePoint?.name || "未知",
+            children: [],
+            status: p.status,
+          });
         });
-        setKpTree(tree);
+
+        const [activeWeakPoints, historyPoints] = found?.id
+          ? await Promise.all([
+              loadWeakPoints(found.id),
+              loadWeakPoints(found.id, "history"),
+            ])
+          : [[], []];
+
+        if (!cancelled) {
+          setStudent(found);
+          setKpProgress(progressMap);
+          setKpTree(tree);
+          setWeakPoints(activeWeakPoints);
+          setHistoryWeakPoints(historyPoints);
+        }
+      } catch (error) {
+        console.error("Failed to load student progress detail", error);
+        if (!cancelled) {
+          setStudent(null);
+          setKpProgress({});
+          setKpTree([]);
+          setWeakPoints([]);
+          setHistoryWeakPoints([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      // Get weak points
-      setWeakPoints(found?.id ? await loadWeakPoints(found.id) : []);
-      setHistoryWeakPoints(found?.id ? await loadWeakPoints(found.id, "history") : []);
-
-      setLoading(false);
     }
+
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [studentId]);
 
   // Load tags for autocomplete
