@@ -46,8 +46,8 @@ export function ResourceCenter({
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [resourceKindFilter, setResourceKindFilter] = useState("all");
   const [message, setMessage] = useState("");
-  const canUpload = role === "admin" || role === "teacher";
-  const canGrant = role === "admin" || role === "teacher";
+  const canUpload = role === "admin" || role === "teacher" || role === "demo";
+  const canGrant = role === "admin" || role === "teacher" || role === "demo";
 
   useEffect(() => {
     loadResources();
@@ -88,7 +88,7 @@ export function ResourceCenter({
     await loadResources();
   }
 
-  const title = useMemo(() => role === "parent" || role === "demo" ? "搜索资料" : "资料管理", [role]);
+  const title = useMemo(() => role === "parent" ? "搜索资料" : "资料管理", [role]);
 
   return (
     <div className="space-y-6">

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
-import { canManageHomework } from "@/lib/homework-access";
+import { canManageHomework, visibleHomeworkAssignmentByIdWhere } from "@/lib/homework-access";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 
 type QuestionInput = {
   id?: string;
@@ -12,13 +13,14 @@ type QuestionInput = {
   explanation?: string;
 };
 
-async function getAssignment(id: string, workspaceId: string) {
+async function getAssignment(user: { id: string; workspaceId: string; role: string }, id: string) {
   return prisma.homeworkAssignment.findFirst({
-    where: { id, workspaceId },
+    where: visibleHomeworkAssignmentByIdWhere(user, id),
     include: {
       course: true,
       questions: { orderBy: { orderIndex: "asc" } },
       submissions: {
+        where: { student: visibleStudentWhere(user) },
         include: {
           student: true,
           currentVersion: {
@@ -41,7 +43,7 @@ async function getAssignment(id: string, workspaceId: string) {
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
-  const assignment = await getAssignment(params.id, user.workspaceId);
+  const assignment = await getAssignment(user, params.id);
   if (!assignment) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json(assignment);
 }
@@ -51,7 +53,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!canManageHomework(user)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const body = await request.json();
   const assignment = await prisma.homeworkAssignment.findFirst({
-    where: { id: params.id, workspaceId: user.workspaceId },
+    where: visibleHomeworkAssignmentByIdWhere(user, params.id),
     include: { questions: true },
   });
   if (!assignment) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -79,13 +81,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         data: { recognitionStatus: "completed" },
       });
     });
-    const updated = await getAssignment(params.id, user.workspaceId);
+    const updated = await getAssignment(user, params.id);
     return NextResponse.json(updated);
   }
 
   if (body.action === "publish") {
     const activeLinks = await prisma.studentCourse.findMany({
-      where: { workspaceId: user.workspaceId, courseId: assignment.courseId, status: "active" },
+      where: { workspaceId: user.workspaceId, courseId: assignment.courseId, status: "active", student: visibleStudentWhere(user) },
       select: { studentId: true },
     });
     await prisma.$transaction(async (tx) => {
@@ -103,7 +105,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         });
       }
     });
-    const updated = await getAssignment(params.id, user.workspaceId);
+    const updated = await getAssignment(user, params.id);
     return NextResponse.json(updated);
   }
 
@@ -115,7 +117,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   if (!canManageHomework(user)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const assignment = await prisma.homeworkAssignment.findFirst({
-    where: { id: params.id, workspaceId: user.workspaceId },
+    where: visibleHomeworkAssignmentByIdWhere(user, params.id),
     select: { id: true },
   });
   if (!assignment) return NextResponse.json({ error: "not found" }, { status: 404 });

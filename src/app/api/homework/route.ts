@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
-import { canManageHomework } from "@/lib/homework-access";
+import { canManageHomework, visibleHomeworkAssignmentWhere } from "@/lib/homework-access";
 import { convertStoredHomeworkFileToPdf, saveHomeworkFile } from "@/lib/homework-storage";
+import { visibleCourseByIdWhere } from "@/lib/teacher-visibility";
 
 function normalizeText(value: FormDataEntryValue | null) {
   const text = String(value || "").trim();
@@ -12,7 +13,7 @@ function normalizeText(value: FormDataEntryValue | null) {
 export async function GET() {
   const user = await requireTeacherLike();
   const assignments = await prisma.homeworkAssignment.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleHomeworkAssignmentWhere(user),
     include: {
       course: true,
       submissions: true,
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "missing required fields" }, { status: 400 });
   }
 
-  const course = await prisma.course.findFirst({ where: { id: courseId, workspaceId: user.workspaceId } });
+  const course = await prisma.course.findFirst({ where: visibleCourseByIdWhere(user, courseId) });
   if (!course) return NextResponse.json({ error: "course not found" }, { status: 404 });
 
   const [savedQuestionFile, savedAnswerFile] = await Promise.all([

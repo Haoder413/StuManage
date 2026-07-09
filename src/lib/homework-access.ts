@@ -1,7 +1,41 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import { teacherSeesAllWorkspaceData, visibleCourseWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 export function canManageHomework(user: { role: string }) {
   return ["admin", "teacher", "demo"].includes(user.role);
+}
+
+export function visibleHomeworkAssignmentWhere(user: { id: string; role: string; workspaceId: string }): Prisma.HomeworkAssignmentWhereInput {
+  if (teacherSeesAllWorkspaceData(user)) {
+    return { workspaceId: user.workspaceId };
+  }
+
+  return {
+    workspaceId: user.workspaceId,
+    OR: [
+      { createdById: user.id },
+      { course: visibleCourseWhere(user) },
+      {
+        submissions: {
+          some: {
+            workspaceId: user.workspaceId,
+            student: visibleStudentWhere(user),
+          },
+        },
+      },
+    ],
+  };
+}
+
+export function visibleHomeworkAssignmentByIdWhere(
+  user: { id: string; role: string; workspaceId: string },
+  assignmentId: string
+): Prisma.HomeworkAssignmentWhereInput {
+  return {
+    id: assignmentId,
+    ...visibleHomeworkAssignmentWhere(user),
+  };
 }
 
 export function getHomeworkStatusLabel(status: string, dueAt?: Date | string | null) {

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
-import { getHomeworkStatusLabel } from "@/lib/homework-access";
+import { getHomeworkStatusLabel, visibleHomeworkAssignmentByIdWhere } from "@/lib/homework-access";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HomeworkDeleteButton } from "@/components/homework-delete-button";
@@ -10,11 +11,12 @@ import { HomeworkDeleteButton } from "@/components/homework-delete-button";
 export default async function HomeworkDetailPage({ params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
   const assignment = await prisma.homeworkAssignment.findFirst({
-    where: { id: params.id, workspaceId: user.workspaceId },
+    where: visibleHomeworkAssignmentByIdWhere(user, params.id),
     include: {
       course: true,
       questions: { orderBy: { orderIndex: "asc" } },
       submissions: {
+        where: { student: visibleStudentWhere(user) },
         include: { student: true, currentVersion: true, versions: { orderBy: { versionNumber: "desc" } } },
         orderBy: { createdAt: "asc" },
       },

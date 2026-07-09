@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
+import { getVisibleResourceWhere } from "@/lib/resource-access";
+import { teacherSeesAllWorkspaceData, visibleCourseWhere } from "@/lib/teacher-visibility";
 
 export async function POST(request: NextRequest) {
   const currentUser = await requireTeacherLike();
@@ -10,16 +12,21 @@ export async function POST(request: NextRequest) {
     ? data.courseIds.map((courseId: unknown) => String(courseId)).filter(Boolean)
     : [];
 
-  const resource = await prisma.learningResource.findUnique({ where: { id: resourceId } });
+  const resource = await prisma.learningResource.findFirst({
+    where: currentUser.role === "admin"
+      ? { id: resourceId }
+      : teacherSeesAllWorkspaceData(currentUser)
+      ? { id: resourceId, workspaceId: currentUser.workspaceId }
+      : { id: resourceId, ...getVisibleResourceWhere(currentUser) },
+  });
   if (!resource) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (currentUser.role !== "admin" && resource.workspaceId !== currentUser.workspaceId) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
 
   const courses = await prisma.course.findMany({
     where: {
       id: { in: courseIds },
-      workspaceId: resource.workspaceId,
+      ...(teacherSeesAllWorkspaceData(currentUser)
+        ? { workspaceId: resource.workspaceId }
+        : visibleCourseWhere(currentUser)),
     },
     select: { id: true },
   });

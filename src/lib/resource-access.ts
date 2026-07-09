@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { teacherSeesAllWorkspaceData, visibleCourseWhere } from "@/lib/teacher-visibility";
 
 export function canManageResources(user: { role: string }) {
-  return user.role === "admin" || user.role === "teacher";
+  return user.role === "admin" || user.role === "teacher" || user.role === "demo";
 }
 
 export function isResourceControlledRole(user: { role: string }) {
-  return user.role === "parent" || user.role === "demo";
+  return user.role === "parent";
 }
 
 export async function canAccessResource(
@@ -14,7 +15,15 @@ export async function canAccessResource(
   resource: { id: string; workspaceId: string },
   action: "preview" | "download"
 ) {
-  if (canManageResources(user)) return true;
+  if (user.role === "admin") return true;
+  if (user.role === "demo") return resource.workspaceId === user.workspaceId;
+  if (user.role === "teacher") {
+    const visible = await prisma.learningResource.findFirst({
+      where: { id: resource.id, ...getVisibleResourceWhere(user) },
+      select: { id: true },
+    });
+    return Boolean(visible);
+  }
   if (!isResourceControlledRole(user)) return false;
 
   const directPermission = await prisma.resourcePermission.findFirst({
@@ -51,8 +60,28 @@ export async function canAccessResource(
 }
 
 export function getVisibleResourceWhere(user: { id: string; role: string; workspaceId: string }): Prisma.LearningResourceWhereInput {
-  if (canManageResources(user)) {
+  if (user.role === "admin") {
+    return {};
+  }
+
+  if (teacherSeesAllWorkspaceData(user)) {
     return { workspaceId: user.workspaceId };
+  }
+
+  if (user.role === "teacher") {
+    return {
+      workspaceId: user.workspaceId,
+      OR: [
+        { uploadedById: user.id },
+        {
+          coursePermissions: {
+            some: {
+              course: visibleCourseWhere(user),
+            },
+          },
+        },
+      ],
+    };
   }
 
   if (!isResourceControlledRole(user)) {

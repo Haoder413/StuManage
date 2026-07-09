@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/lib/auth";
 import { canAccessResource, canManageResources, getVisibleResourceWhere } from "@/lib/resource-access";
 import { saveUploadedResourceFile } from "@/lib/resource-storage";
+import { teacherSeesAllWorkspaceData, visibleCourseWhere } from "@/lib/teacher-visibility";
 
 // LearningResource records describe uploaded papers and HTML animations.
 function normalizeText(value: FormDataEntryValue | null) {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   const subject = searchParams.get("subject") || "";
   const resourceKind = searchParams.get("resourceKind") || type || "";
   const workspaceId = user.role === "admin" ? searchParams.get("workspaceId") || "" : user.workspaceId;
-  const visibleWhere = canManageResources(user) ? {} : getVisibleResourceWhere(user);
+  const visibleWhere = user.role === "admin" ? {} : getVisibleResourceWhere(user);
 
   const resources = await prisma.learningResource.findMany({
     where: {
@@ -95,7 +96,10 @@ export async function POST(request: NextRequest) {
   const courseIds = Array.from(new Set(formData.getAll("courseIds").map((value) => String(value || "")).filter(Boolean)));
   const courses = courseIds.length > 0
     ? await prisma.course.findMany({
-        where: { id: { in: courseIds }, workspaceId },
+        where: {
+          id: { in: courseIds },
+          ...(teacherSeesAllWorkspaceData(user) ? { workspaceId } : visibleCourseWhere(user)),
+        },
         select: { id: true },
       })
     : [];

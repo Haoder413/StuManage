@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
+import { visibleHomeworkAssignmentByIdWhere } from "@/lib/homework-access";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 
 type ReviewInput = {
   questionId?: string;
@@ -20,6 +22,8 @@ export async function POST(
       id: params.submissionId,
       assignmentId: params.id,
       workspaceId: user.workspaceId,
+      student: visibleStudentWhere(user),
+      assignment: visibleHomeworkAssignmentByIdWhere(user, params.id),
     },
     include: {
       currentVersion: true,

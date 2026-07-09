@@ -2,9 +2,10 @@ import { readFile } from "node:fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/lib/auth";
-import { canManageHomework } from "@/lib/homework-access";
+import { canManageHomework, visibleHomeworkAssignmentByIdWhere } from "@/lib/homework-access";
 import { convertStoredHomeworkFileToPdf, getStoredHomeworkPath } from "@/lib/homework-storage";
 import { extractHomeworkTextFromBuffer } from "@/lib/homework-recognition";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 
 function escapeHtml(value: string) {
   return value
@@ -48,7 +49,10 @@ export async function GET(
       include: { submissions: { where: { student: { parentLinks: { some: { parentId: user.id } } } } } },
     });
     if (!assignment) return NextResponse.json({ error: "not found" }, { status: 404 });
-    const teacherAllowed = canManageHomework(user) && assignment.workspaceId === user.workspaceId;
+    const teacherAllowed = canManageHomework(user) && Boolean(await prisma.homeworkAssignment.findFirst({
+      where: visibleHomeworkAssignmentByIdWhere(user, assignment.id),
+      select: { id: true },
+    }));
     const parentQuestionAllowed = params.kind === "question" && assignment.status === "published" && assignment.workspaceId === user.workspaceId && assignment.submissions.length > 0;
     const answerDownloadAllowed = params.kind === "answer" && mode === "download" && assignment.status === "published" && assignment.workspaceId === user.workspaceId && assignment.submissions.length > 0;
     if (!teacherAllowed && !parentQuestionAllowed && !answerDownloadAllowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -74,10 +78,18 @@ export async function GET(
   if (params.kind === "submission") {
     const version = await prisma.homeworkSubmissionVersion.findFirst({
       where: { id: params.id },
-      include: { submission: { include: { student: { include: { parentLinks: true } } } } },
+      include: { submission: { include: { assignment: true, student: { include: { parentLinks: true } } } } },
     });
     if (!version) return NextResponse.json({ error: "not found" }, { status: 404 });
-    const teacherAllowed = canManageHomework(user) && version.workspaceId === user.workspaceId;
+    const teacherAllowed = canManageHomework(user) && Boolean(await prisma.homeworkSubmission.findFirst({
+      where: {
+        id: version.submissionId,
+        workspaceId: user.workspaceId,
+        student: visibleStudentWhere(user),
+        assignment: visibleHomeworkAssignmentByIdWhere(user, version.submission.assignmentId),
+      },
+      select: { id: true },
+    }));
     const parentAllowed = version.workspaceId === user.workspaceId && version.submission.student.parentLinks.some((link) => link.parentId === user.id);
     if (!teacherAllowed && !parentAllowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
     file = { storedName: version.storedName, fileName: version.fileName, mimeType: version.mimeType, extension: version.extension };

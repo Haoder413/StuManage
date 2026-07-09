@@ -2,6 +2,7 @@ import { requireCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ResourceCenter } from "@/components/resource-center";
 import { PageHeader } from "@/components/page-header";
+import { teacherSeesAllWorkspaceData, visibleCourseWhere } from "@/lib/teacher-visibility";
 
 export default async function ResourcesPage() {
   const user = await requireCurrentUser();
@@ -9,7 +10,7 @@ export default async function ResourcesPage() {
     ? await prisma.workspace.findMany({ orderBy: { name: "asc" } })
     : [];
   const courses = await prisma.course.findMany({
-    where: user.role === "admin" ? {} : { workspaceId: user.workspaceId },
+    where: user.role === "admin" ? {} : teacherSeesAllWorkspaceData(user) ? { workspaceId: user.workspaceId } : visibleCourseWhere(user),
     select: { id: true, name: true, workspaceId: true },
     orderBy: { createdAt: "desc" },
   });

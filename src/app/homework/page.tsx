@@ -4,12 +4,14 @@ import { requireTeacherLike } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { visibleHomeworkAssignmentWhere } from "@/lib/homework-access";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 
 export default async function HomeworkPage() {
   const user = await requireTeacherLike();
   const assignments = await prisma.homeworkAssignment.findMany({
-    where: { workspaceId: user.workspaceId },
-    include: { course: true, submissions: true },
+    where: visibleHomeworkAssignmentWhere(user),
+    include: { course: true, submissions: { where: { student: visibleStudentWhere(user) } } },
     orderBy: { createdAt: "desc" },
   });
 
