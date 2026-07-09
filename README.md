@@ -149,7 +149,17 @@ LOGIN_ENABLED="false"
 sudo pm2 restart student-management --update-env
 ```
 
-注意：`HIDDEN_LOGIN_PATH` 只负责修改登录路径，不负责关闭登录。删除或留空 `HIDDEN_LOGIN_PATH` 会回到默认隐藏地址 `/teacher-login-2026`。首次新增登录开关代码后需要重新部署一次；之后只切换 `LOGIN_ENABLED` 或 `HIDDEN_LOGIN_PATH` 时，重启 PM2 即可。
+如果服务器还没有部署包含 `LOGIN_ENABLED` 的最新代码，先执行完整更新：
+
+```bash
+REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-management/current/deploy/deploy-update.sh
+```
+
+注意：
+
+- `.env` 不会推送到远端仓库，也不会被部署脚本覆盖；需要在服务器 `/opt/student-management/shared/.env` 手动修改。
+- `HIDDEN_LOGIN_PATH` 只负责修改登录路径，不负责关闭登录。删除或留空 `HIDDEN_LOGIN_PATH` 会回到默认隐藏地址 `/teacher-login-2026`。
+- 首次新增登录开关代码后需要重新部署一次；之后只切换 `LOGIN_ENABLED` 或 `HIDDEN_LOGIN_PATH` 时，一般重启 PM2 即可。如果重启后仍不生效，再执行一次完整更新。
 
 ## 数据与文件说明
 
