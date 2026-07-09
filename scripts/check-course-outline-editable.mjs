@@ -26,6 +26,8 @@ assert.match(editor, /parseOutlineText/, "outline editor should parse pasted tre
 assert.match(editor, /粘贴知识点大纲/, "outline editor should provide a paste dialog");
 assert.match(editor, /缩进比上一层更深就是子级/, "outline import help should explain flexible indentation rules");
 assert.match(editor, /normalizeOutlineIndent/, "outline parser should normalize tabs and full-width spaces");
+assert.match(editor, /stripOutlineInvisibleChars/, "outline parser should ignore invisible zero-width characters from pasted text");
+assert.match(editor, /\\u200B-\\u200D/, "outline parser should strip zero-width character ranges");
 assert.match(editor, /多级标题/, "outline import help should say multi-level titles are supported");
 assert.match(editor, /重命名/, "outline editor should support renaming knowledge points");
 assert.match(editor, /删除/, "outline editor should support deleting knowledge points");

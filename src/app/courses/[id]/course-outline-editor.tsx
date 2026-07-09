@@ -46,10 +46,11 @@ function parseOutlineText(text: string): ParsedOutlineItem[] {
   const items: ParsedOutlineItem[] = [];
 
   text.split("\n").forEach((rawLine) => {
-    if (!rawLine.trim()) return;
-    const indentText = rawLine.match(/^\s*/)?.[0] || "";
+    const line = stripOutlineInvisibleChars(rawLine);
+    if (!line.trim()) return;
+    const indentText = line.match(/^\s*/)?.[0] || "";
     const indent = normalizeOutlineIndent(indentText);
-    const name = rawLine.trim().replace(/^[-*•]\s*/, "").trim();
+    const name = line.trim().replace(/^[-*•]\s*/, "").trim();
     if (!name) return;
 
     while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop();
@@ -64,6 +65,10 @@ function parseOutlineText(text: string): ParsedOutlineItem[] {
   });
 
   return items;
+}
+
+function stripOutlineInvisibleChars(line: string) {
+  return line.replace(/[\u200B-\u200D\uFEFF]/g, "");
 }
 
 function normalizeOutlineIndent(indentText: string) {
@@ -215,7 +220,7 @@ export function CourseOutlineEditor({
             placeholder={"有理数\n  正负数与数轴\n    数轴上的点\n      动点问题\n  绝对值与相反数\n- 整式的加减\n  - 单项式与多项式"}
           />
           <p className="text-xs text-[#1a1a2e]/40">
-            支持多级标题；缩进比上一层更深就是子级，同样缩进就是同级，缩进减少会回到上级。支持空格、Tab 和全角空格；每行开头可选用 -、* 或 • 作为项目符号。
+            支持多级标题；缩进比上一层更深就是子级，同样缩进就是同级，缩进减少会回到上级。支持空格、Tab 和全角空格，会自动忽略粘贴文本里的不可见字符；每行开头可选用 -、* 或 • 作为项目符号。
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowImportDialog(false)}>取消</Button>
