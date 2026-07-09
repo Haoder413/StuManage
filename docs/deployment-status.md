@@ -17,7 +17,7 @@
 - 应用端口：3001
 - Web 入口：Nginx 80/443 反向代理到 127.0.0.1:3001
 - 进程管理：PM2
-- 数据库：SQLite
+- 数据库：SQLite，当前真实工作区和演示工作区共用同一套数据库，通过 `workspaceId` 隔离数据，不是两套数据库
 - 数据与上传文件目录：/opt/student-management/shared
 - Word 转 PDF 预览依赖：LibreOffice
 - 实例规格：2 核 CPU、4GB 内存
@@ -141,6 +141,8 @@ sudo REPO_URL=https://github.com/Haoder413/StuManage.git BRANCH=main bash deploy
 ```
 
 2026-07-09 教师数据隔离扩展为课程管理、成绩管理、学习进度和排课考勤同步隔离，并新增 `Course.createdById` 字段。部署包含该版本时必须同步 Prisma schema；现有部署更新脚本应执行 Prisma 同步，若手动部署需确认 `npx prisma db push` 已成功。
+
+数据库结构同步说明：当前生产环境只有一套 SQLite 数据库。执行 `npx prisma db push` 会按当前 `DATABASE_URL` 同步这套数据库的表结构；真实工作区和演示工作区都使用同步后的同一套表结构，不存在需要分别迁移的第二套演示数据库。
 
 ## 课堂视频 VOD 环境变量
 
