@@ -57,6 +57,95 @@ function normalizeWeakPointDescription(description: string) {
   return description.trim().replace(/\s+/g, " ");
 }
 
+type ParentKnowledgePoint = {
+  id: string;
+  workspaceId: string;
+  courseId: string;
+  name: string;
+  parentId: string | null;
+  orderIndex: number;
+  createdAt: Date;
+};
+
+type ParentKnowledgeProgress = {
+  id: string;
+  workspaceId: string;
+  learningLinkId: string | null;
+  studentId: string;
+  knowledgePointId: string;
+  status: string;
+  masteredAt: Date | null;
+  updatedAt: Date;
+  knowledgePoint: ParentKnowledgePoint;
+};
+
+type StudentCourseWithKnowledgePoints = {
+  course: {
+    knowledgePoints: ParentKnowledgePoint[];
+  };
+};
+
+export function progressKey(knowledgePointId: string) {
+  return knowledgePointId;
+}
+
+function compareParentKnowledgeProgress(a: ParentKnowledgeProgress, b: ParentKnowledgeProgress) {
+  if (a.knowledgePoint.courseId !== b.knowledgePoint.courseId) {
+    return a.knowledgePoint.courseId.localeCompare(b.knowledgePoint.courseId);
+  }
+  if ((a.knowledgePoint.parentId || "") !== (b.knowledgePoint.parentId || "")) {
+    return (a.knowledgePoint.parentId || "").localeCompare(b.knowledgePoint.parentId || "");
+  }
+  if (a.knowledgePoint.orderIndex !== b.knowledgePoint.orderIndex) {
+    return a.knowledgePoint.orderIndex - b.knowledgePoint.orderIndex;
+  }
+  return a.knowledgePoint.name.localeCompare(b.knowledgePoint.name, "zh-CN");
+}
+
+function preferKnowledgeProgress(next: ParentKnowledgeProgress, current?: ParentKnowledgeProgress) {
+  if (!current) return next;
+  if (next.status === "mastered" && current.status !== "mastered") return next;
+  if (next.status !== "mastered" && current.status === "mastered") return current;
+  return next.updatedAt.getTime() > current.updatedAt.getTime() ? next : current;
+}
+
+export function withSyntheticKnowledgeProgress<
+  T extends { student: { id: string; workspaceId: string; studentCourses: StudentCourseWithKnowledgePoints[]; kpProgress: ParentKnowledgeProgress[] } }
+>(item: T): T {
+  const progressByKnowledgePoint = new Map<string, ParentKnowledgeProgress>();
+
+  item.student.kpProgress.forEach((progress) => {
+    const key = progressKey(progress.knowledgePointId);
+    progressByKnowledgePoint.set(key, preferKnowledgeProgress(progress, progressByKnowledgePoint.get(key)));
+  });
+
+  item.student.studentCourses.forEach((studentCourse) => {
+    studentCourse.course.knowledgePoints.forEach((knowledgePoint) => {
+      const key = progressKey(knowledgePoint.id);
+      if (progressByKnowledgePoint.has(key)) return;
+      progressByKnowledgePoint.set(key, {
+        id: `synthetic-parent-${item.student.id}-${knowledgePoint.id}`,
+        workspaceId: item.student.workspaceId,
+        learningLinkId: null,
+        studentId: item.student.id,
+        knowledgePointId: knowledgePoint.id,
+        status: "learning",
+        masteredAt: null,
+        updatedAt: new Date(0),
+        knowledgePoint,
+      });
+    });
+  });
+
+  return {
+    ...item,
+    student: {
+      ...item.student,
+      kpProgress: [...progressByKnowledgePoint.values()].sort(compareParentKnowledgeProgress),
+    },
+  } as T;
+}
+
 export function dedupeWeakPoints<T extends {
   description: string;
   createdAt: Date;
@@ -94,7 +183,16 @@ export async function getParentStudents(user: { id: string; workspaceId: string 
     include: {
       student: {
         include: {
-          studentCourses: { where: { status: "active" }, include: { course: true } },
+          studentCourses: {
+            where: { status: "active" },
+            include: {
+              course: {
+                include: {
+                  knowledgePoints: { orderBy: [{ parentId: "asc" }, { orderIndex: "asc" }] },
+                },
+              },
+            },
+          },
           attendance: {
             where: getParentVisibleAttendanceWhere(linkIds),
             orderBy: { date: "desc" },
@@ -113,6 +211,7 @@ export async function getParentStudents(user: { id: string; workspaceId: string 
           exams: { orderBy: { date: "desc" } },
           schedules: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] },
           kpProgress: {
+            where: getParentVisibleAttendanceWhere(linkIds),
             include: { knowledgePoint: true },
             orderBy: { knowledgePoint: { orderIndex: "asc" } },
           },
@@ -125,14 +224,17 @@ export async function getParentStudents(user: { id: string; workspaceId: string 
     },
   });
 
-  return parentStudents.map((item) => ({
-    ...item,
-    student: {
-      ...item.student,
-      attendance: dedupeAttendanceRecords(item.student.attendance),
-      weakPoints: dedupeWeakPoints(item.student.weakPoints),
-    },
-  }));
+  return parentStudents.map((item) => {
+    const itemWithKnowledgeProgress = withSyntheticKnowledgeProgress(item);
+    return {
+      ...itemWithKnowledgeProgress,
+      student: {
+        ...itemWithKnowledgeProgress.student,
+        attendance: dedupeAttendanceRecords(item.student.attendance),
+        weakPoints: dedupeWeakPoints(item.student.weakPoints),
+      },
+    };
+  });
 }
 
 export async function getParentLearningData(
@@ -153,7 +255,6 @@ export async function getParentLearningData(
         include: {
           student: {
             include: {
-              studentCourses: { where: { status: "active" }, include: { course: true } },
               attendance: {
                 where: { learningLinkId: activeSelectedLinkId },
                 orderBy: { date: "desc" },
@@ -165,6 +266,19 @@ export async function getParentLearningData(
                 include: { learningLink: { include: { teacher: true } } },
               },
               schedules: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] },
+              studentCourses: {
+                where: {
+                  status: "active",
+                  ...(selectedLink.courseId ? { courseId: selectedLink.courseId } : {}),
+                },
+                include: {
+                  course: {
+                    include: {
+                      knowledgePoints: { orderBy: [{ parentId: "asc" }, { orderIndex: "asc" }] },
+                    },
+                  },
+                },
+              },
               kpProgress: {
                 where: { learningLinkId: activeSelectedLinkId },
                 include: { knowledgePoint: true, learningLink: { include: { teacher: true } } },
@@ -185,13 +299,16 @@ export async function getParentLearningData(
     learningLinks,
     selectedLink,
     selectedLinkId: activeSelectedLinkId,
-    parentStudents: parentStudents.map((item) => ({
-      ...item,
-      student: {
-        ...item.student,
-        weakPoints: dedupeWeakPoints(item.student.weakPoints),
-      },
-    })),
+    parentStudents: parentStudents.map((item) => {
+      const itemWithKnowledgeProgress = withSyntheticKnowledgeProgress(item);
+      return {
+        ...itemWithKnowledgeProgress,
+        student: {
+          ...itemWithKnowledgeProgress.student,
+          weakPoints: dedupeWeakPoints(item.student.weakPoints),
+        },
+      };
+    }),
     teacher: selectedLink?.teacher || null,
     subject: selectedLink?.subject || "",
   };

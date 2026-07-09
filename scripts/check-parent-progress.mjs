@@ -3,7 +3,15 @@ import { readFileSync, existsSync } from "node:fs";
 const files = {
   "src/components/parent-sidebar.tsx": ["学习进度", "/parent/progress"],
   "src/app/parent/page.tsx": ["redirect(\"/parent/progress\")"],
-  "src/lib/parent-data.ts": ["kpProgress", "knowledgePoint", "reviewSchedules", "dedupeWeakPoints"],
+  "src/lib/parent-data.ts": [
+    "kpProgress",
+    "knowledgePoint",
+    "reviewSchedules",
+    "dedupeWeakPoints",
+    "withSyntheticKnowledgeProgress",
+    "progressKey",
+    "status: \"learning\"",
+  ],
   "src/app/parent/progress/page.tsx": [
     "学习进度",
     "剩余课时",
