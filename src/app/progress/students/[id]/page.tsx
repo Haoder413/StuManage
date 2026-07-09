@@ -7,10 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { BookOpen, Circle } from "lucide-react";
 
 interface KPNode {
   id: string;
   name: string;
+  parentId: string | null;
+  orderIndex: number;
   children: KPNode[];
   status?: string;
 }
@@ -43,6 +46,32 @@ interface ReviewSchedule {
   stage: number;
   status: string;
   lastReviewedAt: string | null;
+}
+
+function buildKpTree(items: KPNode[]) {
+  const map = new Map<string, KPNode>();
+  items.forEach((item) => map.set(item.id, { ...item, children: [] }));
+  const roots: KPNode[] = [];
+
+  map.forEach((node) => {
+    if (node.parentId && map.has(node.parentId)) map.get(node.parentId)!.children.push(node);
+    else roots.push(node);
+  });
+
+  const sortNodes = (nodes: KPNode[]) => {
+    nodes.sort((a, b) => {
+      if (a.orderIndex !== b.orderIndex) return a.orderIndex - b.orderIndex;
+      return a.name.localeCompare(b.name, "zh-CN");
+    });
+    nodes.forEach((node) => sortNodes(node.children));
+  };
+
+  sortNodes(roots);
+  return roots;
+}
+
+function countKpNodes(nodes: KPNode[]): number {
+  return nodes.reduce((sum, node) => sum + 1 + countKpNodes(node.children), 0);
 }
 
 export default function StudentProgressDetailPage() {
@@ -81,15 +110,17 @@ export default function StudentProgressDetailPage() {
         const studentProgress = progressList.filter((p: any) => p.studentId === studentId);
 
         const progressMap: Record<string, string> = {};
-        const tree: KPNode[] = [];
+        const nodes: KPNode[] = [];
         const seen = new Set<string>();
         studentProgress.forEach((p: any) => {
           if (!p.knowledgePointId || seen.has(p.knowledgePointId)) return;
           seen.add(p.knowledgePointId);
           progressMap[p.knowledgePointId] = p.status;
-          tree.push({
+          nodes.push({
             id: p.knowledgePointId,
             name: p.knowledgePoint?.name || "未知",
+            parentId: p.knowledgePoint?.parentId || null,
+            orderIndex: Number(p.knowledgePoint?.orderIndex || 0),
             children: [],
             status: p.status,
           });
@@ -105,7 +136,7 @@ export default function StudentProgressDetailPage() {
         if (!cancelled) {
           setStudent(found);
           setKpProgress(progressMap);
-          setKpTree(tree);
+          setKpTree(buildKpTree(nodes));
           setWeakPoints(activeWeakPoints);
           setHistoryWeakPoints(historyPoints);
         }
@@ -216,7 +247,7 @@ export default function StudentProgressDetailPage() {
       
 <PageHeader title="学生未找到" /></div>;
 
-  const totalKps = kpTree.length;
+  const totalKps = countKpNodes(kpTree);
   const masteredCount = Object.values(kpProgress).filter((s) => s === "mastered").length;
   const learningCount = totalKps - masteredCount;
   const progressPct = totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0;
@@ -260,6 +291,67 @@ export default function StudentProgressDetailPage() {
     if (a.status !== "active" && b.status === "active") return 1;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+
+  function renderKpNode(kp: KPNode, depth = 0) {
+    const status = kpProgress[kp.id] === "mastered" ? "mastered" : "learning";
+    const statusColors: Record<string, string> = {
+      mastered: "bg-green-100 text-green-700 border-green-200",
+      learning: "bg-blue-100 text-blue-700 border-blue-200",
+    };
+    const statusLabels: Record<string, string> = {
+      mastered: "已学习",
+      learning: "学习中",
+    };
+    const nextStatus: Record<string, string> = {
+      learning: "mastered",
+      mastered: "learning",
+    };
+    const indent = depth * 28;
+    const connectorLeft = Math.max(0, indent - 14);
+    const iconSize = depth === 0 ? 18 : Math.max(9, 14 - Math.min(depth, 3));
+
+    return (
+      <div key={kp.id}>
+        <div
+          className={`relative flex items-center gap-2 border-b border-[#1a1a2e]/5 py-2 text-sm text-[#1a1a2e]/70 ${depth === 0 ? "font-semibold" : "font-medium"}`}
+          style={{ paddingLeft: `${indent}px` }}
+        >
+          {depth > 0 && (
+            <>
+              <span
+                aria-hidden="true"
+                className="outline-tree-connector absolute top-0 bottom-0 w-px bg-[#5b6c8a]/15"
+                style={{ left: `${connectorLeft}px` }}
+              />
+              <span
+                aria-hidden="true"
+                className="outline-tree-connector absolute top-1/2 h-px w-3 bg-[#5b6c8a]/20"
+                style={{ left: `${connectorLeft}px` }}
+              />
+            </>
+          )}
+          <span
+            className={`flex h-5 w-5 shrink-0 items-center justify-center ${depth === 0 ? "text-[#5b6c8a]" : "text-[#7f8fa6]"}`}
+            aria-hidden="true"
+          >
+            {depth === 0 ? (
+              <BookOpen className="h-[18px] w-[18px]" strokeWidth={2.2} />
+            ) : (
+              <Circle style={{ width: `${iconSize}px`, height: `${iconSize}px` }} strokeWidth={2.4} />
+            )}
+          </span>
+          <span className={`min-w-0 flex-1 truncate ${depth === 0 ? "text-[#394255]" : "text-[#4f586b]"}`}>{kp.name}</span>
+          <button
+            onClick={() => updateKpStatus(kp.id, nextStatus[status])}
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${statusColors[status]}`}
+          >
+            {statusLabels[status]}
+          </button>
+        </div>
+        {kp.children.map((child) => renderKpNode(child, depth + 1))}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -326,34 +418,8 @@ export default function StudentProgressDetailPage() {
           {kpTree.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">暂无知识点数据</p>
           ) : (
-            <div className="space-y-1">
-              {kpTree.map((kp) => {
-                const status = kpProgress[kp.id] === "mastered" ? "mastered" : "learning";
-                const statusColors: Record<string, string> = {
-                  mastered: "bg-green-100 text-green-700 border-green-200",
-                  learning: "bg-blue-100 text-blue-700 border-blue-200",
-                };
-                const statusLabels: Record<string, string> = {
-                  mastered: "已学习",
-                  learning: "学习中",
-                };
-                const nextStatus: Record<string, string> = {
-                  learning: "mastered",
-                  mastered: "learning",
-                };
-
-                return (
-                  <div key={kp.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50/50 transition-colors border-b border-gray-50 last:border-0">
-                    <span className="text-sm font-medium text-gray-700">{kp.name}</span>
-                    <button
-                      onClick={() => updateKpStatus(kp.id, nextStatus[status])}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${statusColors[status]}`}
-                    >
-                      {statusLabels[status]}
-                    </button>
-                  </div>
-                );
-              })}
+            <div className="divide-y divide-[#1a1a2e]/5">
+              {kpTree.map((kp) => renderKpNode(kp))}
             </div>
           )}
         </div>
