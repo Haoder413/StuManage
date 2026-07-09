@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
+import {
+  deletableCourseByIdWhere,
+  visibleCourseByIdWhere,
+  visibleCourseWhere,
+  visibleStudentWhere,
+  type TeacherVisibilityUser,
+} from "@/lib/teacher-visibility";
 
 type NormalizedScheduleTime = {
   workspaceId: string;
@@ -184,30 +191,30 @@ async function preserveAttendedSchedules(
 
 async function syncCourseStudents(
   tx: Prisma.TransactionClient,
-  workspaceId: string,
+  user: TeacherVisibilityUser,
   courseId: string,
   studentIds: string[]
 ) {
   const students = await tx.student.findMany({
-    where: { workspaceId, id: { in: studentIds } },
+    where: { ...visibleStudentWhere(user), id: { in: studentIds } },
     select: { id: true },
   });
   const validStudentIds = students.map((student) => student.id);
 
   await tx.studentCourse.updateMany({
-    where: { workspaceId, courseId, status: "active", studentId: { notIn: validStudentIds } },
+    where: { workspaceId: user.workspaceId, courseId, status: "active", studentId: { notIn: validStudentIds } },
     data: { status: "inactive" },
   });
 
   for (const studentId of validStudentIds) {
     const activeCourseLink = await tx.studentCourse.findFirst({
-      where: { workspaceId, courseId, studentId, status: "active" },
+      where: { workspaceId: user.workspaceId, courseId, studentId, status: "active" },
       select: { id: true },
     });
     if (activeCourseLink) continue;
 
     const inactiveCourseLink = await tx.studentCourse.findFirst({
-      where: { workspaceId, courseId, studentId },
+      where: { workspaceId: user.workspaceId, courseId, studentId },
       select: { id: true },
       orderBy: { createdAt: "desc" },
     });
@@ -217,7 +224,7 @@ async function syncCourseStudents(
         data: { status: "active", endDate: null, endEvaluation: null },
       });
     } else {
-      await tx.studentCourse.create({ data: { workspaceId, courseId, studentId, status: "active" } });
+      await tx.studentCourse.create({ data: { workspaceId: user.workspaceId, courseId, studentId, status: "active" } });
     }
   }
 
@@ -247,10 +254,10 @@ async function syncCourseSchedules(
 export async function GET() {
   const user = await requireTeacherLike();
   const courses = await prisma.course.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleCourseWhere(user),
     include: {
       scheduleTimes: { orderBy: { orderIndex: "asc" } },
-      _count: { select: { knowledgePoints: true, studentCourses: { where: { status: "active" } } } },
+      _count: { select: { knowledgePoints: true, studentCourses: { where: { status: "active", student: visibleStudentWhere(user) } } } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -268,6 +275,7 @@ export async function POST(request: NextRequest) {
     const created = await tx.course.create({
       data: {
         workspaceId: user.workspaceId,
+        createdById: user.role === "teacher" ? user.id : null,
         name: data.name,
         description: data.description || null,
         type,
@@ -295,7 +303,7 @@ export async function POST(request: NextRequest) {
 
     if (studentIds.length > 0) {
       const students = await tx.student.findMany({
-        where: { workspaceId: user.workspaceId, id: { in: studentIds } },
+        where: { ...visibleStudentWhere(user), id: { in: studentIds } },
         select: { id: true },
       });
       const validStudentIds = students.map((student) => student.id);
@@ -343,12 +351,12 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
   const course = await prisma.course.findFirst({
-    where: { id, workspaceId: user.workspaceId },
+    where: deletableCourseByIdWhere(user, id),
     select: { id: true },
   });
   if (!course) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  await prisma.course.deleteMany({ where: { id, workspaceId: user.workspaceId } });
+  await prisma.course.deleteMany({ where: deletableCourseByIdWhere(user, id) });
   return NextResponse.json({ success: true });
 }
 
@@ -364,7 +372,7 @@ export async function PATCH(request: NextRequest) {
 
   const course = await prisma.$transaction(async (tx) => {
     const existing = await tx.course.findFirst({
-      where: { id: data.id, workspaceId: user.workspaceId },
+      where: visibleCourseByIdWhere(user, String(data.id)),
       select: { id: true, status: true },
     });
     if (!existing) return null;
@@ -387,14 +395,14 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    const validStudentIds = await syncCourseStudents(tx, user.workspaceId, existing.id, selectedStudentIds);
+    const validStudentIds = await syncCourseStudents(tx, user, existing.id, selectedStudentIds);
     await syncCourseSchedules(tx, user.workspaceId, existing.id, type, scheduleTimes, validStudentIds);
 
     return tx.course.findFirst({
       where: { id: existing.id, workspaceId: user.workspaceId },
       include: {
         scheduleTimes: { orderBy: { orderIndex: "asc" } },
-        studentCourses: { where: { status: "active" }, include: { student: true } },
+        studentCourses: { where: { status: "active", student: visibleStudentWhere(user) }, include: { student: true } },
       },
     });
   });
@@ -423,8 +431,8 @@ export async function PUT(request: NextRequest) {
 
   const course = await prisma.$transaction(async (tx) => {
     const existing = await tx.course.findFirst({
-      where: { id: data.id, workspaceId: user.workspaceId },
-      include: { studentCourses: { where: { status: "active" }, select: { id: true } } },
+      where: visibleCourseByIdWhere(user, String(data.id)),
+      include: { studentCourses: { where: { status: "active", student: visibleStudentWhere(user) }, select: { id: true } } },
     });
     if (!existing) return null;
 
@@ -453,7 +461,7 @@ export async function PUT(request: NextRequest) {
       where: { id: existing.id, workspaceId: user.workspaceId },
       include: {
         scheduleTimes: { orderBy: { orderIndex: "asc" } },
-        studentCourses: { where: { status: "completed" }, include: { student: true } },
+        studentCourses: { where: { status: "completed", student: visibleStudentWhere(user) }, include: { student: true } },
       },
     });
   });

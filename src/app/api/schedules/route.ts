@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
-import { visibleScheduleWhere, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
+import { visibleCourseByIdWhere, visibleScheduleWhere, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 async function validateScheduleRelations(user: { id: string; workspaceId: string; role: string }, data: { studentId?: string | null; courseId?: string | null }) {
   const studentId = data.studentId ? String(data.studentId) : null;
@@ -13,7 +13,7 @@ async function validateScheduleRelations(user: { id: string; workspaceId: string
   }
 
   if (courseId) {
-    const course = await prisma.course.findFirst({ where: { id: courseId, workspaceId: user.workspaceId }, select: { id: true } });
+    const course = await prisma.course.findFirst({ where: visibleCourseByIdWhere(user, courseId), select: { id: true } });
     if (!course) return "course not found";
   }
 

@@ -8,6 +8,7 @@ import { CourseOutlineEditor } from "./course-outline-editor";
 import { requireTeacherLike } from "@/lib/auth";
 import { DeleteCourseButton } from "./delete-course-button";
 import { CompleteCourseButton } from "./complete-course-button";
+import { canDeleteCourse, visibleCourseByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 function formatScheduleDateRange(startDate: Date | null, endDate: Date | null) {
   if (!startDate && !endDate) return "";
@@ -20,11 +21,11 @@ function formatScheduleDateRange(startDate: Date | null, endDate: Date | null) {
 export default async function CourseDetailPage({ params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
   const course = await prisma.course.findFirst({
-    where: { id: params.id, workspaceId: user.workspaceId },
+    where: visibleCourseByIdWhere(user, params.id),
     include: {
       scheduleTimes: { orderBy: { orderIndex: "asc" } },
       studentCourses: {
-        where: { status: "active" },
+        where: { status: "active", student: visibleStudentWhere(user) },
         include: { student: true },
         orderBy: { createdAt: "desc" },
       },
@@ -64,7 +65,9 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
               studentGrade: item.student.grade,
             }))}
           />
-          <DeleteCourseButton courseId={course.id} courseName={course.name} />
+          {canDeleteCourse(user, course) && (
+            <DeleteCourseButton courseId={course.id} courseName={course.name} />
+          )}
         </div>
       </div>
       <PageHeader

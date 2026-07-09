@@ -2,12 +2,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { CourseEditForm } from "./course-edit-form";
-import { visibleStudentWhere } from "@/lib/teacher-visibility";
+import { visibleCourseByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 export default async function EditCoursePage({ params }: { params: { id: string } }) {
   const user = await requireTeacherLike();
   const course = await prisma.course.findFirst({
-    where: { id: params.id, workspaceId: user.workspaceId },
+    where: visibleCourseByIdWhere(user, params.id),
     include: {
       scheduleTimes: { orderBy: { orderIndex: "asc" } },
       studentCourses: {

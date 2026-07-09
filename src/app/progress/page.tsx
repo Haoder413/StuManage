@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
-import { visibleStudentWhere } from "@/lib/teacher-visibility";
+import { visibleCourseWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 export default async function ProgressPage() {
   const user = await requireTeacherLike();
@@ -13,7 +13,9 @@ export default async function ProgressPage() {
       weakPoints: { where: { status: "active" } },
     },
   });
-  const totalKps = await prisma.knowledgePoint.count({ where: { workspaceId: user.workspaceId } });
+  const totalKps = await prisma.knowledgePoint.count({
+    where: { workspaceId: user.workspaceId, course: visibleCourseWhere(user) },
+  });
 
   return (
     <div>

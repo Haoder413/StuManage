@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { requireTeacherLike } from "@/lib/auth";
+import { visibleCourseWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 function formatScheduleDateRange(startDate: Date | null, endDate: Date | null) {
   if (!startDate && !endDate) return "";
@@ -16,10 +17,10 @@ function formatScheduleDateRange(startDate: Date | null, endDate: Date | null) {
 export default async function CoursesPage() {
   const user = await requireTeacherLike();
   const courses = await prisma.course.findMany({
-    where: { workspaceId: user.workspaceId },
+    where: visibleCourseWhere(user),
     include: {
       knowledgePoints: true,
-      studentCourses: { where: { status: "active" }, select: { studentId: true } },
+      studentCourses: { where: { status: "active", student: visibleStudentWhere(user) }, select: { studentId: true } },
       scheduleTimes: { orderBy: { orderIndex: "asc" } },
     },
     orderBy: { createdAt: "desc" },

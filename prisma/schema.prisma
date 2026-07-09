@@ -62,6 +62,7 @@ model User {
   learningLinksAsParent LearningLink[] @relation("ParentLearningLinks")
   learningLinksAsTeacher LearningLink[] @relation("TeacherLearningLinks")
   createdStudents Student[] @relation("StudentsCreatedByTeacher")
+  createdCourses Course[] @relation("CoursesCreatedByTeacher")
   uploadedResources LearningResource[]
   uploadedLessonVideos LessonVideo[]
   uploadedLessonAttachments LessonAttachment[]
@@ -162,10 +163,12 @@ model Course {
   type            String   @default("fixed")
   status          String   @default("active")
   endedAt         DateTime?
+  createdById     String?
   defaultCapacity Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   workspace Workspace @relation(fields: [workspaceId], references: [id])
+  createdBy       User?    @relation("CoursesCreatedByTeacher", fields: [createdById], references: [id], onDelete: SetNull)
   studentCourses  StudentCourse[]
   scheduleTimes   CourseScheduleTime[]
   schedules       Schedule[]

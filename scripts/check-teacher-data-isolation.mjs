@@ -5,10 +5,16 @@ const expectations = {
     "createdById",
     "StudentsCreatedByTeacher",
     "createdStudents Student[]",
+    "CoursesCreatedByTeacher",
+    "createdCourses Course[]",
   ],
   "src/lib/teacher-visibility.ts": [
     "visibleStudentWhere",
     "visibleStudentByIdWhere",
+    "visibleCourseWhere",
+    "visibleCourseByIdWhere",
+    "deletableCourseByIdWhere",
+    "canDeleteCourse",
     "teacherSeesAllWorkspaceData",
     "createdById: user.id",
     "learningLinks",
@@ -18,8 +24,32 @@ const expectations = {
   "src/app/api/students/route.ts": [
     "visibleStudentWhere",
     "visibleStudentByIdWhere",
+    "visibleCourseByIdWhere",
     "deletableStudentByIdWhere",
     "createdById: user.role === \"teacher\" ? user.id : null",
+  ],
+  "src/app/api/courses/route.ts": [
+    "visibleCourseWhere",
+    "visibleCourseByIdWhere",
+    "deletableCourseByIdWhere",
+    "visibleStudentWhere",
+    "createdById: user.role === \"teacher\" ? user.id : null",
+  ],
+  "src/app/courses/page.tsx": [
+    "visibleCourseWhere",
+    "visibleStudentWhere",
+  ],
+  "src/app/courses/[id]/page.tsx": [
+    "visibleCourseByIdWhere",
+    "visibleStudentWhere",
+  ],
+  "src/app/courses/[id]/edit/page.tsx": [
+    "visibleCourseByIdWhere",
+    "visibleStudentWhere",
+  ],
+  "src/app/api/knowledge-points/route.ts": [
+    "visibleCourseByIdWhere",
+    "visibleCourseWhere",
   ],
   "src/app/students/page.tsx": [
     "visibleStudentWhere",
@@ -30,6 +60,7 @@ const expectations = {
   ],
   "src/app/progress/page.tsx": [
     "visibleStudentWhere",
+    "visibleCourseWhere",
   ],
   "src/app/api/progress/route.ts": [
     "visibleStudentWhere",
@@ -42,6 +73,7 @@ const expectations = {
   "src/app/api/schedules/route.ts": [
     "visibleScheduleWhere",
     "visibleStudentByIdWhere",
+    "visibleCourseByIdWhere",
   ],
   "src/app/api/attendance/route.ts": [
     "visibleScheduleWhere",
@@ -54,6 +86,7 @@ const expectations = {
   "docs/操作手册.md": [
     "教师数据隔离",
     "自己创建的学生",
+    "自己创建的课程",
     "有效学习关系",
   ],
   "docs/conversation-summary.md": [

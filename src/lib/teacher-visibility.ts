@@ -55,6 +55,60 @@ export function canDeleteStudent(user: TeacherVisibilityUser, student: { created
   return teacherSeesAllWorkspaceData(user) || student.createdById === user.id;
 }
 
+export function visibleCourseWhere(user: TeacherVisibilityUser): Prisma.CourseWhereInput {
+  if (teacherSeesAllWorkspaceData(user)) {
+    return { workspaceId: user.workspaceId };
+  }
+
+  return {
+    workspaceId: user.workspaceId,
+    OR: [
+      { createdById: user.id },
+      {
+        learningLinks: {
+          some: {
+            workspaceId: user.workspaceId,
+            teacherId: user.id,
+            isActive: true,
+          },
+        },
+      },
+      {
+        studentCourses: {
+          some: {
+            workspaceId: user.workspaceId,
+            status: "active",
+            student: visibleStudentWhere(user),
+          },
+        },
+      },
+    ],
+  };
+}
+
+export function visibleCourseByIdWhere(user: TeacherVisibilityUser, courseId: string): Prisma.CourseWhereInput {
+  return {
+    id: courseId,
+    ...visibleCourseWhere(user),
+  };
+}
+
+export function deletableCourseByIdWhere(user: TeacherVisibilityUser, courseId: string): Prisma.CourseWhereInput {
+  if (teacherSeesAllWorkspaceData(user)) {
+    return { id: courseId, workspaceId: user.workspaceId };
+  }
+
+  return {
+    id: courseId,
+    workspaceId: user.workspaceId,
+    createdById: user.id,
+  };
+}
+
+export function canDeleteCourse(user: TeacherVisibilityUser, course: { createdById: string | null }) {
+  return teacherSeesAllWorkspaceData(user) || course.createdById === user.id;
+}
+
 export function visibleScheduleWhere(user: TeacherVisibilityUser): Prisma.ScheduleWhereInput {
   if (teacherSeesAllWorkspaceData(user)) {
     return { workspaceId: user.workspaceId };
@@ -64,17 +118,7 @@ export function visibleScheduleWhere(user: TeacherVisibilityUser): Prisma.Schedu
     workspaceId: user.workspaceId,
     OR: [
       { student: visibleStudentWhere(user) },
-      {
-        course: {
-          learningLinks: {
-            some: {
-              workspaceId: user.workspaceId,
-              teacherId: user.id,
-              isActive: true,
-            },
-          },
-        },
-      },
+      { course: visibleCourseWhere(user) },
     ],
   };
 }

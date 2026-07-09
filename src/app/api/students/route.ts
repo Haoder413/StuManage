@@ -3,32 +3,32 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { normalizeStudentGrade, rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
-import { deletableStudentByIdWhere, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
+import { deletableStudentByIdWhere, visibleCourseByIdWhere, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 const LESSON_HOUR_ACTIONS = ["add", "use"] as const;
 
 async function syncStudentCourseAndSchedules(
   tx: Prisma.TransactionClient,
-  workspaceId: string,
+  user: { id: string; workspaceId: string; role: string },
   studentId: string,
   courseId: string | null | undefined
 ) {
   if (!courseId) return;
 
   const activeCourseLink = await tx.studentCourse.findFirst({
-    where: { workspaceId, studentId, courseId, status: "active" },
+    where: { workspaceId: user.workspaceId, studentId, courseId, status: "active" },
     select: { id: true },
   });
   if (activeCourseLink) return;
 
   const course = await tx.course.findFirst({
-    where: { id: courseId, workspaceId },
+    where: visibleCourseByIdWhere(user, courseId),
     include: { scheduleTimes: { orderBy: { orderIndex: "asc" } } },
   });
   if (!course) return;
 
   const inactiveCourseLink = await tx.studentCourse.findFirst({
-    where: { workspaceId, studentId, courseId },
+    where: { workspaceId: user.workspaceId, studentId, courseId },
     select: { id: true },
     orderBy: { createdAt: "desc" },
   });
@@ -40,7 +40,7 @@ async function syncStudentCourseAndSchedules(
   } else {
     await tx.studentCourse.create({
       data: {
-        workspaceId,
+        workspaceId: user.workspaceId,
         studentId,
         courseId,
         status: "active",
@@ -51,7 +51,7 @@ async function syncStudentCourseAndSchedules(
   if (course.type === "custom" && course.scheduleTimes.length > 0) {
     await tx.schedule.createMany({
       data: course.scheduleTimes.map((time) => ({
-        workspaceId,
+        workspaceId: user.workspaceId,
         studentId,
         courseId: course.id,
         type: "fixed",
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (hasCourse) {
-      await syncStudentCourseAndSchedules(tx, user.workspaceId, created.id, data.courseId);
+      await syncStudentCourseAndSchedules(tx, user, created.id, data.courseId);
       const schedules = await tx.schedule.findMany({ where: { workspaceId: user.workspaceId, studentId: created.id } });
       if (schedules.length === 0 && legacyHasSchedule) {
         await tx.schedule.create({
@@ -166,7 +166,7 @@ export async function PATCH(request: NextRequest) {
     if ("courseId" in data) {
       await syncStudentCourseAndSchedules(
         tx,
-        user.workspaceId,
+        user,
         accessibleStudent.id,
         data.courseId === "none" ? null : data.courseId
       );
