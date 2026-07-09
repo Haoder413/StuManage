@@ -94,6 +94,14 @@ interface KnowledgePointProgress {
     course?: { id: string; name: string } | null;
   };
 }
+interface KnowledgePointProgressTreeNode extends KnowledgePointProgress {
+  children: KnowledgePointProgressTreeNode[];
+}
+interface KnowledgePointProgressCourseTree {
+  courseId: string;
+  courseName: string;
+  children: KnowledgePointProgressTreeNode[];
+}
 interface PendingAttendance {
   scheduleId: string;
   studentId: string;
@@ -166,6 +174,39 @@ function compareKnowledgePointProgress(a: KnowledgePointProgress, b: KnowledgePo
     return a.knowledgePoint.orderIndex - b.knowledgePoint.orderIndex;
   }
   return a.knowledgePoint.name.localeCompare(b.knowledgePoint.name, "zh-CN");
+}
+
+function sortKnowledgePointProgressTree(nodes: KnowledgePointProgressTreeNode[]) {
+  nodes.sort((a, b) => {
+    if (a.knowledgePoint.orderIndex !== b.knowledgePoint.orderIndex) {
+      return a.knowledgePoint.orderIndex - b.knowledgePoint.orderIndex;
+    }
+    return a.knowledgePoint.name.localeCompare(b.knowledgePoint.name, "zh-CN");
+  });
+  nodes.forEach((node) => sortKnowledgePointProgressTree(node.children));
+}
+
+function buildKnowledgePointProgressTree(points: KnowledgePointProgress[]): KnowledgePointProgressCourseTree[] {
+  const nodeMap = new Map<string, KnowledgePointProgressTreeNode>();
+  points.forEach((point) => {
+    nodeMap.set(point.knowledgePointId, { ...point, children: [] });
+  });
+
+  const courseMap = new Map<string, KnowledgePointProgressCourseTree>();
+  nodeMap.forEach((point) => {
+    const courseId = point.knowledgePoint.course?.id || point.knowledgePoint.courseId || "unknown";
+    const courseName = point.knowledgePoint.course?.name || "未命名课程";
+    if (!courseMap.has(courseId)) courseMap.set(courseId, { courseId, courseName, children: [] });
+
+    const parentId = point.knowledgePoint.parentId;
+    const parent = parentId ? nodeMap.get(parentId) : null;
+    if (parent) parent.children.push(point);
+    else courseMap.get(courseId)!.children.push(point);
+  });
+
+  const courseTrees = [...courseMap.values()].sort((a, b) => a.courseName.localeCompare(b.courseName, "zh-CN"));
+  courseTrees.forEach((course) => sortKnowledgePointProgressTree(course.children));
+  return courseTrees;
 }
 
 function TagChips({
@@ -314,7 +355,12 @@ export default function SchedulePage() {
   const [selectedFeedbackTags, setSelectedFeedbackTags] = useState<string[]>([]);
   const [reviewKnowledgePoints, setReviewKnowledgePoints] = useState<KnowledgePointProgress[]>([]);
   const [selectedKnowledgePointIds, setSelectedKnowledgePointIds] = useState<string[]>([]);
+  const [expandedKnowledgePointIds, setExpandedKnowledgePointIds] = useState<string[]>([]);
   const [loadingKnowledgePoints, setLoadingKnowledgePoints] = useState(false);
+  const reviewKnowledgePointTree = useMemo(
+    () => buildKnowledgePointProgressTree(reviewKnowledgePoints),
+    [reviewKnowledgePoints]
+  );
   const [reviewLessonContentText, setReviewLessonContentText] = useState("");
   const [reviewLessonFeedbackText, setReviewLessonFeedbackText] = useState("");
   const [reviewLessonHourAmount, setReviewLessonHourAmount] = useState("1");
@@ -469,6 +515,7 @@ export default function SchedulePage() {
     setLoadingKnowledgePoints(true);
     setReviewKnowledgePoints([]);
     setSelectedKnowledgePointIds([]);
+    setExpandedKnowledgePointIds([]);
     try {
       const res = await fetch("/api/progress");
       if (!res.ok) return;
@@ -486,8 +533,13 @@ export default function SchedulePage() {
         .map((items) => items[0])
         .sort(compareKnowledgePointProgress);
       setReviewKnowledgePoints(pending);
+      setExpandedKnowledgePointIds(
+        buildKnowledgePointProgressTree(pending)
+          .flatMap((course) => course.children.map((point) => point.knowledgePointId))
+      );
     } catch {
       setReviewKnowledgePoints([]);
+      setExpandedKnowledgePointIds([]);
     } finally {
       setLoadingKnowledgePoints(false);
     }
@@ -513,6 +565,7 @@ export default function SchedulePage() {
     setSelectedFeedbackTags(parseTags(existing?.feedbackTags));
     setReviewKnowledgePoints([]);
     setSelectedKnowledgePointIds([]);
+    setExpandedKnowledgePointIds([]);
     setLoadingKnowledgePoints(true);
     setReviewLessonContentText(existing?.lessonContent || "");
     setReviewLessonFeedbackText(existing?.lessonFeedback || "");
@@ -639,6 +692,7 @@ export default function SchedulePage() {
     setReviewAttachmentError("");
     setSelectedKnowledgePointIds([]);
     setReviewKnowledgePoints([]);
+    setExpandedKnowledgePointIds([]);
     setLoadingKnowledgePoints(false);
     setUploadProgress(0);
     setSavingReview(false);
@@ -786,6 +840,69 @@ export default function SchedulePage() {
       prev.includes(knowledgePointId)
         ? prev.filter(id => id !== knowledgePointId)
         : [...prev, knowledgePointId]
+    );
+  }
+
+  function toggleKnowledgePointExpanded(knowledgePointId: string) {
+    setExpandedKnowledgePointIds(prev =>
+      prev.includes(knowledgePointId)
+        ? prev.filter(id => id !== knowledgePointId)
+        : [...prev, knowledgePointId]
+    );
+  }
+
+  function renderKnowledgePointProgressNode(point: KnowledgePointProgressTreeNode, depth = 0) {
+    const selected = selectedKnowledgePointIds.includes(point.knowledgePointId);
+    const expanded = expandedKnowledgePointIds.includes(point.knowledgePointId);
+    const hasChildren = point.children.length > 0;
+    const leftPadding = 12 + depth * 18;
+
+    return (
+      <div key={point.knowledgePointId} className="space-y-1">
+        <div
+          className={`flex items-center gap-2 rounded-lg border bg-white py-2 pr-3 text-xs transition-colors ${
+            selected ? "border-green-200 bg-green-50 text-green-700" : "border-gray-100 text-gray-600"
+          }`}
+          style={{ paddingLeft: `${leftPadding}px` }}
+        >
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={() => toggleKnowledgePointExpanded(point.knowledgePointId)}
+              disabled={savingReview}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left font-semibold text-gray-700 hover:text-blue-600"
+            >
+              <span className="w-4 shrink-0 text-gray-400">{expanded ? "▾" : "▸"}</span>
+              <span className="truncate">{point.knowledgePoint.name}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => toggleKnowledgePointProgress(point.knowledgePointId)}
+              disabled={savingReview}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-blue-600"
+            >
+              <span className="w-4 shrink-0 text-gray-300">○</span>
+              <span className="truncate">{point.knowledgePoint.name}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => toggleKnowledgePointProgress(point.knowledgePointId)}
+            disabled={savingReview}
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              selected ? "bg-green-100 text-green-700" : "bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-600"
+            }`}
+          >
+            {selected ? "已学习" : "学习中"}
+          </button>
+        </div>
+        {hasChildren && expanded && (
+          <div className="space-y-1">
+            {point.children.map((child) => renderKnowledgePointProgressNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -1157,31 +1274,13 @@ export default function SchedulePage() {
               ) : reviewKnowledgePoints.length === 0 ? (
                 <p className="mt-2 text-xs text-gray-400">暂无待学习知识点</p>
               ) : (
-                <div className="mt-2 space-y-2">
-                  {reviewKnowledgePoints.map((point, index) => {
-                    const selected = selectedKnowledgePointIds.includes(point.knowledgePointId);
-                    const previous = reviewKnowledgePoints[index - 1];
-                    const courseName = point.knowledgePoint.course?.name || "未命名课程";
-                    const showCourse = !previous || previous.knowledgePoint.course?.id !== point.knowledgePoint.course?.id;
-                    return (
-                      <div key={point.knowledgePointId}>
-                        {showCourse && <p className="mb-1 text-[11px] font-semibold text-gray-400">{courseName}</p>}
-                        <button
-                          type="button"
-                          onClick={() => toggleKnowledgePointProgress(point.knowledgePointId)}
-                          disabled={savingReview}
-                          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                            selected
-                              ? "border-green-200 bg-green-50 text-green-700"
-                              : "border-gray-100 bg-white text-gray-600 hover:border-blue-100 hover:bg-blue-50"
-                          }`}
-                        >
-                          <span>{point.knowledgePoint.name}</span>
-                          <span className="ml-3 shrink-0 font-semibold">{selected ? "已学习" : "学习中"}</span>
-                        </button>
-                      </div>
-                    );
-                  })}
+                <div className="mt-2 space-y-3">
+                  {reviewKnowledgePointTree.map((course) => (
+                    <div key={course.courseId} className="space-y-1">
+                      <p className="text-[11px] font-semibold text-gray-400">{course.courseName}</p>
+                      {course.children.map((point) => renderKnowledgePointProgressNode(point))}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

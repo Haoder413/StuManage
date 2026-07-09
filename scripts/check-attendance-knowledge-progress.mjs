@@ -14,6 +14,11 @@ assert.match(schedulePage, /loadStudentPendingKnowledgePoints/, "attendance revi
 assert.match(schedulePage, /knowledgePointProgressUpdates/, "attendance save should submit knowledge point progress updates");
 assert.match(schedulePage, /status !== "mastered"/, "attendance dialog should only show not-yet-learned knowledge points");
 assert.match(schedulePage, /已学习/, "attendance dialog should use the learned status label");
+assert.match(schedulePage, /buildKnowledgePointProgressTree/, "attendance dialog should build a tree from course knowledge points");
+assert.match(schedulePage, /expandedKnowledgePointIds/, "attendance dialog should track expanded chapter nodes");
+assert.match(schedulePage, /toggleKnowledgePointExpanded/, "attendance dialog should expand and collapse chapter titles");
+assert.match(schedulePage, /renderKnowledgePointProgressNode/, "attendance dialog should render knowledge points recursively");
+assert.match(schedulePage, /point\.children\.length > 0/, "attendance dialog should treat nodes with children as expandable titles");
 
 assert.match(attendanceRoute, /knowledgePointProgressUpdates/, "attendance API should accept knowledge point progress updates");
 assert.match(attendanceRoute, /studentKpProgress\.upsert/, "attendance API should upsert knowledge point progress inside the attendance transaction");
