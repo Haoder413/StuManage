@@ -24,6 +24,9 @@ assert.match(editor, /批量删除/, "outline editor should support bulk delete"
 assert.match(editor, /selectedKnowledgePointIds/, "outline editor should track selected nodes for bulk delete");
 assert.match(editor, /toggleSelectAllPoints/, "outline editor should support selecting all nodes during bulk delete");
 assert.match(editor, /取消全选/, "outline editor should allow clearing all selected nodes during bulk delete");
+assert.match(editor, /BookOpen/, "outline editor should use a clear chapter icon for root nodes");
+assert.match(editor, /Circle/, "outline editor should use todo-style circle icons for child nodes");
+assert.match(editor, /outline-tree-connector/, "outline editor should render hierarchy connector lines");
 assert.match(editor, /parseOutlineText/, "outline editor should parse pasted tree outlines");
 assert.match(editor, /粘贴知识点大纲/, "outline editor should provide a paste dialog");
 assert.match(editor, /缩进比上一层更深就是子级/, "outline import help should explain flexible indentation rules");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BookOpen, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -279,9 +280,30 @@ function KpNodeView({
   selectedIds: string[];
   onToggleSelected: (id: string) => void;
 }) {
+  const indent = depth * 28;
+  const connectorLeft = Math.max(0, indent - 14);
+  const iconSize = depth === 0 ? 18 : Math.max(9, 14 - Math.min(depth, 3));
+
   return (
     <>
-      <div className="py-2 text-sm flex items-center gap-2 text-[#1a1a2e]/70" style={{ paddingLeft: `${depth * 20}px` }}>
+      <div
+        className={`relative py-2 text-sm flex items-center gap-2 text-[#1a1a2e]/70 ${depth === 0 ? "font-semibold" : "font-medium"}`}
+        style={{ paddingLeft: `${indent}px` }}
+      >
+        {depth > 0 && (
+          <>
+            <span
+              aria-hidden="true"
+              className="outline-tree-connector absolute top-0 bottom-0 w-px bg-[#5b6c8a]/15"
+              style={{ left: `${connectorLeft}px` }}
+            />
+            <span
+              aria-hidden="true"
+              className="outline-tree-connector absolute top-1/2 h-px w-3 bg-[#5b6c8a]/20"
+              style={{ left: `${connectorLeft}px` }}
+            />
+          </>
+        )}
         {isBatchDeleting && (
           <input
             type="checkbox"
@@ -290,8 +312,17 @@ function KpNodeView({
             className="h-4 w-4 rounded border-[#1a1a2e]/20"
           />
         )}
-        <span className="text-[#1a1a2e]/30">{depth === 0 ? "📂" : "📄"}</span>
-        <span className="flex-1">{node.name}</span>
+        <span
+          className={`flex h-5 w-5 shrink-0 items-center justify-center ${depth === 0 ? "text-[#5b6c8a]" : "text-[#7f8fa6]"}`}
+          aria-hidden="true"
+        >
+          {depth === 0 ? (
+            <BookOpen className="h-[18px] w-[18px]" strokeWidth={2.2} />
+          ) : (
+            <Circle style={{ width: `${iconSize}px`, height: `${iconSize}px` }} strokeWidth={2.4} />
+          )}
+        </span>
+        <span className={`flex-1 ${depth === 0 ? "text-[#394255]" : "text-[#4f586b]"}`}>{node.name}</span>
         {!isBatchDeleting && (
           <>
             <button className="text-xs text-[#1a1a2e]/35 hover:text-[#e07a5f]" onClick={() => onAdd(node.id)}>新增子知识点</button>
