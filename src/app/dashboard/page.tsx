@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { isOverdue } from "@/lib/review-scheduler";
 import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
 import {
@@ -47,13 +46,26 @@ export default async function DashboardPage() {
     }),
     prisma.schedule.findMany({
       where: {
-        ...visibleScheduleWhere(user),
-        OR: [
-          { type: "fixed", dayOfWeek: today.getDay() },
-          { type: "flexible", date: { gte: today, lt: tomorrow } },
+        AND: [
+          visibleScheduleWhere(user),
+          { isActive: true },
+          {
+            OR: [
+              {
+                type: "fixed",
+                dayOfWeek: today.getDay(),
+                AND: [
+                  { OR: [{ startDate: null }, { startDate: { lte: today } }] },
+                  { OR: [{ endDate: null }, { endDate: { gte: today } }] },
+                ],
+              },
+              { type: "flexible", date: { gte: today, lt: tomorrow } },
+            ],
+          },
         ],
       },
       include: { student: true, course: true },
+      orderBy: { startTime: "asc" },
       take: 10,
     }),
   ]);
@@ -94,11 +106,7 @@ export default async function DashboardPage() {
             <div className="space-y-2">
               {pendingReviews.map((r) => (
                 <div key={r.id} className="flex items-center gap-2 text-sm border-b border-[#1a1a2e]/5 pb-2 last:border-0">
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                    isOverdue(r.nextReviewAt) ? "bg-[#e07a5f]/10 text-[#e07a5f]" : "bg-[#3d5a80]/10 text-[#3d5a80]"
-                  }`}>
-                    {isOverdue(r.nextReviewAt) ? "逾期" : "待复习"}
-                  </span>
+                  <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-[#3d5a80]/10 text-[#3d5a80]">待复习</span>
                   <span className="text-[#1a1a2e]/70">{r.weakPoint.student.name} — {r.weakPoint.description}</span>
                 </div>
               ))}
