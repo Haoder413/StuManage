@@ -170,3 +170,29 @@ REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-ma
 - `demo / demo123`
 
 正式上线前请登录后台修改默认密码。
+
+## 8. 补齐历史课程归属
+
+如果启用教师数据隔离后，历史课程因为 `createdById` 为空而未显示，可在服务器当前版本目录先预览课程归属推断结果：
+
+```bash
+cd /opt/student-management/current
+node scripts/backfill-course-ownership.mjs --workspace=default-real
+```
+
+脚本根据课程已绑定的有效学习关系、选课学生的创建老师和有效学习关系收集候选老师。如果这些历史数据都为空，但课程所在工作区只有一个普通老师，则使用该唯一老师作为安全兜底。只有候选老师唯一时才允许补齐；无法唯一判断时会显示 `SKIP`，不会自动修改。
+
+确认所有 `ASSIGN` 项目正确后执行：
+
+```bash
+node scripts/backfill-course-ownership.mjs --workspace=default-real --apply
+```
+
+也可以只处理指定课程：
+
+```bash
+node scripts/backfill-course-ownership.mjs --course=<课程ID>
+node scripts/backfill-course-ownership.mjs --course=<课程ID> --apply
+```
+
+执行 `--apply` 前应先确认 `/opt/student-management/backups` 中已有最新数据库备份。脚本只更新当前 `createdById` 为空且归属唯一的课程，不覆盖已有课程归属。
