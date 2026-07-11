@@ -9,6 +9,23 @@ import {
   visibleStudentWhere,
 } from "@/lib/teacher-visibility";
 
+function normalizeWeakPointDescription(description: string) {
+  return description.trim().replace(/\s+/g, " ").toLocaleLowerCase("zh-CN");
+}
+
+function dedupePendingReviews<
+  T extends { weakPoint: { student: { id: string }; description: string } },
+>(reviews: T[]) {
+  const seen = new Set<string>();
+
+  return reviews.filter((review) => {
+    const key = `${review.weakPoint.student.id}:${normalizeWeakPointDescription(review.weakPoint.description)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default async function DashboardPage() {
   const user = await requireTeacherLike();
   const today = new Date();
@@ -16,7 +33,7 @@ export default async function DashboardPage() {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const [studentCount, examCount, pendingReviews, todaySchedules] = await Promise.all([
+  const [studentCount, examCount, pendingReviewRows, todaySchedules] = await Promise.all([
     prisma.student.count({ where: visibleStudentWhere(user) }),
     prisma.exam.count({ where: visibleExamWhere(user) }),
     prisma.reviewSchedule.findMany({
@@ -27,7 +44,6 @@ export default async function DashboardPage() {
       },
       include: { weakPoint: { include: { student: true } } },
       orderBy: { nextReviewAt: "asc" },
-      take: 10,
     }),
     prisma.schedule.findMany({
       where: {
@@ -41,6 +57,7 @@ export default async function DashboardPage() {
       take: 10,
     }),
   ]);
+  const pendingReviews = dedupePendingReviews(pendingReviewRows).slice(0, 10);
 
   return (
     <div>
@@ -83,7 +100,6 @@ export default async function DashboardPage() {
                     {isOverdue(r.nextReviewAt) ? "逾期" : "待复习"}
                   </span>
                   <span className="text-[#1a1a2e]/70">{r.weakPoint.student.name} — {r.weakPoint.description}</span>
-                  <span className="text-xs text-[#1a1a2e]/30 ml-auto">第{r.stage}次</span>
                 </div>
               ))}
             </div>
