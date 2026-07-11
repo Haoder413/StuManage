@@ -8,8 +8,19 @@ function progressKey(studentId: string, knowledgePointId: string, learningLinkId
   return `${studentId}:${knowledgePointId}:${learningLinkId || "legacy"}`;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await requireTeacherLike();
+  const studentId = request.nextUrl.searchParams.get("studentId");
+  if (studentId) {
+    const visibleStudent = await prisma.student.findFirst({
+      where: visibleStudentByIdWhere(user, studentId),
+      select: { id: true },
+    });
+    if (!visibleStudent) {
+      return NextResponse.json({ error: "student not found" }, { status: 404 });
+    }
+  }
+  const studentWhere = studentId ? visibleStudentByIdWhere(user, studentId) : visibleStudentWhere(user);
   const teacherLinks = await prisma.learningLink.findMany({
     where: { workspaceId: user.workspaceId, teacherId: user.id, isActive: true },
     select: { id: true },
@@ -17,7 +28,7 @@ export async function GET() {
   const progress = await prisma.studentKpProgress.findMany({
     where: {
       workspaceId: user.workspaceId,
-      student: visibleStudentWhere(user),
+      student: studentWhere,
       ...(teacherSeesAllWorkspaceData(user)
         ? {}
         : {
@@ -27,22 +38,48 @@ export async function GET() {
             ],
           }),
     },
-    include: {
-      student: true,
-      knowledgePoint: { include: { course: { select: { id: true, name: true } } } },
+    select: {
+      id: true,
+      workspaceId: true,
+      learningLinkId: true,
+      studentId: true,
+      knowledgePointId: true,
+      status: true,
+      masteredAt: true,
+      updatedAt: true,
+      student: { select: { id: true, name: true, grade: true, lessonFrequency: true } },
+      knowledgePoint: {
+        select: {
+          id: true,
+          name: true,
+          parentId: true,
+          orderIndex: true,
+          courseId: true,
+          course: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 
   const progressKeys = new Set(progress.map((item) => progressKey(item.studentId, item.knowledgePointId, item.learningLinkId)));
   const studentsWithCourseKnowledge = await prisma.student.findMany({
-    where: visibleStudentWhere(user),
-    include: {
+    where: studentWhere,
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      lessonFrequency: true,
       studentCourses: {
         where: { status: "active" },
-        include: {
+        select: {
           course: {
-            include: {
-              knowledgePoints: { orderBy: [{ parentId: "asc" }, { orderIndex: "asc" }] },
+            select: {
+              id: true,
+              name: true,
+              knowledgePoints: {
+                select: { id: true, name: true, parentId: true, orderIndex: true, courseId: true },
+                orderBy: [{ parentId: "asc" }, { orderIndex: "asc" }],
+              },
             },
           },
         },
@@ -66,7 +103,7 @@ export async function GET() {
           student,
           knowledgePoint: {
             ...knowledgePoint,
-            course: studentCourse.course,
+            course: { id: studentCourse.course.id, name: studentCourse.course.name },
           },
         }))
     )

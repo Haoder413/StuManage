@@ -100,7 +100,7 @@ export default function StudentProgressDetailPage() {
       try {
         const [studentsRes, progressRes] = await Promise.all([
           fetch("/api/students"),
-          fetch("/api/progress"),
+          fetch(`/api/progress?studentId=${encodeURIComponent(studentId)}`),
         ]);
         const allStudents = studentsRes.ok ? await studentsRes.json() : [];
         const allProgress = progressRes.ok ? await progressRes.json() : [];
