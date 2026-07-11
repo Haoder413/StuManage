@@ -34,5 +34,15 @@ assert.doesNotMatch(
   /course:\s*studentCourse\.course/,
   "synthetic progress should not embed the full course knowledge point tree in every row",
 );
+assert.match(
+  page,
+  /Boolean\(b\.learningLinkId\)/,
+  "teacher progress detail should prefer linked progress over duplicate legacy rows",
+);
+assert.match(
+  route,
+  /findLearningLinkForTeacherStudent\([\s\S]*changedKnowledgePoint\.courseId/,
+  "progress updates should resolve the learning link for the knowledge point course",
+);
 
 console.log("Teacher progress detail loading checks passed.");

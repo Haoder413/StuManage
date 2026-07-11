@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { calculateAncestorProgressUpdates } from "../src/lib/knowledge-progress-tree";
+import {
+  buildEffectiveProgressStatuses,
+  calculateAncestorProgressUpdates,
+} from "../src/lib/knowledge-progress-tree";
 
 const points = [
   { id: "chapter", parentId: null },
@@ -31,3 +34,16 @@ assert.deepEqual(
 );
 
 console.log("Progress parent cascade checks passed.");
+
+assert.deepEqual(
+  buildEffectiveProgressStatuses(
+    [
+      { knowledgePointId: "leaf-a", status: "mastered", learningLinkId: null },
+      { knowledgePointId: "leaf-b", status: "mastered", learningLinkId: null },
+      { knowledgePointId: "leaf-b", status: "learning", learningLinkId: "current-link" },
+    ],
+    "current-link",
+  ),
+  { "leaf-a": "mastered", "leaf-b": "learning" },
+  "current learning-link progress should override legacy progress while preserving legacy-only siblings",
+);

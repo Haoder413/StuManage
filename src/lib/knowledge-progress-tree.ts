@@ -10,6 +10,30 @@ export type AncestorProgressUpdate = {
   status: KnowledgeProgressStatus;
 };
 
+export type StoredKnowledgeProgress = {
+  knowledgePointId: string;
+  status: string;
+  learningLinkId: string | null;
+};
+
+export function buildEffectiveProgressStatuses(
+  progress: StoredKnowledgeProgress[],
+  preferredLearningLinkId?: string | null,
+) {
+  const statuses: Record<string, string> = {};
+  const ordered = [...progress].sort((a, b) => {
+    const priority = (item: StoredKnowledgeProgress) => {
+      if (preferredLearningLinkId && item.learningLinkId === preferredLearningLinkId) return 2;
+      if (item.learningLinkId) return 1;
+      return 0;
+    };
+    return priority(a) - priority(b);
+  });
+
+  for (const item of ordered) statuses[item.knowledgePointId] = item.status;
+  return statuses;
+}
+
 export function calculateAncestorProgressUpdates(
   points: KnowledgePointParent[],
   statuses: Record<string, string>,

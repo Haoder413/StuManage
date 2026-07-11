@@ -40,18 +40,21 @@ export async function getTeacherLearningLinks(user: CurrentUser) {
   });
 }
 
-export async function findLearningLinkForTeacherStudent(user: CurrentUser, studentId: string) {
+export async function findLearningLinkForTeacherStudent(user: CurrentUser, studentId: string, courseId?: string | null) {
   if (!studentId) return null;
-  return prisma.learningLink.findFirst({
+  const links = await prisma.learningLink.findMany({
     where: {
       workspaceId: user.workspaceId,
       teacherId: user.id,
       studentId,
       isActive: true,
+      ...(courseId ? { OR: [{ courseId }, { courseId: null }] } : {}),
     },
     include: learningLinkInclude(),
     orderBy: { createdAt: "asc" },
   });
+  if (!courseId) return links[0] || null;
+  return links.find((link) => link.courseId === courseId) || links.find((link) => link.courseId === null) || null;
 }
 
 export async function findDefaultParentLearningLink(user: CurrentUser, studentId?: string | null) {

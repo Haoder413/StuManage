@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 import { teacherSeesAllWorkspaceData, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
-import { calculateAncestorProgressUpdates } from "@/lib/knowledge-progress-tree";
+import { buildEffectiveProgressStatuses, calculateAncestorProgressUpdates } from "@/lib/knowledge-progress-tree";
 
 function progressKey(studentId: string, knowledgePointId: string, learningLinkId: string | null) {
   return `${studentId}:${knowledgePointId}:${learningLinkId || "legacy"}`;
@@ -121,11 +121,22 @@ export async function POST(request: NextRequest) {
     select: { id: true },
   });
   if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });
+  const changedKnowledgePoint = await prisma.knowledgePoint.findFirst({
+    where: { id: String(data.knowledgePointId || ""), workspaceId: user.workspaceId },
+    select: { courseId: true },
+  });
+  if (!changedKnowledgePoint) {
+    return NextResponse.json({ error: "knowledge point not found" }, { status: 404 });
+  }
   const learningLink = data.learningLinkId
     ? user.role === "teacher"
       ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
       : await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
-    : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
+    : await findLearningLinkForTeacherStudent(
+        user,
+        String(data.studentId || ""),
+        changedKnowledgePoint.courseId,
+      );
   if (data.learningLinkId && !learningLink) {
     return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
   }
@@ -155,14 +166,6 @@ export async function POST(request: NextRequest) {
       masteredAt: requestedStatus === "mastered" ? new Date() : null,
       },
     });
-  const changedKnowledgePoint = await prisma.knowledgePoint.findFirst({
-    where: { id: String(data.knowledgePointId || ""), workspaceId: user.workspaceId },
-    select: { courseId: true },
-  });
-  if (!changedKnowledgePoint) {
-    return NextResponse.json({ error: "knowledge point not found" }, { status: 404 });
-  }
-
   const progressScope = learningLink
     ? { learningLinkId: learningLink.id }
     : { studentId: String(data.studentId || ""), learningLinkId: null };
@@ -172,11 +175,17 @@ export async function POST(request: NextRequest) {
       select: { id: true, parentId: true },
     }),
     prisma.studentKpProgress.findMany({
-      where: { workspaceId: user.workspaceId, ...progressScope },
-      select: { knowledgePointId: true, status: true },
+      where: {
+        workspaceId: user.workspaceId,
+        studentId: String(data.studentId || ""),
+        ...(learningLink
+          ? { OR: [{ learningLinkId: learningLink.id }, { learningLinkId: null }] }
+          : { learningLinkId: null }),
+      },
+      select: { knowledgePointId: true, status: true, learningLinkId: true },
     }),
   ]);
-  const statuses = Object.fromEntries(courseProgress.map((item) => [item.knowledgePointId, item.status]));
+  const statuses = buildEffectiveProgressStatuses(courseProgress, learningLink?.id || null);
   statuses[String(data.knowledgePointId)] = requestedStatus;
   const ancestorUpdates = calculateAncestorProgressUpdates(
     coursePoints,

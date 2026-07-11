@@ -107,7 +107,9 @@ export default function StudentProgressDetailPage() {
         const studentList: StudentData[] = Array.isArray(allStudents) ? allStudents : [];
         const progressList: any[] = Array.isArray(allProgress) ? allProgress : [];
         const found = studentList.find((s) => s.id === studentId) || null;
-        const studentProgress = progressList.filter((p: any) => p.studentId === studentId);
+        const studentProgress = progressList
+          .filter((p: any) => p.studentId === studentId)
+          .sort((a: any, b: any) => Number(Boolean(b.learningLinkId)) - Number(Boolean(a.learningLinkId)));
 
         const progressMap: Record<string, string> = {};
         const nodes: KPNode[] = [];
