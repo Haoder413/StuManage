@@ -13,6 +13,8 @@ const expectations = {
     "visibleStudentByIdWhere",
     "visibleCourseWhere",
     "visibleCourseByIdWhere",
+    "visibleExamWhere",
+    "visibleReviewScheduleWhere",
     "deletableCourseByIdWhere",
     "canDeleteCourse",
     "teacherSeesAllWorkspaceData",
@@ -20,6 +22,12 @@ const expectations = {
     "learningLinks",
     "teacherId: user.id",
     "isActive: true",
+  ],
+  "src/app/dashboard/page.tsx": [
+    "visibleStudentWhere",
+    "visibleExamWhere",
+    "visibleReviewScheduleWhere",
+    "visibleScheduleWhere",
   ],
   "src/app/api/students/route.ts": [
     "visibleStudentWhere",
@@ -94,6 +102,16 @@ const expectations = {
     "管理员绑定有效学习关系",
   ],
 };
+
+const visibilityHelper = readFileSync("src/lib/teacher-visibility.ts", "utf8");
+const visibleCourseFunction = visibilityHelper.match(
+  /export function visibleCourseWhere[\s\S]*?\n}\n\nexport function visibleCourseByIdWhere/,
+)?.[0] || "";
+
+if (/studentCourses:\s*{/.test(visibleCourseFunction)) {
+  console.error("visibleCourseWhere must not expose another teacher's course through a shared student");
+  process.exit(1);
+}
 
 const missing = [];
 

@@ -73,16 +73,55 @@ export function visibleCourseWhere(user: TeacherVisibilityUser): Prisma.CourseWh
           },
         },
       },
+    ],
+  };
+}
+
+export function visibleExamWhere(user: TeacherVisibilityUser): Prisma.ExamWhereInput {
+  if (teacherSeesAllWorkspaceData(user)) {
+    return { workspaceId: user.workspaceId };
+  }
+
+  return {
+    workspaceId: user.workspaceId,
+    OR: [
       {
-        studentCourses: {
-          some: {
-            workspaceId: user.workspaceId,
-            status: "active",
-            student: visibleStudentWhere(user),
-          },
+        learningLink: {
+          workspaceId: user.workspaceId,
+          teacherId: user.id,
+          isActive: true,
         },
       },
+      {
+        learningLinkId: null,
+        student: { workspaceId: user.workspaceId, createdById: user.id },
+      },
     ],
+  };
+}
+
+export function visibleReviewScheduleWhere(user: TeacherVisibilityUser): Prisma.ReviewScheduleWhereInput {
+  if (teacherSeesAllWorkspaceData(user)) {
+    return { workspaceId: user.workspaceId };
+  }
+
+  return {
+    workspaceId: user.workspaceId,
+    weakPoint: {
+      OR: [
+        {
+          learningLink: {
+            workspaceId: user.workspaceId,
+            teacherId: user.id,
+            isActive: true,
+          },
+        },
+        {
+          learningLinkId: null,
+          student: { workspaceId: user.workspaceId, createdById: user.id },
+        },
+      ],
+    },
   };
 }
 
@@ -117,8 +156,11 @@ export function visibleScheduleWhere(user: TeacherVisibilityUser): Prisma.Schedu
   return {
     workspaceId: user.workspaceId,
     OR: [
-      { student: visibleStudentWhere(user) },
       { course: visibleCourseWhere(user) },
+      {
+        courseId: null,
+        student: { workspaceId: user.workspaceId, createdById: user.id },
+      },
     ],
   };
 }

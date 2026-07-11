@@ -2,6 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { isOverdue } from "@/lib/review-scheduler";
 import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
+import {
+  visibleExamWhere,
+  visibleReviewScheduleWhere,
+  visibleScheduleWhere,
+  visibleStudentWhere,
+} from "@/lib/teacher-visibility";
 
 export default async function DashboardPage() {
   const user = await requireTeacherLike();
@@ -11,17 +17,21 @@ export default async function DashboardPage() {
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   const [studentCount, examCount, pendingReviews, todaySchedules] = await Promise.all([
-    prisma.student.count({ where: { workspaceId: user.workspaceId } }),
-    prisma.exam.count({ where: { workspaceId: user.workspaceId } }),
+    prisma.student.count({ where: visibleStudentWhere(user) }),
+    prisma.exam.count({ where: visibleExamWhere(user) }),
     prisma.reviewSchedule.findMany({
-      where: { workspaceId: user.workspaceId, status: "pending", nextReviewAt: { lte: new Date() } },
+      where: {
+        ...visibleReviewScheduleWhere(user),
+        status: "pending",
+        nextReviewAt: { lte: new Date() },
+      },
       include: { weakPoint: { include: { student: true } } },
       orderBy: { nextReviewAt: "asc" },
       take: 10,
     }),
     prisma.schedule.findMany({
       where: {
-        workspaceId: user.workspaceId,
+        ...visibleScheduleWhere(user),
         OR: [
           { type: "fixed", dayOfWeek: today.getDay() },
           { type: "flexible", date: { gte: today, lt: tomorrow } },
