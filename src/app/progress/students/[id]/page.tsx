@@ -184,12 +184,21 @@ export default function StudentProgressDetailPage() {
   }
 
   async function updateKpStatus(kpId: string, status: string) {
-    await fetch("/api/progress", {
+    const res = await fetch("/api/progress", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId, knowledgePointId: kpId, status }),
     });
-    setKpProgress((prev) => ({ ...prev, [kpId]: status }));
+    if (!res.ok) return;
+    const result = await res.json();
+    setKpProgress((prev) => {
+      const next = { ...prev, [kpId]: status };
+      const ancestorUpdates = Array.isArray(result.ancestorUpdates) ? result.ancestorUpdates : [];
+      ancestorUpdates.forEach((update: { knowledgePointId?: string; status?: string }) => {
+        if (update.knowledgePointId && update.status) next[update.knowledgePointId] = update.status;
+      });
+      return next;
+    });
   }
 
   async function addWeakPoint() {

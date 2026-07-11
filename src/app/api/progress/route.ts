@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 import { teacherSeesAllWorkspaceData, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
+import { calculateAncestorProgressUpdates } from "@/lib/knowledge-progress-tree";
 
 function progressKey(studentId: string, knowledgePointId: string, learningLinkId: string | null) {
   return `${studentId}:${knowledgePointId}:${learningLinkId || "legacy"}`;
@@ -154,5 +155,65 @@ export async function POST(request: NextRequest) {
       masteredAt: requestedStatus === "mastered" ? new Date() : null,
       },
     });
-  return NextResponse.json(progress, { status: 201 });
+  const changedKnowledgePoint = await prisma.knowledgePoint.findFirst({
+    where: { id: String(data.knowledgePointId || ""), workspaceId: user.workspaceId },
+    select: { courseId: true },
+  });
+  if (!changedKnowledgePoint) {
+    return NextResponse.json({ error: "knowledge point not found" }, { status: 404 });
+  }
+
+  const progressScope = learningLink
+    ? { learningLinkId: learningLink.id }
+    : { studentId: String(data.studentId || ""), learningLinkId: null };
+  const [coursePoints, courseProgress] = await Promise.all([
+    prisma.knowledgePoint.findMany({
+      where: { workspaceId: user.workspaceId, courseId: changedKnowledgePoint.courseId },
+      select: { id: true, parentId: true },
+    }),
+    prisma.studentKpProgress.findMany({
+      where: { workspaceId: user.workspaceId, ...progressScope },
+      select: { knowledgePointId: true, status: true },
+    }),
+  ]);
+  const statuses = Object.fromEntries(courseProgress.map((item) => [item.knowledgePointId, item.status]));
+  statuses[String(data.knowledgePointId)] = requestedStatus;
+  const ancestorUpdates = calculateAncestorProgressUpdates(
+    coursePoints,
+    statuses,
+    String(data.knowledgePointId),
+  );
+
+  for (const update of ancestorUpdates) {
+    const existingAncestor = await prisma.studentKpProgress.findFirst({
+      where: {
+        workspaceId: user.workspaceId,
+        knowledgePointId: update.knowledgePointId,
+        ...progressScope,
+      },
+      select: { id: true },
+    });
+    if (existingAncestor) {
+      await prisma.studentKpProgress.update({
+        where: { id: existingAncestor.id },
+        data: {
+          status: update.status,
+          masteredAt: update.status === "mastered" ? new Date() : null,
+        },
+      });
+    } else {
+      await prisma.studentKpProgress.create({
+        data: {
+          workspaceId: user.workspaceId,
+          learningLinkId: learningLink?.id || null,
+          studentId: learningLink?.studentId || String(data.studentId || ""),
+          knowledgePointId: update.knowledgePointId,
+          status: update.status,
+          masteredAt: update.status === "mastered" ? new Date() : null,
+        },
+      });
+    }
+  }
+
+  return NextResponse.json({ ...progress, ancestorUpdates }, { status: 201 });
 }
