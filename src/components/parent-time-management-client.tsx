@@ -136,6 +136,8 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
   const [showForm, setShowForm] = useState(false);
   const [showSubjectManager, setShowSubjectManager] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CalendarItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([]);
   const [editingSubjectName, setEditingSubjectName] = useState<string | null>(null);
   const [subjectDraft, setSubjectDraft] = useState("");
@@ -329,15 +331,16 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
 
   async function deletePersonalItem(item: CalendarItem) {
     if (item.kind !== "parent_item") return;
-    const message = item.seriesId ? "确定删除这一整组重复安排？" : "确定删除这个个人安排？";
-    if (!confirm(message)) return;
+    setDeleting(true);
     const response = await fetch(`/api/parent/schedule-items?id=${encodeURIComponent(item.id)}`, { method: "DELETE" });
     if (response.ok) {
       setItems((current) => current.filter((currentItem) => {
         if (currentItem.kind !== "parent_item") return true;
         return item.seriesId ? currentItem.seriesId !== item.seriesId : currentItem.id !== item.id;
       }));
+      setDeleteTarget(null);
     }
+    setDeleting(false);
   }
 
   function prev() {
@@ -499,7 +502,7 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
                     item={item}
                     selectedDate={selectedDate}
                     onEdit={() => openEditForm(item)}
-                    onDelete={() => item.kind === "parent_item" && deletePersonalItem(item)}
+                    onDelete={() => item.kind === "parent_item" && setDeleteTarget(item)}
                   />
                 ))}
               </div>
@@ -662,6 +665,35 @@ export function ParentTimeManagementClient({ title, learningLinks }: { title: st
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={deleteTarget?.kind === "parent_item"}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除个人安排</DialogTitle>
+            <DialogDescription className="pt-2 leading-6 text-gray-600">
+              {deleteTarget?.kind === "parent_item" && deleteTarget.seriesId
+                ? `确定删除「${deleteTarget.title}」这一整组重复安排吗？删除后无法恢复。`
+                : `确定删除「${deleteTarget?.title || "这个安排"}」吗？删除后无法恢复。`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>取消</Button>
+            <Button
+              variant="destructive"
+              className="bg-red-500 text-white shadow-sm hover:bg-red-600"
+              onClick={() => deleteTarget && deletePersonalItem(deleteTarget)}
+              disabled={!deleteTarget || deleting}
+            >
+              {deleting ? "删除中..." : "确认删除"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -705,9 +737,25 @@ function ScheduleDetail({
           </p>
         </div>
         {item.kind === "parent_item" && (
-          <div className="flex gap-1">
-            <button onClick={onEdit} className="text-[10px] text-gray-400 hover:text-blue-500">✎</button>
-            <button onClick={onDelete} className="text-[10px] text-gray-400 hover:text-red-500">✕</button>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onEdit}
+              className="h-8 border-blue-200 bg-blue-50 px-2.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-100 hover:text-blue-700"
+            >
+              修改
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={onDelete}
+              className="h-8 bg-red-500 px-2.5 text-xs font-semibold text-white shadow-sm hover:bg-red-600"
+            >
+              删除
+            </Button>
           </div>
         )}
       </div>
