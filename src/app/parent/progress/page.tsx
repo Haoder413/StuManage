@@ -139,13 +139,19 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
                 )}
               </ParentProgressSection>
 
-              <ParentProgressSection title="知识点进度" count={totalKps} defaultOpen={false}>
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full rounded-full bg-gradient-to-r from-green-400 to-green-500" style={{ width: `${progressPct}%` }} />
-                    </div>
+              <ParentProgressSection
+                title="知识点进度"
+                count={totalKps}
+                defaultOpen={false}
+                summary={(
+                  <span className="flex w-full items-center gap-3">
+                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+                      <span className="block h-full rounded-full bg-gradient-to-r from-green-400 to-green-500" style={{ width: `${progressPct}%` }} />
+                    </span>
                     <span className="text-xs text-gray-500">{masteredCount}/{totalKps}</span>
-                  </div>
+                  </span>
+                )}
+              >
 
                   {student.kpProgress.length === 0 ? (
                     <p className="py-8 text-center text-sm text-gray-400">暂无知识点数据</p>
