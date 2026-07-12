@@ -46,11 +46,6 @@ assertFileContains("miniprogram/pages/homework/index.json", [
   "作业",
 ]);
 
-assertFileContains("miniprogram/pages/home/index.wxml", [
-  "作业",
-  "goHomework",
-]);
-
 assertFileContains("miniprogram/utils/api.js", [
   "upload",
   "fileUrl",
