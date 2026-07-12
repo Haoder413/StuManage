@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { BookOpen, Circle } from "lucide-react";
 import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
 
@@ -92,6 +93,11 @@ export default function StudentProgressDetailPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagCategory, setNewTagCategory] = useState("");
+  const [editingHistoryWeakPoint, setEditingHistoryWeakPoint] = useState<WeakPoint | null>(null);
+  const [historyDescription, setHistoryDescription] = useState("");
+  const [historyReviewCount, setHistoryReviewCount] = useState("0");
+  const [deleteHistoryTarget, setDeleteHistoryTarget] = useState<WeakPoint | null>(null);
+  const [savingHistory, setSavingHistory] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +249,47 @@ export default function StudentProgressDetailPage() {
       body: JSON.stringify({ id: wpId, status: "active" }),
     });
     if (res.ok) await refreshWeakPoints();
+  }
+
+  function openHistoryEditor(weakPoint: WeakPoint) {
+    setEditingHistoryWeakPoint(weakPoint);
+    setHistoryDescription(weakPoint.description);
+    setHistoryReviewCount(String(weakPoint.reviewSchedules?.filter((schedule) => schedule.status === "completed").length || 0));
+  }
+
+  async function saveHistoryWeakPoint() {
+    if (!editingHistoryWeakPoint || !historyDescription.trim()) return;
+    const reviewCount = Number(historyReviewCount);
+    if (!Number.isInteger(reviewCount) || reviewCount < 0) return;
+    setSavingHistory(true);
+    const response = await fetch("/api/weak-points", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: editingHistoryWeakPoint.id,
+        manageHistory: true,
+        description: historyDescription.trim(),
+        reviewCount,
+      }),
+    });
+    if (response.ok) {
+      setEditingHistoryWeakPoint(null);
+      await refreshWeakPoints();
+    }
+    setSavingHistory(false);
+  }
+
+  async function deleteHistoryWeakPoint() {
+    if (!deleteHistoryTarget) return;
+    setSavingHistory(true);
+    const response = await fetch(`/api/weak-points?id=${encodeURIComponent(deleteHistoryTarget.id)}`, {
+      method: "DELETE",
+    });
+    if (response.ok) {
+      setDeleteHistoryTarget(null);
+      await refreshWeakPoints();
+    }
+    setSavingHistory(false);
   }
 
   function selectWeakPointTag(name: string) {
@@ -527,7 +574,11 @@ export default function StudentProgressDetailPage() {
                           {wp.status === "active" ? (
                             <Button size="sm" onClick={() => markWeakpointMastered(wp.id)}>已掌握</Button>
                           ) : (
-                            <Button size="sm" variant="outline" onClick={() => reactivateWeakPoint(wp.id)}>重新激活</Button>
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => reactivateWeakPoint(wp.id)}>重新激活</Button>
+                              <Button size="sm" variant="outline" onClick={() => openHistoryEditor(wp)}>修改</Button>
+                              <Button size="sm" variant="destructive" onClick={() => setDeleteHistoryTarget(wp)}>删除</Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -579,6 +630,55 @@ export default function StudentProgressDetailPage() {
                 ))
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editingHistoryWeakPoint)} onOpenChange={(open) => !open && !savingHistory && setEditingHistoryWeakPoint(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>修改历史薄弱点</DialogTitle>
+            <DialogDescription>可修改薄弱点内容和已完成的历史复习次数，仅影响教师端管理数据。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label className="text-xs text-gray-500">薄弱点内容</Label>
+              <Input value={historyDescription} onChange={(event) => setHistoryDescription(event.target.value)} maxLength={100} />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">历史复习次数</Label>
+              <Input
+                type="number"
+                min="0"
+                max="999"
+                step="1"
+                value={historyReviewCount}
+                onChange={(event) => setHistoryReviewCount(event.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setEditingHistoryWeakPoint(null)} disabled={savingHistory}>取消</Button>
+            <Button onClick={saveHistoryWeakPoint} disabled={savingHistory || !historyDescription.trim()}>
+              {savingHistory ? "保存中..." : "保存修改"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteHistoryTarget)} onOpenChange={(open) => !open && !savingHistory && setDeleteHistoryTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除历史薄弱点</DialogTitle>
+            <DialogDescription>
+              确定删除“{deleteHistoryTarget?.description || "这个薄弱点"}”及其全部复习记录吗？删除后无法恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteHistoryTarget(null)} disabled={savingHistory}>取消</Button>
+            <Button variant="destructive" onClick={deleteHistoryWeakPoint} disabled={savingHistory}>
+              {savingHistory ? "删除中..." : "确认删除"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
