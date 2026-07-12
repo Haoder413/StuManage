@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
 
 const DAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"];
 const MONTH_NAMES = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
@@ -536,14 +537,22 @@ export default function SchedulePage() {
           (a, b) => Number(Boolean(b.learningLinkId)) - Number(Boolean(a.learningLinkId))
         )[0])
         .sort(compareKnowledgePointProgress);
-      setReviewKnowledgePoints(effectiveProgress);
+      const consistentStatuses = calculateConsistentProgressStatuses(
+        effectiveProgress.map((item) => ({ id: item.knowledgePointId, parentId: item.knowledgePoint.parentId })),
+        Object.fromEntries(effectiveProgress.map((item) => [item.knowledgePointId, item.status])),
+      );
+      const consistentProgress = effectiveProgress.map((item) => ({
+        ...item,
+        status: consistentStatuses[item.knowledgePointId] || "learning",
+      }));
+      setReviewKnowledgePoints(consistentProgress);
       setExistingMasteredKnowledgePointIds(
-        effectiveProgress
+        consistentProgress
           .filter((item) => item.status === "mastered")
           .map((item) => item.knowledgePointId)
       );
       setExpandedKnowledgePointIds(
-        buildKnowledgePointProgressTree(effectiveProgress)
+        buildKnowledgePointProgressTree(consistentProgress)
           .flatMap((course) => course.children.map((point) => point.knowledgePointId))
       );
     } catch {

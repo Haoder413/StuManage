@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
 import { getParentLearningLinks } from "@/lib/learning-links";
 
 function formatLocalCalendarDate(date: Date) {
@@ -137,11 +138,25 @@ export function withSyntheticKnowledgeProgress<
     });
   });
 
+  const progressItems = [...progressByKnowledgePoint.values()];
+  const consistentStatuses = calculateConsistentProgressStatuses(
+    progressItems.map((progress) => ({
+      id: progress.knowledgePointId,
+      parentId: progress.knowledgePoint.parentId,
+    })),
+    Object.fromEntries(progressItems.map((progress) => [progress.knowledgePointId, progress.status])),
+  );
+
   return {
     ...item,
     student: {
       ...item.student,
-      kpProgress: [...progressByKnowledgePoint.values()].sort(compareParentKnowledgeProgress),
+      kpProgress: progressItems
+        .map((progress) => ({
+          ...progress,
+          status: consistentStatuses[progress.knowledgePointId] || "learning",
+        }))
+        .sort(compareParentKnowledgeProgress),
     },
   } as T;
 }

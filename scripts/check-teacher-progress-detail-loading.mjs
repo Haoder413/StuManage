@@ -13,6 +13,11 @@ assert.match(
   /fetch\(`\/api\/progress\?studentId=\$\{encodeURIComponent\(studentId\)\}`\)/,
   "teacher progress detail should request progress for only the current student",
 );
+assert.match(
+  page,
+  /calculateConsistentProgressStatuses/,
+  "teacher progress detail should derive parent status from child status on load",
+);
 assert.match(route, /export async function GET\(request: NextRequest\)/, "progress GET should accept the request query");
 assert.match(
   route,

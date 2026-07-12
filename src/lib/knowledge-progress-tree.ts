@@ -34,6 +34,40 @@ export function buildEffectiveProgressStatuses(
   return statuses;
 }
 
+export function calculateConsistentProgressStatuses(
+  points: KnowledgePointParent[],
+  statuses: Record<string, string>,
+) {
+  const childrenByParentId = new Map<string, string[]>();
+  const pointIds = new Set(points.map((point) => point.id));
+  const result: Record<string, string> = {};
+  const visiting = new Set<string>();
+
+  for (const point of points) {
+    if (!point.parentId || !pointIds.has(point.parentId)) continue;
+    childrenByParentId.set(point.parentId, [
+      ...(childrenByParentId.get(point.parentId) || []),
+      point.id,
+    ]);
+  }
+
+  const resolveStatus = (knowledgePointId: string): string => {
+    if (result[knowledgePointId]) return result[knowledgePointId];
+    if (visiting.has(knowledgePointId)) return statuses[knowledgePointId] === "mastered" ? "mastered" : "learning";
+    visiting.add(knowledgePointId);
+    const childIds = childrenByParentId.get(knowledgePointId) || [];
+    const status = childIds.length > 0
+      ? childIds.every((childId) => resolveStatus(childId) === "mastered") ? "mastered" : "learning"
+      : statuses[knowledgePointId] === "mastered" ? "mastered" : "learning";
+    visiting.delete(knowledgePointId);
+    result[knowledgePointId] = status;
+    return status;
+  };
+
+  for (const point of points) resolveStatus(point.id);
+  return result;
+}
+
 export function calculateAncestorProgressUpdates(
   points: KnowledgePointParent[],
   statuses: Record<string, string>,

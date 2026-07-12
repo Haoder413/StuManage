@@ -9,6 +9,7 @@ const files = {
     "reviewSchedules",
     "dedupeWeakPoints",
     "withSyntheticKnowledgeProgress",
+    "calculateConsistentProgressStatuses",
     "progressKey",
     "status: \"learning\"",
   ],

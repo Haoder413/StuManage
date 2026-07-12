@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { BookOpen, Circle } from "lucide-react";
+import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
 
 interface KPNode {
   id: string;
@@ -137,7 +138,10 @@ export default function StudentProgressDetailPage() {
 
         if (!cancelled) {
           setStudent(found);
-          setKpProgress(progressMap);
+          setKpProgress(calculateConsistentProgressStatuses(
+            nodes.map((node) => ({ id: node.id, parentId: node.parentId })),
+            progressMap,
+          ));
           setKpTree(buildKpTree(nodes));
           setWeakPoints(activeWeakPoints);
           setHistoryWeakPoints(historyPoints);

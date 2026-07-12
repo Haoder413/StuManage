@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   buildEffectiveProgressStatuses,
   calculateAncestorProgressUpdates,
+  calculateConsistentProgressStatuses,
 } from "../src/lib/knowledge-progress-tree";
 
 const points = [
@@ -18,6 +19,15 @@ assert.deepEqual(
     { knowledgePointId: "chapter", status: "mastered" },
   ],
   "all completed children should recursively complete every ancestor",
+);
+
+assert.deepEqual(
+  calculateConsistentProgressStatuses(
+    points,
+    { chapter: "learning", topic: "learning", "leaf-a": "mastered", "leaf-b": "mastered" },
+  ),
+  { chapter: "mastered", topic: "mastered", "leaf-a": "mastered", "leaf-b": "mastered" },
+  "stale parent rows should be derived from completed children on every load",
 );
 
 assert.deepEqual(
