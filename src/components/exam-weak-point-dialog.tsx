@@ -4,18 +4,14 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-
-export interface ExamWeakPointTag {
-  id: string;
-  name: string;
-  category: string | null;
-}
+import type { WeakPointTag } from "@/hooks/use-weak-point-tags";
 
 export function ExamWeakPointDialog({
   open,
   title,
   description,
   weakPointTags,
+  weakPointTagsLoading,
   onClose,
   onCreateTag,
   onSubmit,
@@ -24,9 +20,10 @@ export function ExamWeakPointDialog({
   open: boolean;
   title: string;
   description: string;
-  weakPointTags: ExamWeakPointTag[];
+  weakPointTags: WeakPointTag[];
+  weakPointTagsLoading: boolean;
   onClose: () => void;
-  onCreateTag: (name: string) => Promise<ExamWeakPointTag | null>;
+  onCreateTag: (name: string) => Promise<WeakPointTag | null>;
   onSubmit: (weakPointDescriptions: string[]) => Promise<void>;
   submitLabel?: string;
 }) {
@@ -75,7 +72,7 @@ export function ExamWeakPointDialog({
         <div className="space-y-3">
           <p className="text-sm font-semibold text-gray-500">薄弱点</p>
           <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-            <Button type="button" variant="outline" className="h-12 text-base font-semibold text-gray-600" onClick={addSearchTag}>
+            <Button type="button" variant="outline" className="h-12 text-base font-semibold text-gray-600" onClick={addSearchTag} disabled={weakPointTagsLoading}>
               新增标签
             </Button>
             <Input
@@ -100,7 +97,9 @@ export function ExamWeakPointDialog({
           </div>
 
           <div className="max-h-40 overflow-auto rounded-lg border bg-gray-50 p-2">
-            {filteredTags.length === 0 ? (
+            {weakPointTagsLoading ? (
+              <p className="px-2 py-4 text-center text-sm text-gray-400">标签加载中...</p>
+            ) : filteredTags.length === 0 ? (
               <p className="px-2 py-4 text-center text-sm text-gray-400">暂无匹配标签</p>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -124,7 +123,7 @@ export function ExamWeakPointDialog({
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>取消</Button>
-          <Button type="button" onClick={submit} disabled={saving}>
+          <Button type="button" onClick={submit} disabled={saving || weakPointTagsLoading}>
             {saving ? "保存中..." : submitLabel}
           </Button>
         </div>

@@ -4,8 +4,9 @@ import { getParentLearningData } from "@/lib/parent-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ParentKnowledgeProgressTree } from "./parent-knowledge-progress-tree";
 import { ParentProgressSection } from "./parent-progress-section";
+import { filterWeakPointsByStatus, getWeakPointStatusCounts, type WeakPointStatusFilter } from "@/lib/weak-points";
 
-type ReviewFilter = "all" | "pending" | "mastered";
+type ReviewFilter = WeakPointStatusFilter;
 
 export default async function ParentProgressPage({ searchParams }: { searchParams?: { link?: string; review?: string } }) {
   const user = await requireParent();
@@ -56,14 +57,13 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
           const masteredCount = student.kpProgress.filter((item) => item.status === "mastered").length;
           const learningCount = student.kpProgress.filter((item) => item.status === "learning").length;
           const progressPct = totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0;
-          const pendingWeakPoints = student.weakPoints.filter((point) => point.status === "active");
-          const masteredWeakPoints = student.weakPoints.filter((point) => point.status !== "active");
+          const weakPointCounts = getWeakPointStatusCounts(student.weakPoints);
           const reviewFilters = [
-            { key: "all" as const, label: "全部", count: student.weakPoints.length },
-            { key: "pending" as const, label: "待复习", count: pendingWeakPoints.length },
-            { key: "mastered" as const, label: "已掌握", count: masteredWeakPoints.length },
+            { key: "all" as const, label: "全部", count: weakPointCounts.all },
+            { key: "pending" as const, label: "待复习", count: weakPointCounts.pending },
+            { key: "mastered" as const, label: "已掌握", count: weakPointCounts.mastered },
           ];
-          const filteredWeakPoints = filterWeakPoints(student.weakPoints, activeReviewFilter);
+          const filteredWeakPoints = filterWeakPointsByStatus(student.weakPoints, activeReviewFilter);
 
           return (
             <section key={student.id} className="space-y-4">
@@ -182,12 +182,6 @@ export default async function ParentProgressPage({ searchParams }: { searchParam
 function getReviewFilter(value?: string): ReviewFilter {
   if (value === "pending" || value === "mastered") return value;
   return "all";
-}
-
-function filterWeakPoints<T extends { status: string; reviewSchedules: { status: string }[] }>(weakPoints: T[], filter: ReviewFilter) {
-  if (filter === "pending") return weakPoints.filter((point) => point.status === "active");
-  if (filter === "mastered") return weakPoints.filter((point) => point.status !== "active");
-  return weakPoints;
 }
 
 function StatCard({ title, value, tone }: { title: string; value: string; tone?: "green" | "blue" | "orange" }) {

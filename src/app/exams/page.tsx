@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ExamWeakPointDialog, type ExamWeakPointTag } from "@/components/exam-weak-point-dialog";
+import { ExamWeakPointDialog } from "@/components/exam-weak-point-dialog";
+import { useWeakPointTags } from "@/hooks/use-weak-point-tags";
 
 interface Exam {
   id: string;
@@ -42,7 +43,7 @@ interface Student {
 export default function ExamsPage() {
   const [studentStats, setStudentStats] = useState<StudentStats[]>([]);
   const [pendingExams, setPendingExams] = useState<Exam[]>([]);
-  const [weakPointTags, setWeakPointTags] = useState<ExamWeakPointTag[]>([]);
+  const { weakPointTags, weakPointTagsLoading, createWeakPointTag } = useWeakPointTags();
   const [reviewTarget, setReviewTarget] = useState<{ exam: Exam; action: "approve" | "reject" } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,11 +52,9 @@ export default function ExamsPage() {
       fetch("/api/students").then(r => r.json()),
       fetch("/api/exams?groupBy=student").then(r => r.json()),
       fetch("/api/exams?reviewStatus=pending_review").then(r => r.json()),
-      fetch("/api/weak-point-tags").then(r => r.json()).catch(() => []),
     ])
-      .then(([students, exams, pending, tags]: [Student[], Exam[], Exam[], ExamWeakPointTag[]]) => {
+      .then(([students, exams, pending]: [Student[], Exam[], Exam[]]) => {
         setPendingExams(pending);
-        setWeakPointTags(tags);
         const grouped: Record<string, Exam[]> = {};
         exams.forEach(e => {
           if (!grouped[e.studentId]) grouped[e.studentId] = [];
@@ -105,23 +104,6 @@ export default function ExamsPage() {
       setPendingExams((current) => current.filter((exam) => exam.id !== examId));
       setReviewTarget(null);
     }
-  }
-
-  async function createWeakPointTag(name: string) {
-    const cleanName = name.trim();
-    if (!cleanName) return null;
-    const existing = weakPointTags.find((tag) => tag.name === cleanName);
-    if (existing) return existing;
-
-    const res = await fetch("/api/weak-point-tags", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: cleanName, category: null }),
-    });
-    if (!res.ok) return null;
-    const created = await res.json();
-    setWeakPointTags((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
-    return created as ExamWeakPointTag;
   }
 
   if (loading) return <div className="p-6"><PageHeader title="成绩管理" description="加载中..." /></div>;
@@ -199,6 +181,7 @@ export default function ExamsPage() {
         title="通过成绩审核"
         description={reviewTarget ? `${reviewTarget.exam.student.name} · ${reviewTarget.exam.name} · ${reviewTarget.exam.score}/${reviewTarget.exam.totalScore}` : ""}
         weakPointTags={weakPointTags}
+        weakPointTagsLoading={weakPointTagsLoading}
         onClose={() => setReviewTarget(null)}
         onCreateTag={createWeakPointTag}
         onSubmit={(weakPointDescriptions) => reviewTarget ? reviewExam(reviewTarget.exam.id, "approve", weakPointDescriptions, "") : Promise.resolve()}

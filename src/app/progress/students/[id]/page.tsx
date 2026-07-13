@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Circle } from "lucide-react";
 import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
+import { filterWeakPointsByStatus, getWeakPointStatusCounts } from "@/lib/weak-points";
 
 interface KPNode {
   id: string;
@@ -331,7 +332,7 @@ export default function StudentProgressDetailPage() {
     });
     return merged;
   })();
-  const pendingReviewCount = weakPoints.length;
+  const weakPointCounts = getWeakPointStatusCounts(allReviewWeakPoints);
 
   const tabs = [
     { key: "knowledge" as const, label: "📖 知识点进度", count: totalKps },
@@ -339,16 +340,12 @@ export default function StudentProgressDetailPage() {
   ];
 
   const reviewFilters = [
-    { key: "all" as const, label: "全部", count: allReviewWeakPoints.length },
-    { key: "pending" as const, label: "待复习", count: pendingReviewCount },
-    { key: "mastered" as const, label: "已掌握", count: historyWeakPoints.length },
+    { key: "all" as const, label: "全部", count: weakPointCounts.all },
+    { key: "pending" as const, label: "待复习", count: weakPointCounts.pending },
+    { key: "mastered" as const, label: "已掌握", count: weakPointCounts.mastered },
   ];
 
-  const filteredWeakPoints = allReviewWeakPoints.filter((wp) => {
-    if (reviewFilter === "pending") return wp.status === "active";
-    if (reviewFilter === "mastered") return wp.status !== "active";
-    return true;
-  }).sort((a, b) => {
+  const filteredWeakPoints = filterWeakPointsByStatus(allReviewWeakPoints, reviewFilter).sort((a, b) => {
     if (a.status === "active" && b.status !== "active") return -1;
     if (a.status !== "active" && b.status === "active") return 1;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();

@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { ExamWeakPointDialog, type ExamWeakPointTag } from "@/components/exam-weak-point-dialog";
+import { ExamWeakPointDialog } from "@/components/exam-weak-point-dialog";
+import { useWeakPointTags } from "@/hooks/use-weak-point-tags";
 
 export default function NewExamPage() {
   const router = useRouter();
@@ -16,7 +17,7 @@ export default function NewExamPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [type, setType] = useState("quiz");
   const [scores, setScores] = useState<Record<string, { score: string; total: string }>>({});
-  const [weakPointTags, setWeakPointTags] = useState<ExamWeakPointTag[]>([]);
+  const { weakPointTags, weakPointTagsLoading, createWeakPointTag } = useWeakPointTags();
   const [pendingSubmit, setPendingSubmit] = useState<{
     name: string;
     type: string;
@@ -26,7 +27,6 @@ export default function NewExamPage() {
 
   useEffect(() => {
     fetch("/api/students").then((r) => r.json()).then(setStudents);
-    fetch("/api/weak-point-tags").then((r) => r.json()).then(setWeakPointTags).catch(() => setWeakPointTags([]));
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -72,22 +72,6 @@ export default function NewExamPage() {
       ...prev,
       [studentId]: { ...prev[studentId] || { score: "", total: "100" }, [field]: value },
     }));
-  }
-
-  async function createWeakPointTag(name: string) {
-    const cleanName = name.trim();
-    if (!cleanName) return null;
-    const existing = weakPointTags.find((tag) => tag.name === cleanName);
-    if (existing) return existing;
-    const res = await fetch("/api/weak-point-tags", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: cleanName, category: null }),
-    });
-    if (!res.ok) return null;
-    const created = await res.json();
-    setWeakPointTags((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
-    return created as ExamWeakPointTag;
   }
 
   return (
@@ -170,6 +154,7 @@ export default function NewExamPage() {
         title="保存成绩"
         description={pendingSubmit ? `${pendingSubmit.name} · ${Object.values(pendingSubmit.scores).filter((item) => item?.score).length} 名学生` : ""}
         weakPointTags={weakPointTags}
+        weakPointTagsLoading={weakPointTagsLoading}
         onClose={() => setPendingSubmit(null)}
         onCreateTag={createWeakPointTag}
         onSubmit={savePendingExam}

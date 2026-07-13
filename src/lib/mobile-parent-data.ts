@@ -1,6 +1,7 @@
 import { getParentStudents, parseTags } from "@/lib/parent-data";
 import { prisma } from "@/lib/prisma";
 import { canAccessResource, getVisibleResourceWhere } from "@/lib/resource-access";
+import { getWeakPointStatusCounts } from "@/lib/weak-points";
 
 type MobileParentUser = {
   id: string;
@@ -127,17 +128,16 @@ export async function getMobileParentProgress(user: MobileParentUser) {
       const totalKps = student.kpProgress.length;
       const masteredCount = student.kpProgress.filter((item) => item.status === "mastered").length;
       const learningCount = Math.max(totalKps - masteredCount, 0);
-      const activeWeakPoints = student.weakPoints.filter((point) => point.status === "active");
-      const masteredWeakPoints = student.weakPoints.filter((point) => point.status !== "active");
+      const weakPointCounts = getWeakPointStatusCounts(student.weakPoints);
       return {
         id: student.id,
         name: student.name,
         totalKps,
         masteredCount,
         learningCount,
-        currentWeakPointCount: activeWeakPoints.length,
-        pendingWeakPointCount: activeWeakPoints.length,
-        masteredWeakPointCount: masteredWeakPoints.length,
+        currentWeakPointCount: weakPointCounts.pending,
+        pendingWeakPointCount: weakPointCounts.pending,
+        masteredWeakPointCount: weakPointCounts.mastered,
         progressPercent: totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0,
         knowledgePoints: student.kpProgress.map((item) => ({
           id: item.id,

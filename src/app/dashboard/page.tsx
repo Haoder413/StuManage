@@ -7,10 +7,7 @@ import {
   visibleScheduleWhere,
   visibleStudentWhere,
 } from "@/lib/teacher-visibility";
-
-function normalizeWeakPointDescription(description: string) {
-  return description.trim().replace(/\s+/g, " ").toLocaleLowerCase("zh-CN");
-}
+import { weakPointDescriptionKey } from "@/lib/weak-points";
 
 function dedupePendingReviews<
   T extends { weakPoint: { student: { id: string }; description: string } },
@@ -18,7 +15,7 @@ function dedupePendingReviews<
   const seen = new Set<string>();
 
   return reviews.filter((review) => {
-    const key = `${review.weakPoint.student.id}:${normalizeWeakPointDescription(review.weakPoint.description)}`;
+    const key = `${review.weakPoint.student.id}:${weakPointDescriptionKey(review.weakPoint.description)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

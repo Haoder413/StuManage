@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
 import { getParentLearningLinks } from "@/lib/learning-links";
+import { dedupeWeakPoints } from "@/lib/weak-points";
 
 function formatLocalCalendarDate(date: Date) {
   const year = date.getFullYear();
@@ -52,10 +53,6 @@ export function dedupeAttendanceRecords<T extends {
   }
 
   return [...byLesson.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
-}
-
-function normalizeWeakPointDescription(description: string) {
-  return description.trim().replace(/\s+/g, " ");
 }
 
 type ParentKnowledgePoint = {
@@ -159,32 +156,6 @@ export function withSyntheticKnowledgeProgress<
         .sort(compareParentKnowledgeProgress),
     },
   } as T;
-}
-
-export function dedupeWeakPoints<T extends {
-  description: string;
-  createdAt: Date;
-  reviewSchedules: { status: string; lastReviewedAt: Date | null; createdAt: Date }[];
-}>(weakPoints: T[]) {
-  const byDescription = new Map<string, T & { reviewSchedules: T["reviewSchedules"] }>();
-
-  for (const weakPoint of weakPoints) {
-    const key = normalizeWeakPointDescription(weakPoint.description);
-    const existing = byDescription.get(key);
-    if (!existing) {
-      byDescription.set(key, { ...weakPoint, reviewSchedules: [...weakPoint.reviewSchedules] });
-      continue;
-    }
-
-    existing.reviewSchedules = [...existing.reviewSchedules, ...weakPoint.reviewSchedules]
-      .sort((a, b) => {
-        const aTime = (a.lastReviewedAt || a.createdAt).getTime();
-        const bTime = (b.lastReviewedAt || b.createdAt).getTime();
-        return bTime - aTime;
-      });
-  }
-
-  return [...byDescription.values()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export async function getParentStudents(user: { id: string; workspaceId: string }) {

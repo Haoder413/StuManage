@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const routeSource = readFileSync("src/app/api/weak-points/route.ts", "utf8");
+const reuseSource = readFileSync("src/lib/weak-point-reuse.ts", "utf8");
 const pageSource = readFileSync("src/app/progress/students/[id]/page.tsx", "utf8");
 
 assert.match(routeSource, /statusParam === "history" \? { not: "active" } : "active"/, "weak point list should default to active items and support history");
 assert.match(routeSource, /statusParam === "history"/, "weak point API should support loading historical weak points");
-assert.match(routeSource, /reviewSchedules:\s*{\s*create:\s*{[\s\S]*stage:\s*1[\s\S]*nextReviewAt:\s*getTodayReviewDate\(\)[\s\S]*status:\s*"pending"/, "creating a weak point should create a pending review due today");
+assert.match(routeSource, /ensureWeakPointReview/, "manual creation should use the shared weak-point lifecycle");
+assert.match(reuseSource, /reviewSchedules:\s*{\s*create:\s*{[\s\S]*stage:\s*1[\s\S]*nextReviewAt:\s*getTodayReviewDate\(\)[\s\S]*status:\s*"pending"/, "creating a weak point should create a pending review due today");
 assert.match(routeSource, /data\.status === "mastered"[\s\S]*reviewSchedule\.updateMany/s, "marking a weak point mastered should close pending reviews");
 assert.match(routeSource, /data\.status === "active"[\s\S]*masteredAt:\s*null/s, "mastered weak points should be reactivatable");
 assert.match(pageSource, /if \(res\.ok\) await refreshWeakPoints\(\)/, "weak point mastered action should refresh only after a successful response");

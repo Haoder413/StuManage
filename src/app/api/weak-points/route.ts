@@ -4,25 +4,8 @@ import { getTodayReviewDate } from "@/lib/review-scheduler";
 import { requireTeacherLike } from "@/lib/auth";
 import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
 import { visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
-
-function normalizeDescription(value: unknown) {
-  return String(value || "").trim().replace(/\s+/g, " ");
-}
-
-function dedupeWeakPointsForResponse<T extends { description: string; reviewSchedules: any[]; createdAt: Date }>(weakPoints: T[]) {
-  const byDescription = new Map<string, T>();
-  for (const weakPoint of weakPoints) {
-    const key = normalizeDescription(weakPoint.description);
-    const existing = byDescription.get(key);
-    if (!existing) {
-      byDescription.set(key, weakPoint);
-      continue;
-    }
-    existing.reviewSchedules = [...existing.reviewSchedules, ...weakPoint.reviewSchedules]
-      .sort((a, b) => new Date(b.lastReviewedAt || b.createdAt).getTime() - new Date(a.lastReviewedAt || a.createdAt).getTime());
-  }
-  return [...byDescription.values()];
-}
+import { dedupeWeakPoints, normalizeWeakPointDescription } from "@/lib/weak-points";
+import { ensureWeakPointReview } from "@/lib/weak-point-reuse";
 
 async function findHistoryWeakPointGroup(user: { workspaceId: string; id: string; role: string }, id: string) {
   const selected = await prisma.weakPoint.findFirst({
@@ -45,11 +28,11 @@ async function findHistoryWeakPointGroup(user: { workspaceId: string; id: string
     },
     select: { id: true, description: true },
   });
-  const normalizedDescription = normalizeDescription(selected.description);
+  const normalizedDescription = normalizeWeakPointDescription(selected.description);
   return {
     selected,
     ids: candidates
-      .filter((point) => normalizeDescription(point.description) === normalizedDescription)
+      .filter((point) => normalizeWeakPointDescription(point.description) === normalizedDescription)
       .map((point) => point.id),
   };
 }
@@ -71,7 +54,7 @@ export async function GET(request: NextRequest) {
     },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json(dedupeWeakPointsForResponse(weakPoints));
+  return NextResponse.json(dedupeWeakPoints(weakPoints));
 }
 
 export async function POST(request: NextRequest) {
@@ -87,79 +70,38 @@ export async function POST(request: NextRequest) {
       ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
       : await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
     : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
-  const description = normalizeDescription(data.description);
+  if (data.learningLinkId && !learningLink) {
+    return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
+  }
+  if (learningLink && learningLink.studentId !== student.id) {
+    return NextResponse.json({ error: "learning link student mismatch" }, { status: 400 });
+  }
+  const description = normalizeWeakPointDescription(data.description);
   if (!description) return NextResponse.json({ error: "description required" }, { status: 400 });
 
-  const existing = await prisma.weakPoint.findFirst({
-    where: {
-      workspaceId: user.workspaceId,
-      studentId: data.studentId,
-      student: visibleStudentWhere(user),
-      description,
-    },
-    include: {
-      reviewSchedules: {
-        where: { status: "pending" },
-        orderBy: { nextReviewAt: "asc" },
-        take: 1,
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (existing) {
-    if (existing.status !== "active") {
-      await prisma.weakPoint.update({
-        where: { id: existing.id },
-        data: { status: "active", masteredAt: null, learningLinkId: existing.learningLinkId || learningLink?.id || null },
-      });
-    }
-    if (!existing.reviewSchedules[0]) {
-      await prisma.reviewSchedule.create({
-        data: {
-          workspaceId: user.workspaceId,
-          weakPointId: existing.id,
-          stage: 1,
-          nextReviewAt: getTodayReviewDate(),
-          status: "pending",
-        },
-      });
-    }
-    const weakPoint = await prisma.weakPoint.findUnique({
-      where: { id: existing.id },
-      include: { reviewSchedules: { orderBy: { nextReviewAt: "asc" } } },
-    });
-    return NextResponse.json(weakPoint, { status: 200 });
-  }
-
-  const weakPoint = await prisma.weakPoint.create({
-    data: {
+  const weakPoint = await prisma.$transaction(async (tx) => {
+    const result = await ensureWeakPointReview({
+      tx,
       workspaceId: user.workspaceId,
       learningLinkId: learningLink?.id || null,
-      studentId: data.studentId,
+      studentId: student.id,
       knowledgePointId: data.knowledgePointId || null,
       description,
-      reviewSchedules: {
-        create: {
-          workspaceId: user.workspaceId,
-          stage: 1,
-          nextReviewAt: getTodayReviewDate(),
-          status: "pending",
-        },
-      },
-    },
-    include: {
-      reviewSchedules: { orderBy: { stage: "asc" } },
-    },
+    });
+    const record = await tx.weakPoint.findUnique({
+      where: { id: result.id },
+      include: { reviewSchedules: { orderBy: { nextReviewAt: "asc" } } },
+    });
+    return { record, created: result.created };
   });
-  return NextResponse.json(weakPoint, { status: 201 });
+  return NextResponse.json(weakPoint.record, { status: weakPoint.created ? 201 : 200 });
 }
 
 export async function PATCH(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
   if (data.manageHistory) {
-    const description = normalizeDescription(data.description);
+    const description = normalizeWeakPointDescription(data.description);
     const reviewCount = Number(data.reviewCount);
     if (!description) return NextResponse.json({ error: "description required" }, { status: 400 });
     if (!Number.isInteger(reviewCount) || reviewCount < 0 || reviewCount > 999) {

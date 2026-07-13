@@ -9,7 +9,7 @@ assert.match(helper, /export async function applyExamWeakPoints/, "shared helper
 assert.match(helper, /status: "active"/, "helper should reuse active weak points");
 assert.match(helper, /reviewSchedules:\s*\{\s*[\s\S]*where:\s*\{\s*status: "pending"/s, "helper should inspect pending review schedules before creating one");
 assert.match(helper, /findFirst/, "helper should look for an existing same-name weak point before creating");
-assert.match(helper, /if \(pendingSchedule\) continue;/, "helper should not duplicate pending review schedules");
+assert.match(helper, /if \(!existing\.reviewSchedules\[0\]\)/, "helper should not duplicate pending review schedules");
 assert.match(helper, /tx\.weakPoint\.create/, "helper should create a new weak point when no unfinished one exists");
 assert.match(helper, /getTodayReviewDate\(\)/, "new weak points should create a due-today pending review");
 assert.match(helper, /masteredAt:\s*null/, "completed mastered weak points should be reactivated instead of duplicated");

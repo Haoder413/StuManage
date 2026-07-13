@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { ExamWeakPointDialog, type ExamWeakPointTag } from "@/components/exam-weak-point-dialog";
+import { ExamWeakPointDialog } from "@/components/exam-weak-point-dialog";
+import { useWeakPointTags } from "@/hooks/use-weak-point-tags";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts";
 
 const examTypeLabel: Record<string, string> = { entrance: "摸底", monthly: "阶段测试", quiz: "随堂小测" };
@@ -32,7 +33,7 @@ export default function StudentExamDetailPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: "", type: "quiz", score: "", totalScore: "100" });
   const [showForm, setShowForm] = useState(false);
-  const [weakPointTags, setWeakPointTags] = useState<ExamWeakPointTag[]>([]);
+  const { weakPointTags, weakPointTagsLoading, createWeakPointTag } = useWeakPointTags();
   const [pendingNewExam, setPendingNewExam] = useState<{
     name: string;
     type: string;
@@ -49,16 +50,14 @@ export default function StudentExamDetailPage() {
 
   useEffect(() => {
     async function load() {
-      const [studentsRes, examsRes, tagsRes] = await Promise.all([
+      const [studentsRes, examsRes] = await Promise.all([
         fetch("/api/students"), fetch(`/api/exams?studentId=${studentId}`),
-        fetch("/api/weak-point-tags").catch(() => null),
       ]);
       const allStudents = await studentsRes.json();
       const found = allStudents.find((s: any) => s.id === studentId);
       if (found) setStudent({ name: found.name, grade: found.grade });
       const examsData: Exam[] = await examsRes.json();
       setExams(examsData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-      if (tagsRes?.ok) setWeakPointTags(await tagsRes.json());
       setLoading(false);
     }
     load();
@@ -140,22 +139,6 @@ export default function StudentExamDetailPage() {
         setPendingNewExam(null);
       }
     } catch (err) { console.error(err); }
-  }
-
-  async function createWeakPointTag(name: string) {
-    const cleanName = name.trim();
-    if (!cleanName) return null;
-    const existing = weakPointTags.find((tag) => tag.name === cleanName);
-    if (existing) return existing;
-    const res = await fetch("/api/weak-point-tags", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: cleanName, category: null }),
-    });
-    if (!res.ok) return null;
-    const created = await res.json();
-    setWeakPointTags((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
-    return created as ExamWeakPointTag;
   }
 
   if (loading) return <div className="p-6"><PageHeader title="加载中..." /></div>;
@@ -348,6 +331,7 @@ export default function StudentExamDetailPage() {
         title="保存成绩"
         description={pendingNewExam ? `${student.name} · ${pendingNewExam.name} · ${pendingNewExam.score}/${pendingNewExam.totalScore}` : ""}
         weakPointTags={weakPointTags}
+        weakPointTagsLoading={weakPointTagsLoading}
         onClose={() => setPendingNewExam(null)}
         onCreateTag={createWeakPointTag}
         onSubmit={savePendingNewExam}

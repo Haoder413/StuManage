@@ -7,8 +7,7 @@ const reuseSource = readFileSync("src/lib/weak-point-reuse.ts", "utf8");
 const teacherPageSource = readFileSync("src/app/progress/students/[id]/page.tsx", "utf8");
 const parentPageSource = readFileSync("src/app/parent/progress/page.tsx", "utf8");
 const mobileSource = readFileSync("src/lib/mobile-parent-data.ts", "utf8");
-const manualExistingLookup = routeSource.match(/const existing = await prisma\.weakPoint\.findFirst\(\{[\s\S]*?\n  \}\);/)?.[0] || "";
-const examExistingLookup = reuseSource.match(/const existing = await tx\.weakPoint\.findFirst\(\{[\s\S]*?\n    \}\);/)?.[0] || "";
+const sharedExistingLookup = reuseSource.match(/const existing = await tx\.weakPoint\.findFirst\(\{[\s\S]*?\n  \}\);/)?.[0] || "";
 
 assert.match(schedulerSource, /getTodayReviewDate/, "scheduler should expose a due-today helper for new weak points");
 
@@ -17,12 +16,11 @@ assert.match(routeSource, /masteredAt:\s*null/, "reactivating should clear maste
 assert.doesNotMatch(routeSource, /parseReviewDate|nextReviewAt:\s*parseReviewDate|data\.nextReviewAt|getDefaultNextReviewDate/, "review completion should not accept or create teacher-selected next review dates");
 assert.doesNotMatch(routeSource, /nextStage <= 6/, "weak point API should not keep the six-stage review flow");
 assert.doesNotMatch(routeSource, /stillWeak/, "weak point API should not keep the remembered-forgotten branch");
-assert.ok(manualExistingLookup, "manual weak point route should look up an existing weak point");
-assert.doesNotMatch(manualExistingLookup, /learningLinkId/, "manual weak point reuse should not require the same learning link");
+assert.match(routeSource, /ensureWeakPointReview/, "manual weak point route should use the shared lifecycle service");
 
 assert.match(reuseSource, /masteredAt:\s*null/, "exam weak point reuse should reactivate an existing mastered weak point");
-assert.ok(examExistingLookup, "exam weak point helper should look up an existing weak point");
-assert.doesNotMatch(examExistingLookup, /learningLinkId/, "exam weak point reuse should not require the same learning link");
+assert.ok(sharedExistingLookup, "shared weak point helper should look up an existing weak point");
+assert.doesNotMatch(sharedExistingLookup, /learningLinkId/, "weak point reuse should not require the same learning link");
 assert.doesNotMatch(reuseSource, /getNextReviewDate\(1\)/, "exam weak point reuse should not create staged review schedules");
 
 for (const [label, source] of [
@@ -32,7 +30,7 @@ for (const [label, source] of [
 ]) {
   assert.doesNotMatch(source, /getStageLabel/, `${label} should not show stage labels`);
   assert.doesNotMatch(source, /巩固中/, `${label} should not show consolidating state`);
-  assert.doesNotMatch(source, /已完成/, `${label} should not split mastered records into completed state`);
+  assert.doesNotMatch(source, /statusLabel[^\n]*已完成|label[^\n]*已完成/, `${label} should not split mastered records into completed state`);
   assert.doesNotMatch(source, /下次复习|nextReviewText|nextReviewAt|复习日期/, `${label} should not show next review dates`);
 }
 

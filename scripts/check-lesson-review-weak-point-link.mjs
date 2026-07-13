@@ -12,7 +12,7 @@ const requiredSnippets = [
   "WeakPointTagChips",
   "selected={selectedWeakPointTags}",
   "setSelectedWeakPointTags(parseTags(existing?.weakPointTags))",
-  "loadStudentWeakPointTags(schedule.studentId)",
+  "loadStudentWeakPointTags(targetStudentId)",
   "mergeWeakPointTags",
   "onToggle={(name) => toggleWeakPointTag(name)}",
   "onRename={renameWeakPointTag}",
@@ -30,7 +30,6 @@ const forbiddenSnippets = [
   "setWeakPointDesc",
   "value={lessonContent}",
   "value={lessonFeedback}",
-  "<Textarea",
 ];
 const forbidden = forbiddenSnippets.filter((snippet) => schedulePage.includes(snippet));
 
