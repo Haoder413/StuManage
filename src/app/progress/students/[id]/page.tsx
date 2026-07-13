@@ -94,11 +94,11 @@ export default function StudentProgressDetailPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagCategory, setNewTagCategory] = useState("");
-  const [editingHistoryWeakPoint, setEditingHistoryWeakPoint] = useState<WeakPoint | null>(null);
-  const [historyDescription, setHistoryDescription] = useState("");
-  const [historyReviewCount, setHistoryReviewCount] = useState("0");
-  const [deleteHistoryTarget, setDeleteHistoryTarget] = useState<WeakPoint | null>(null);
-  const [savingHistory, setSavingHistory] = useState(false);
+  const [editingWeakPoint, setEditingWeakPoint] = useState<WeakPoint | null>(null);
+  const [weakPointDescription, setWeakPointDescription] = useState("");
+  const [weakPointReviewCount, setWeakPointReviewCount] = useState("0");
+  const [deleteWeakPointTarget, setDeleteWeakPointTarget] = useState<WeakPoint | null>(null);
+  const [savingWeakPoint, setSavingWeakPoint] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -252,45 +252,45 @@ export default function StudentProgressDetailPage() {
     if (res.ok) await refreshWeakPoints();
   }
 
-  function openHistoryEditor(weakPoint: WeakPoint) {
-    setEditingHistoryWeakPoint(weakPoint);
-    setHistoryDescription(weakPoint.description);
-    setHistoryReviewCount(String(weakPoint.reviewSchedules?.filter((schedule) => schedule.status === "completed").length || 0));
+  function openWeakPointEditor(weakPoint: WeakPoint) {
+    setEditingWeakPoint(weakPoint);
+    setWeakPointDescription(weakPoint.description);
+    setWeakPointReviewCount(String(weakPoint.reviewSchedules?.filter((schedule) => schedule.status === "completed").length || 0));
   }
 
-  async function saveHistoryWeakPoint() {
-    if (!editingHistoryWeakPoint || !historyDescription.trim()) return;
-    const reviewCount = Number(historyReviewCount);
+  async function saveWeakPoint() {
+    if (!editingWeakPoint || !weakPointDescription.trim()) return;
+    const reviewCount = Number(weakPointReviewCount);
     if (!Number.isInteger(reviewCount) || reviewCount < 0) return;
-    setSavingHistory(true);
+    setSavingWeakPoint(true);
     const response = await fetch("/api/weak-points", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id: editingHistoryWeakPoint.id,
-        manageHistory: true,
-        description: historyDescription.trim(),
+        id: editingWeakPoint.id,
+        manageWeakPoint: true,
+        description: weakPointDescription.trim(),
         reviewCount,
       }),
     });
     if (response.ok) {
-      setEditingHistoryWeakPoint(null);
+      setEditingWeakPoint(null);
       await refreshWeakPoints();
     }
-    setSavingHistory(false);
+    setSavingWeakPoint(false);
   }
 
-  async function deleteHistoryWeakPoint() {
-    if (!deleteHistoryTarget) return;
-    setSavingHistory(true);
-    const response = await fetch(`/api/weak-points?id=${encodeURIComponent(deleteHistoryTarget.id)}`, {
+  async function deleteWeakPoint() {
+    if (!deleteWeakPointTarget) return;
+    setSavingWeakPoint(true);
+    const response = await fetch(`/api/weak-points?id=${encodeURIComponent(deleteWeakPointTarget.id)}`, {
       method: "DELETE",
     });
     if (response.ok) {
-      setDeleteHistoryTarget(null);
+      setDeleteWeakPointTarget(null);
       await refreshWeakPoints();
     }
-    setSavingHistory(false);
+    setSavingWeakPoint(false);
   }
 
   function selectWeakPointTag(name: string) {
@@ -547,7 +547,7 @@ export default function StudentProgressDetailPage() {
 
                   return (
                     <div key={wp.id} className="border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-gray-900">{wp.description}</p>
@@ -564,19 +564,17 @@ export default function StudentProgressDetailPage() {
                             <span> · 最近复习 {lastReviewed?.lastReviewedAt ? new Date(lastReviewed.lastReviewedAt).toLocaleDateString("zh-CN") : "-"}</span>
                           </p>
                         </div>
-                        <div className="flex gap-2 shrink-0">
-                          {wp.status === "active" && (
-                            <Button size="sm" variant="outline" onClick={() => markReviewCompleted(wp.id)}>已复习</Button>
-                          )}
+                        <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto sm:shrink-0">
                           {wp.status === "active" ? (
-                            <Button size="sm" onClick={() => markWeakpointMastered(wp.id)}>已掌握</Button>
-                          ) : (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => reactivateWeakPoint(wp.id)}>重新激活</Button>
-                              <Button size="sm" variant="outline" onClick={() => openHistoryEditor(wp)}>修改</Button>
-                              <Button size="sm" variant="destructive" onClick={() => setDeleteHistoryTarget(wp)}>删除</Button>
+                              <Button size="sm" variant="outline" onClick={() => markReviewCompleted(wp.id)}>已复习</Button>
+                              <Button size="sm" onClick={() => markWeakpointMastered(wp.id)}>已掌握</Button>
                             </>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => reactivateWeakPoint(wp.id)}>重新激活</Button>
                           )}
+                          <Button size="sm" variant="outline" onClick={() => openWeakPointEditor(wp)}>修改</Button>
+                          <Button size="sm" variant="destructive" onClick={() => setDeleteWeakPointTarget(wp)}>删除</Button>
                         </div>
                       </div>
                     </div>
@@ -631,50 +629,50 @@ export default function StudentProgressDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(editingHistoryWeakPoint)} onOpenChange={(open) => !open && !savingHistory && setEditingHistoryWeakPoint(null)}>
+      <Dialog open={Boolean(editingWeakPoint)} onOpenChange={(open) => !open && !savingWeakPoint && setEditingWeakPoint(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>修改历史薄弱点</DialogTitle>
-            <DialogDescription>可修改薄弱点内容和已完成的历史复习次数，仅影响教师端管理数据。</DialogDescription>
+            <DialogTitle>修改薄弱点</DialogTitle>
+            <DialogDescription>可修改薄弱点内容和已完成的复习次数，仅影响教师端管理数据。</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
               <Label className="text-xs text-gray-500">薄弱点内容</Label>
-              <Input value={historyDescription} onChange={(event) => setHistoryDescription(event.target.value)} maxLength={100} />
+              <Input value={weakPointDescription} onChange={(event) => setWeakPointDescription(event.target.value)} maxLength={100} />
             </div>
             <div>
-              <Label className="text-xs text-gray-500">历史复习次数</Label>
+              <Label className="text-xs text-gray-500">已完成复习次数</Label>
               <Input
                 type="number"
                 min="0"
                 max="999"
                 step="1"
-                value={historyReviewCount}
-                onChange={(event) => setHistoryReviewCount(event.target.value)}
+                value={weakPointReviewCount}
+                onChange={(event) => setWeakPointReviewCount(event.target.value)}
               />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setEditingHistoryWeakPoint(null)} disabled={savingHistory}>取消</Button>
-            <Button onClick={saveHistoryWeakPoint} disabled={savingHistory || !historyDescription.trim()}>
-              {savingHistory ? "保存中..." : "保存修改"}
+            <Button variant="outline" onClick={() => setEditingWeakPoint(null)} disabled={savingWeakPoint}>取消</Button>
+            <Button onClick={saveWeakPoint} disabled={savingWeakPoint || !weakPointDescription.trim()}>
+              {savingWeakPoint ? "保存中..." : "保存修改"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(deleteHistoryTarget)} onOpenChange={(open) => !open && !savingHistory && setDeleteHistoryTarget(null)}>
+      <Dialog open={Boolean(deleteWeakPointTarget)} onOpenChange={(open) => !open && !savingWeakPoint && setDeleteWeakPointTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>确认删除历史薄弱点</DialogTitle>
+            <DialogTitle>确认删除薄弱点</DialogTitle>
             <DialogDescription>
-              确定删除“{deleteHistoryTarget?.description || "这个薄弱点"}”及其全部复习记录吗？删除后无法恢复。
+              确定删除“{deleteWeakPointTarget?.description || "这个薄弱点"}”及其全部复习记录吗？删除后无法恢复。
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setDeleteHistoryTarget(null)} disabled={savingHistory}>取消</Button>
-            <Button variant="destructive" onClick={deleteHistoryWeakPoint} disabled={savingHistory}>
-              {savingHistory ? "删除中..." : "确认删除"}
+            <Button variant="outline" onClick={() => setDeleteWeakPointTarget(null)} disabled={savingWeakPoint}>取消</Button>
+            <Button variant="destructive" onClick={deleteWeakPoint} disabled={savingWeakPoint}>
+              {savingWeakPoint ? "删除中..." : "确认删除"}
             </Button>
           </div>
         </DialogContent>

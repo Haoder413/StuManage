@@ -7,23 +7,23 @@ import { visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visi
 import { dedupeWeakPoints, normalizeWeakPointDescription } from "@/lib/weak-points";
 import { ensureWeakPointReview } from "@/lib/weak-point-reuse";
 
-async function findHistoryWeakPointGroup(user: { workspaceId: string; id: string; role: string }, id: string) {
+async function findWeakPointGroup(user: { workspaceId: string; id: string; role: string }, id: string) {
   const selected = await prisma.weakPoint.findFirst({
     where: {
       id,
       workspaceId: user.workspaceId,
-      status: { not: "active" },
       student: visibleStudentWhere(user),
     },
-    select: { id: true, studentId: true, description: true },
+    select: { id: true, studentId: true, description: true, status: true },
   });
   if (!selected) return null;
 
+  const statusFilter = selected.status === "active" ? "active" : { not: "active" };
   const candidates = await prisma.weakPoint.findMany({
     where: {
       workspaceId: user.workspaceId,
       studentId: selected.studentId,
-      status: { not: "active" },
+      status: statusFilter,
       student: visibleStudentWhere(user),
     },
     select: { id: true, description: true },
@@ -31,6 +31,8 @@ async function findHistoryWeakPointGroup(user: { workspaceId: string; id: string
   const normalizedDescription = normalizeWeakPointDescription(selected.description);
   return {
     selected,
+    statusFilter,
+    candidates,
     ids: candidates
       .filter((point) => normalizeWeakPointDescription(point.description) === normalizedDescription)
       .map((point) => point.id),
@@ -100,25 +102,29 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
-  if (data.manageHistory) {
+  if (data.manageWeakPoint || data.manageHistory) {
     const description = normalizeWeakPointDescription(data.description);
     const reviewCount = Number(data.reviewCount);
     if (!description) return NextResponse.json({ error: "description required" }, { status: 400 });
     if (!Number.isInteger(reviewCount) || reviewCount < 0 || reviewCount > 999) {
       return NextResponse.json({ error: "invalid review count" }, { status: 400 });
     }
-    const group = await findHistoryWeakPointGroup(user, String(data.id || ""));
-    if (!group) return NextResponse.json({ error: "history weak point not found" }, { status: 404 });
+    const group = await findWeakPointGroup(user, String(data.id || ""));
+    if (!group) return NextResponse.json({ error: "weak point not found" }, { status: 404 });
 
     const updated = await prisma.$transaction(async (tx) => {
-      const duplicateIds = group.ids.filter((id) => id !== group.selected.id);
+      const targetDuplicateIds = group.candidates
+        .filter((point) => normalizeWeakPointDescription(point.description) === description)
+        .map((point) => point.id);
+      const duplicateIds = [...new Set([...group.ids, ...targetDuplicateIds])]
+        .filter((id) => id !== group.selected.id);
       if (duplicateIds.length > 0) {
         await tx.reviewSchedule.updateMany({
           where: { workspaceId: user.workspaceId, weakPointId: { in: duplicateIds } },
           data: { weakPointId: group.selected.id },
         });
         await tx.weakPoint.deleteMany({
-          where: { workspaceId: user.workspaceId, id: { in: duplicateIds }, status: { not: "active" } },
+          where: { workspaceId: user.workspaceId, id: { in: duplicateIds }, status: group.statusFilter },
         });
       }
 
@@ -216,14 +222,14 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await requireTeacherLike();
   const id = request.nextUrl.searchParams.get("id") || "";
-  const group = await findHistoryWeakPointGroup(user, id);
-  if (!group) return NextResponse.json({ error: "history weak point not found" }, { status: 404 });
+  const group = await findWeakPointGroup(user, id);
+  if (!group) return NextResponse.json({ error: "weak point not found" }, { status: 404 });
 
   const result = await prisma.weakPoint.deleteMany({
     where: {
       workspaceId: user.workspaceId,
       id: { in: group.ids },
-      status: { not: "active" },
+      status: group.statusFilter,
     },
   });
   return NextResponse.json({ success: true, deletedCount: result.count });
