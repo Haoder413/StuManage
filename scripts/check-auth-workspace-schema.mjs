@@ -24,7 +24,6 @@ const workspaceModels = [
   "ReviewSchedule",
   "Schedule",
   "Attendance",
-  "CommunicationLog",
   "WeakPointTag",
   "LessonTag",
 ];

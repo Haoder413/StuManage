@@ -27,7 +27,6 @@ model Workspace {
   schedules         Schedule[]
   attendance        Attendance[]
   lessonHourLogs    LessonHourLog[]
-  communicationLogs CommunicationLog[]
   weakPointTags     WeakPointTag[]
   lessonTags        LessonTag[]
   lessonVideos      LessonVideo[]
@@ -146,7 +145,6 @@ model Student {
   schedules        Schedule[]
   attendance       Attendance[]
   lessonHourLogs   LessonHourLog[]
-  communicationLogs CommunicationLog[]
   parentLinks      ParentStudent[]
   learningLinks    LearningLink[]
   parentScheduleItems ParentScheduleItem[]
@@ -466,18 +464,6 @@ model ParentScheduleSubject {
 
   @@unique([workspaceId, parentId, name])
   @@index([workspaceId, parentId, isActive])
-}
-
-model CommunicationLog {
-  id        String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  studentId String
-  date      DateTime @default(now())
-  method    String   // phone | wechat | in_person
-  content   String
-  createdAt DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
 
 model WeakPointTag {

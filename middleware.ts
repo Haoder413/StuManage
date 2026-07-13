@@ -4,7 +4,6 @@ import { isDefaultHiddenLoginPath, isHiddenLoginPath, isLoginEnabled } from "@/l
 const SESSION_COOKIE = "student_management_session";
 const KNOWN_PROTECTED_ROUTE_SEGMENTS = new Set([
   "accounts",
-  "communication",
   "courses",
   "dashboard",
   "exams",

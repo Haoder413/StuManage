@@ -30,7 +30,6 @@ async function main() {
   await prisma.exam.deleteMany();
   await prisma.attendance.deleteMany();
   await prisma.schedule.deleteMany();
-  await prisma.communicationLog.deleteMany();
   await prisma.studentCourse.deleteMany();
   await prisma.course.deleteMany();
   await prisma.student.deleteMany();
@@ -469,39 +468,6 @@ async function main() {
   }
 
   // ==========================================
-  // Communication Logs
-  // ==========================================
-
-  const commLogs = [
-    { studentIdx: 0, method: "phone", content: "与家长沟通近期学习情况，数学成绩稳步提升", date: "2026-06-10" },
-    { studentIdx: 0, method: "wechat", content: "发送了期中考试成绩单，家长表示满意", date: "2026-05-12" },
-    { studentIdx: 1, method: "phone", content: "沟通了几何部分薄弱的问题，建议增加练习量", date: "2026-06-08" },
-    { studentIdx: 1, method: "wechat", content: "发送了因式分解专项练习题", date: "2026-06-12" },
-    { studentIdx: 2, method: "wechat", content: "反馈上课表现良好，做题速度有所提升", date: "2026-06-11" },
-    { studentIdx: 3, method: "phone", content: "详细沟通了中考冲刺计划，家长表示全力配合", date: "2026-06-01" },
-    { studentIdx: 3, method: "wechat", content: "发送了中考模拟一成绩分析", date: "2026-05-16" },
-    { studentIdx: 4, method: "phone", content: "了解了小升初目标学校，调整了教学计划", date: "2026-06-05" },
-    { studentIdx: 5, method: "wechat", content: "发送了因式分解错题订正要求", date: "2026-06-13" },
-    { studentIdx: 5, method: "phone", content: "讨论学习方法，建议每天做10道计算题", date: "2026-06-07" },
-    { studentIdx: 6, method: "phone", content: "沟通了压轴题解题策略，孩子进步明显", date: "2026-06-09" },
-    { studentIdx: 7, method: "wechat", content: "反馈入学适应良好，有理数部分掌握扎实", date: "2026-06-12" },
-    { studentIdx: 8, method: "phone", content: "沟通了思维训练课程安排", date: "2026-06-03" },
-    { studentIdx: 9, method: "wechat", content: "发送了全等三角形专项练习题", date: "2026-06-10" },
-    { studentIdx: 9, method: "phone", content: "沟通了提前学习初三课程的计划", date: "2026-05-28" },
-  ];
-
-  for (const log of commLogs) {
-    await prisma.communicationLog.create({
-      data: {
-        studentId: students[log.studentIdx].id,
-        method: log.method,
-        content: log.content,
-        date: new Date(log.date),
-      },
-    });
-  }
-
-  // ==========================================
   // Demo Workspace Data
   // ==========================================
 
@@ -603,15 +569,6 @@ async function main() {
       feedbackTags: JSON.stringify(["思路清晰", "需要复习"]),
     },
   });
-  await prisma.communicationLog.create({
-    data: {
-      workspaceId: demoWorkspace.id,
-      studentId: demoStudent.id,
-      method: "wechat",
-      content: "演示沟通记录：本周重点练习函数建模。",
-      date: new Date("2026-06-18"),
-    },
-  });
   await prisma.lessonTag.createMany({
     data: [
       { workspaceId: demoWorkspace.id, name: "演示内容标签", type: "content" },
@@ -667,7 +624,6 @@ async function main() {
   console.log(`📈 ${c1Kps.length + c2Kps.length} 个知识点`);
   console.log(`⚠️ ${weakPointData.length} 个薄弱点`);
   console.log(`📅 ${fixedScheduleData.length} 个固定排课`);
-  console.log(`💬 ${commLogs.length} 条沟通记录`);
 }
 
 main()

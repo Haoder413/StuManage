@@ -19,7 +19,6 @@ const navItems = [
 
 const bottomItems = [
   { href: "/reports", label: "报表导出", icon: "📋" },
-  { href: "/communication", label: "沟通记录", icon: "💬" },
 ];
 
 function normalizePath(pathname: string) {
@@ -40,7 +39,7 @@ export function Sidebar({ initialRole, hiddenLoginPath }: { initialRole: string 
     if (saved === "true") setCollapsed(true);
   }, []);
 
-  if (!initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || isHiddenLoginRoute(pathname, hiddenLoginPath) || pathname.startsWith("/parent")) return null;
+  if (!initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || isHiddenLoginRoute(pathname, hiddenLoginPath) || pathname.startsWith("/parent") || pathname.startsWith("/reports/students/")) return null;
 
   function toggleCollapse() {
     setCollapsed((prev) => {

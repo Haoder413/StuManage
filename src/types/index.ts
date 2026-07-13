@@ -5,4 +5,3 @@ export type ReviewStatus = "pending" | "completed" | "reset";
 export type ScheduleType = "fixed" | "flexible";
 export type AttendanceStatus = "present" | "absent" | "makeup";
 export type CourseType = "fixed" | "custom";
-export type CommunicationMethod = "phone" | "wechat" | "in_person";

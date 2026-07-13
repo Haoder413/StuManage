@@ -23,13 +23,6 @@ interface StudentInfo {
   notes: string | null;
 }
 
-interface CommunicationLog {
-  id: string;
-  date: string;
-  method: string;
-  content: string;
-}
-
 function formatDateInput(value: string) {
   return value.slice(0, 10);
 }
@@ -44,22 +37,13 @@ function formatDateTimeInput(value = new Date()) {
   return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
-function methodLabel(method: string) {
-  const labels: Record<string, string> = { phone: "电话", wechat: "微信", in_person: "面谈" };
-  return labels[method] || method;
-}
-
 export function StudentDetailEditor({
   initialStudent,
-  initialLogs,
 }: {
   initialStudent: StudentInfo;
-  initialLogs: CommunicationLog[];
 }) {
   const [student, setStudent] = useState(initialStudent);
-  const [logs, setLogs] = useState(initialLogs);
   const [showStudentDialog, setShowStudentDialog] = useState(false);
-  const [editingLog, setEditingLog] = useState<CommunicationLog | null>(null);
   const [lessonHourAction, setLessonHourAction] = useState<"add" | "use" | null>(null);
 
   const [studentForm, setStudentForm] = useState({
@@ -78,12 +62,6 @@ export function StudentDetailEditor({
     note: "",
   });
 
-  const [logForm, setLogForm] = useState({
-    method: "wechat",
-    date: "",
-    content: "",
-  });
-
   function openStudentDialog() {
     setStudentForm({
       name: student.name,
@@ -95,15 +73,6 @@ export function StudentDetailEditor({
       notes: student.notes || "",
     });
     setShowStudentDialog(true);
-  }
-
-  function openLogDialog(log: CommunicationLog) {
-    setEditingLog(log);
-    setLogForm({
-      method: log.method,
-      date: formatDateInput(log.date),
-      content: log.content,
-    });
   }
 
   async function saveStudent() {
@@ -162,28 +131,9 @@ export function StudentDetailEditor({
     }
   }
 
-  async function saveLog() {
-    if (!editingLog) return;
-    const res = await fetch("/api/communication", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingLog.id, ...logForm }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setLogs(prev => prev.map(log => log.id === updated.id ? {
-        id: updated.id,
-        method: updated.method,
-        content: updated.content,
-        date: updated.date,
-      } : log));
-      setEditingLog(null);
-    }
-  }
-
   return (
     <>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>基本信息</CardTitle>
@@ -206,26 +156,6 @@ export function StudentDetailEditor({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle>最近沟通记录</CardTitle></CardHeader>
-          <CardContent>
-            {logs.length === 0 ? (
-              <p className="text-sm text-[#1a1a2e]/30">暂无记录</p>
-            ) : (
-              <div className="space-y-2">
-                {logs.map((log) => (
-                  <div key={log.id} className="text-sm border-b border-[#1a1a2e]/5 pb-2 last:border-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[#1a1a2e]/40 text-xs">{new Date(log.date).toLocaleDateString("zh-CN")} · {methodLabel(log.method)}</span>
-                      <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => openLogDialog(log)}>编辑沟通记录</Button>
-                    </div>
-                    <p className="text-[#1a1a2e]/70 mt-0.5">{log.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       <Dialog open={showStudentDialog} onOpenChange={setShowStudentDialog}>
@@ -316,38 +246,6 @@ export function StudentDetailEditor({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(editingLog)} onOpenChange={(open) => !open && setEditingLog(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>编辑沟通记录</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-gray-500">方式</Label>
-                <Select value={logForm.method} onValueChange={method => setLogForm(prev => ({ ...prev, method }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="wechat">微信</SelectItem>
-                    <SelectItem value="phone">电话</SelectItem>
-                    <SelectItem value="in_person">面谈</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs text-gray-500">日期</Label>
-                <Input type="date" value={logForm.date} onChange={e => setLogForm(prev => ({ ...prev, date: e.target.value }))} />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs text-gray-500">内容</Label>
-              <Textarea value={logForm.content} onChange={e => setLogForm(prev => ({ ...prev, content: e.target.value }))} />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditingLog(null)}>取消</Button>
-            <Button size="sm" onClick={saveLog} disabled={!logForm.content.trim()}>保存</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

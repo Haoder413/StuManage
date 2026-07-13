@@ -23,7 +23,7 @@ export function AppShell({
   hiddenLoginPath: string;
 }) {
   const pathname = usePathname();
-  const isFullScreenRoute = !initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || isHiddenLoginRoute(pathname, hiddenLoginPath) || pathname.startsWith("/parent");
+  const isFullScreenRoute = !initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || isHiddenLoginRoute(pathname, hiddenLoginPath) || pathname.startsWith("/parent") || pathname.startsWith("/reports/students/");
 
   return (
     <body className="min-h-screen">

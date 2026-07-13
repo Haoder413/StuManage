@@ -39,7 +39,6 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
         include: { attendance: { include: { schedule: true } } },
         take: 50,
       },
-      communicationLogs: { orderBy: { date: "desc" }, take: 5 },
     },
   });
 
@@ -93,12 +92,6 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           remainingLessonHours: student.remainingLessonHours,
           notes: student.notes,
         }}
-        initialLogs={student.communicationLogs.map((log) => ({
-          id: log.id,
-          method: log.method,
-          content: log.content,
-          date: log.date.toISOString(),
-        }))}
       />
 
       <LessonHourHistoryEditor
@@ -190,7 +183,6 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
 
       <div className="mt-6 flex gap-3">
         <Link href={`/progress/students/${student.id}`}><Button variant="outline">查看学习进度</Button></Link>
-        <Link href={`/communication/students/${student.id}`}><Button variant="outline">沟通记录</Button></Link>
       </div>
     </div>
   );
