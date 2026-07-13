@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogoutButton } from "@/components/logout-button";
+import { AccountMenu } from "@/components/account-menu";
 import { cn } from "@/lib/utils";
 
 const parentNavItems = [
@@ -11,7 +11,6 @@ const parentNavItems = [
   { href: "/parent/progress", label: "学习进度", icon: "📈" },
   { href: "/parent/archive", label: "学习档案", icon: "🎞" },
   { href: "/parent/resources", label: "资料中心", icon: "📁" },
-  { href: "/parent/settings", label: "账号设置", icon: "⚙" },
 ];
 
 export function ParentSidebar() {
@@ -52,7 +51,11 @@ export function ParentSidebar() {
       </nav>
 
       <div className="border-t border-gray-100 p-2 pb-4">
-        <LogoutButton className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold text-gray-400 transition-all duration-200 hover:bg-gray-100 hover:text-gray-600" />
+        <AccountMenu
+          settingsHref="/parent/settings"
+          role="parent"
+          active={pathname === "/parent/settings"}
+        />
       </div>
     </aside>
     <ParentMobileNav pathname={pathname} />
@@ -80,6 +83,12 @@ function ParentMobileNav({ pathname }: { pathname: string }) {
             </Link>
           );
         })}
+        <AccountMenu
+          settingsHref="/parent/settings"
+          role="parent"
+          active={pathname === "/parent/settings"}
+          variant="mobile"
+        />
       </div>
     </nav>
   );

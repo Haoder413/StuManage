@@ -20,8 +20,9 @@ requireFile("src/app/api/account/password/route.ts", [
   "clearSession",
   "newPassword.length < 6",
 ]);
-requireFile("src/components/sidebar.tsx", ["系统设置", "/settings"]);
-requireFile("src/components/parent-sidebar.tsx", ["账号设置", "/parent/settings"]);
+requireFile("src/components/account-menu.tsx", ["个人设置", "退出登录", "/api/auth/logout"]);
+requireFile("src/components/sidebar.tsx", ["AccountMenu", 'settingsHref="/settings"']);
+requireFile("src/components/parent-sidebar.tsx", ["AccountMenu", 'settingsHref="/parent/settings"']);
 requireFile("src/app/parent/settings/page.tsx", ["requireParent", "SettingsClient", "role={user.role}"]);
 
 if (missing.length > 0) {

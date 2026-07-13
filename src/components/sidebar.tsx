@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { AccountMenu } from "@/components/account-menu";
 
 const navItems = [
   { href: "/dashboard", label: "仪表盘", icon: "📊" },
@@ -19,7 +20,6 @@ const navItems = [
 const bottomItems = [
   { href: "/reports", label: "报表导出", icon: "📋" },
   { href: "/communication", label: "沟通记录", icon: "💬" },
-  { href: "/settings", label: "系统设置", icon: "⚙" },
 ];
 
 function normalizePath(pathname: string) {
@@ -33,19 +33,11 @@ function isHiddenLoginRoute(pathname: string, hiddenLoginPath: string) {
 
 export function Sidebar({ initialRole, hiddenLoginPath }: { initialRole: string | null; hiddenLoginPath: string }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [role, setRole] = useState<string | null>(initialRole);
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     if (saved === "true") setCollapsed(true);
-    fetch("/api/account/me")
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data?.role) setRole(data.role);
-      })
-      .catch(() => {});
   }, []);
 
   if (!initialRole || pathname === "/" || pathname.startsWith("/materials") || pathname.startsWith("/login") || isHiddenLoginRoute(pathname, hiddenLoginPath) || pathname.startsWith("/parent")) return null;
@@ -56,13 +48,6 @@ export function Sidebar({ initialRole, hiddenLoginPath }: { initialRole: string 
       localStorage.setItem("sidebar-collapsed", String(next));
       return next;
     });
-  }
-
-  async function logout() {
-    const res = await fetch("/api/auth/logout", { method: "POST" });
-    const data = await res.json();
-    router.replace(data.redirectTo || "/");
-    router.refresh();
   }
 
   return (
@@ -87,7 +72,7 @@ export function Sidebar({ initialRole, hiddenLoginPath }: { initialRole: string 
 
       {/* Nav items */}
       <nav className="flex-1 px-2 space-y-0.5">
-        {navItems.filter((item) => !item.adminOnly || role === "admin").map((item) => {
+        {navItems.filter((item) => !item.adminOnly || initialRole === "admin").map((item) => {
           const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
           return (
             <Link
@@ -141,18 +126,14 @@ export function Sidebar({ initialRole, hiddenLoginPath }: { initialRole: string 
           );
         })}
 
-        {/* Toggle button */}
-        <button
-          onClick={logout}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 w-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 mt-2"
-          title={collapsed ? "退出登录" : undefined}
-        >
-          <span className="text-base shrink-0">↪</span>
-          <span className={cn(
-            "transition-all duration-200",
-            collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
-          )}>退出</span>
-        </button>
+        <div className="mt-2">
+          <AccountMenu
+            settingsHref="/settings"
+            role={initialRole}
+            active={pathname.startsWith("/settings")}
+            variant={collapsed ? "collapsed" : "desktop"}
+          />
+        </div>
 
         <button
           onClick={toggleCollapse}
