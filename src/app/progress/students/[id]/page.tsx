@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Circle } from "lucide-react";
+import { BookOpen, ChevronDown, Circle } from "lucide-react";
 import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
 import { filterWeakPointsByStatus, getWeakPointStatusCounts } from "@/lib/weak-points";
 
@@ -81,6 +81,7 @@ export default function StudentProgressDetailPage() {
   const params = useParams();
   const studentId = params.id as string;
   const [activeTab, setActiveTab] = useState<"knowledge" | "weakness">("knowledge");
+  const [knowledgeProgressOpen, setKnowledgeProgressOpen] = useState(true);
   const [reviewFilter, setReviewFilter] = useState<"all" | "pending" | "mastered">("all");
   const [student, setStudent] = useState<StudentData | null>(null);
   const [kpTree, setKpTree] = useState<KPNode[]>([]);
@@ -465,20 +466,36 @@ export default function StudentProgressDetailPage() {
 
       {/* Tab 1: Knowledge Points */}
       {activeTab === "knowledge" && (
-        <div className="glass-card rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">知识点进度管理</h3>
-            <div className="h-2 flex-1 max-w-xs mx-4 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full" style={{ width: `${progressPct}%` }} />
-            </div>
-            <span className="text-xs text-gray-500">{masteredCount}/{totalKps}</span>
-          </div>
+        <div className="glass-card overflow-hidden rounded-xl">
+          <button
+            type="button"
+            aria-expanded={knowledgeProgressOpen}
+            aria-controls="teacher-knowledge-progress-content"
+            onClick={() => setKnowledgeProgressOpen((open) => !open)}
+            className="flex w-full flex-wrap items-center justify-between gap-3 p-5 text-left"
+          >
+            <span className="flex shrink-0 items-center gap-2">
+              <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${knowledgeProgressOpen ? "" : "-rotate-90"}`} />
+              <span role="heading" aria-level={3} className="font-semibold text-gray-900">知识点进度管理</span>
+            </span>
+            <span className="flex min-w-40 flex-1 items-center justify-end gap-3">
+              <span className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-gray-100">
+                <span className="block h-full rounded-full bg-gradient-to-r from-green-400 to-green-500" style={{ width: `${progressPct}%` }} />
+              </span>
+              <span className="shrink-0 text-xs text-gray-500">{masteredCount}/{totalKps}</span>
+              <span className="shrink-0 text-xs font-semibold text-gray-400">{knowledgeProgressOpen ? "收起" : "展开"}</span>
+            </span>
+          </button>
 
-          {kpTree.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">暂无知识点数据</p>
-          ) : (
-            <div className="divide-y divide-[#1a1a2e]/5">
-              {kpTree.map((kp) => renderKpNode(kp))}
+          {knowledgeProgressOpen && (
+            <div id="teacher-knowledge-progress-content" className="border-t border-gray-100 px-5 pb-5 pt-4">
+              {kpTree.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">暂无知识点数据</p>
+              ) : (
+                <div className="divide-y divide-[#1a1a2e]/5">
+                  {kpTree.map((kp) => renderKpNode(kp))}
+                </div>
+              )}
             </div>
           )}
         </div>
