@@ -27,6 +27,12 @@ for (const [file, snippets] of Object.entries(files)) {
 }
 
 const parentSidebar = readFileSync("src/components/parent-sidebar.tsx", "utf8");
+const parentNavItems = parentSidebar.match(/const parentNavItems = \[[\s\S]*?\n\];/)?.[0] || "";
+const orderedLabels = ["学习进度", "学习档案", "时间管理", "成绩记录", "资料中心"];
+const orderedIndexes = orderedLabels.map((label) => parentNavItems.indexOf(label));
+if (orderedIndexes.some((index) => index < 0) || orderedIndexes.some((index, position) => position > 0 && index <= orderedIndexes[position - 1])) {
+  missing.push("src/components/parent-sidebar.tsx should place learning progress and archive first");
+}
 if (parentSidebar.includes("孩子首页") || parentSidebar.includes("sticky top-0")) {
   missing.push("src/components/parent-sidebar.tsx should use fixed parent navigation without child home");
 }
