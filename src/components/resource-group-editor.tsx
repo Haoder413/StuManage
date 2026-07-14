@@ -1,36 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { CourseOption } from "@/types/resource-library";
+import type { EditableUploadGroup } from "@/lib/resource-upload-groups";
 
-export type EditableUploadGroup = {
-  groupKey: string;
-  title: string;
-  grade: string | null;
-  subject: string | null;
-  resourceKind: "paper" | "animation" | "material";
-  tags: string[];
-  confidence: number;
-  needsConfirmation: boolean;
-  reason: string;
-  courseIds: string[];
-  files: Array<{ originalName: string; role: "student" | "answer" | "supplement" }>;
-};
+export type { EditableUploadGroup } from "@/lib/resource-upload-groups";
 
 export function ResourceGroupEditor({
   group,
   courses,
   onChange,
   onSplit,
-  onMergePrevious,
+  mergeTargets,
+  onMerge,
 }: {
   group: EditableUploadGroup;
   courses: CourseOption[];
   onChange: (group: EditableUploadGroup) => void;
   onSplit: (fileIndex: number) => void;
-  onMergePrevious?: () => void;
+  mergeTargets: Array<{ groupKey: string; title: string }>;
+  onMerge: (targetKey: string) => void;
 }) {
+  const [mergeTarget, setMergeTarget] = useState<string>();
   return (
     <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -84,7 +77,25 @@ export function ResourceGroupEditor({
           </label>
         ))}
       </div>
-      {onMergePrevious && <button type="button" className="text-xs font-semibold text-sky-600" onClick={onMergePrevious}>与上一组合并</button>}
+      {mergeTargets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          <span className="text-xs font-semibold text-slate-500">重新配对</span>
+          <Select value={mergeTarget} onValueChange={setMergeTarget}>
+            <SelectTrigger className="w-64"><SelectValue placeholder="合并到其他资料" /></SelectTrigger>
+            <SelectContent>
+              {mergeTargets.map((target) => <SelectItem key={target.groupKey} value={target.groupKey}>{target.title}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <button
+            type="button"
+            disabled={!mergeTarget}
+            className="text-xs font-semibold text-sky-600 disabled:text-slate-300"
+            onClick={() => { if (mergeTarget) onMerge(mergeTarget); }}
+          >
+            确认合并
+          </button>
+        </div>
+      )}
     </div>
   );
 }

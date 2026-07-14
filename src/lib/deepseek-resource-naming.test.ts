@@ -53,6 +53,36 @@ test("uses a validated DeepSeek JSON result without sending file content", async
   assert.doesNotMatch(body, /fileContent|base64|data:/);
 });
 
+test("maps indexed DeepSeek references back to the untouched filename", async () => {
+  const originalName = "2024期末数学试题（解析版） .pdf";
+  let request = "";
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    request = String(init?.body || "");
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ groups: [{
+        groupKey: "2024期末数学试题",
+        title: "2024期末数学试题",
+        grade: "八年级",
+        subject: "数学",
+        resourceKind: "paper",
+        tags: ["期末"],
+        confidence: 0.95,
+        needsConfirmation: false,
+        reason: "文件名信息完整",
+        files: [{ fileIndex: 0, role: "answer" }],
+      }] }) } }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  const result = await suggestResourceNames([originalName], { apiKey: "test-key", fetchImpl });
+
+  assert.equal(result.source, "deepseek");
+  assert.equal(result.groups[0].files[0].originalName, originalName);
+  const body = JSON.parse(request) as { messages: Array<{ role: string; content: string }> };
+  const userPayload = JSON.parse(body.messages.find((message) => message.role === "user")!.content);
+  assert.equal(userPayload.files[0].fileIndex, 0);
+});
+
 test("falls back when DeepSeek returns malformed data", async () => {
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
     choices: [{ message: { content: "{}" } }],

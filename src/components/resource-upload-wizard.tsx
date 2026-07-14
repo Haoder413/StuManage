@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResourceGroupEditor, type EditableUploadGroup } from "@/components/resource-group-editor";
+import { createUniqueUploadGroupKey, mergeUploadGroup } from "@/lib/resource-upload-groups";
 import type { CourseOption, WorkspaceOption } from "@/types/resource-library";
 
 type AnalysisResponse = { source: "local" | "deepseek"; groups: Array<Omit<EditableUploadGroup, "courseIds">> };
@@ -99,32 +100,16 @@ export function ResourceUploadWizard({
       const source = current[groupIndex];
       const file = source.files[fileIndex];
       const remaining = { ...source, files: source.files.filter((_, index) => index !== fileIndex) };
+      const splitKey = createUniqueUploadGroupKey(current, `${source.groupKey}-split-${fileIndex}`);
       const split: EditableUploadGroup = {
         ...source,
-        groupKey: `${source.groupKey}-split-${fileIndex}`,
+        groupKey: splitKey,
         title: file.originalName.replace(/\.[^.]+$/, ""),
         files: [file],
         needsConfirmation: true,
         reason: "已拆分为独立资料，请确认信息",
       };
       return [...current.slice(0, groupIndex), remaining, split, ...current.slice(groupIndex + 1)];
-    });
-  }
-
-  function mergePrevious(groupIndex: number) {
-    if (groupIndex === 0) return;
-    setGroups((current) => {
-      const previous = current[groupIndex - 1];
-      const target = current[groupIndex];
-      const merged = {
-        ...previous,
-        files: [...previous.files, ...target.files],
-        tags: Array.from(new Set([...previous.tags, ...target.tags])).slice(0, 10),
-        courseIds: Array.from(new Set([...previous.courseIds, ...target.courseIds])),
-        needsConfirmation: true,
-        reason: "已手动合并，请确认版本类型",
-      };
-      return [...current.slice(0, groupIndex - 1), merged, ...current.slice(groupIndex + 1)];
     });
   }
 
@@ -213,7 +198,8 @@ export function ResourceUploadWizard({
                 courses={availableCourses}
                 onChange={(next) => updateGroup(index, next)}
                 onSplit={(fileIndex) => splitFile(index, fileIndex)}
-                onMergePrevious={index > 0 ? () => mergePrevious(index) : undefined}
+                mergeTargets={groups.filter((candidate) => candidate.groupKey !== group.groupKey).map((candidate) => ({ groupKey: candidate.groupKey, title: candidate.title }))}
+                onMerge={(targetKey) => setGroups((current) => mergeUploadGroup(current, group.groupKey, targetKey))}
               />
             ))}
             <div className="flex justify-between gap-3">

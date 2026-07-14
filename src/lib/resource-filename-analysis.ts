@@ -164,9 +164,17 @@ export function validateAnalysisResult(value: unknown, expectedFileNames: string
     for (const rawFile of group.files) {
       if (!rawFile || typeof rawFile !== "object") return null;
       const file = rawFile as Record<string, unknown>;
-      if (typeof file.originalName !== "string" || file.originalName.length > 255 || !validRoles.has(file.role as ResourceFileRole)) return null;
-      seenNames.push(file.originalName);
-      files.push({ originalName: file.originalName, role: file.role as ResourceFileRole });
+      if (!validRoles.has(file.role as ResourceFileRole)) return null;
+      let originalName: string;
+      if (file.fileIndex !== undefined) {
+        if (!Number.isInteger(file.fileIndex) || (file.fileIndex as number) < 0 || (file.fileIndex as number) >= expectedFileNames.length) return null;
+        originalName = expectedFileNames[file.fileIndex as number];
+      } else {
+        if (typeof file.originalName !== "string" || file.originalName.length > 255) return null;
+        originalName = file.originalName;
+      }
+      seenNames.push(originalName);
+      files.push({ originalName, role: file.role as ResourceFileRole });
     }
     groups.push({
       groupKey: group.groupKey.trim(),

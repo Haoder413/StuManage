@@ -16,6 +16,12 @@ test("upload wizard supports filename-only AI organization and manual fallback",
   assert.match(wizard, /学生版/);
   assert.match(wizard, /答案版/);
   assert.match(wizard, /AI 整理暂不可用，可继续手动上传/);
+  assert.match(wizard, /mergeUploadGroup/);
+  assert.doesNotMatch(wizard, /mergePrevious/);
+  const editor = source("src/components/resource-group-editor.tsx");
+  assert.match(editor, /合并到其他资料/);
+  assert.match(editor, /mergeTargets/);
+  assert.doesNotMatch(editor, /与上一组合并/);
 });
 
 test("teacher resource list uses paginated URL-backed search and batch actions", () => {
