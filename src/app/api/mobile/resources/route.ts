@@ -6,5 +6,6 @@ export async function GET(request: NextRequest) {
   const { user, response } = await requireMobileParent(request);
   if (!user) return response;
 
-  return NextResponse.json(await getMobileResources(user));
+  const { searchParams } = new URL(request.url);
+  return NextResponse.json(await getMobileResources(user, searchParams));
 }

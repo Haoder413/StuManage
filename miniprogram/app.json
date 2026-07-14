@@ -6,6 +6,7 @@
     "pages/calendar/index",
     "pages/progress/index",
     "pages/resources/index",
+    "pages/resource-webview/index",
     "pages/homework/index"
   ],
   "window": {

@@ -1,6 +1,8 @@
 import { getParentStudents, parseTags } from "@/lib/parent-data";
 import { prisma } from "@/lib/prisma";
-import { canAccessResource, getVisibleResourceWhere } from "@/lib/resource-access";
+import type { Prisma } from "@prisma/client";
+import { getVisibleResourceGroupWhere, resolveParentResourcePermissions } from "@/lib/resource-group-access";
+import { parseResourceGroupQuery } from "@/lib/resource-library-validation";
 import { getWeakPointStatusCounts } from "@/lib/weak-points";
 
 type MobileParentUser = {
@@ -165,38 +167,91 @@ export async function getMobileParentProgress(user: MobileParentUser) {
   };
 }
 
-export async function getMobileResources(user: MobileParentUser) {
-  const resources = await prisma.learningResource.findMany({
-    where: getVisibleResourceWhere(user),
-    include: { uploadedBy: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const items = await Promise.all(resources.map(async (resource) => {
-    const canPreview = await canAccessResource(user, resource, "preview");
-    const canDownload = await canAccessResource(user, resource, "download");
+export async function getMobileResources(user: MobileParentUser, searchParams = new URLSearchParams()) {
+  const query = parseResourceGroupQuery(searchParams);
+  const conditions: Prisma.ResourceGroupWhereInput[] = [getVisibleResourceGroupWhere(user)];
+  if (query.grade) conditions.push({ grade: query.grade });
+  if (query.subject) conditions.push({ subject: query.subject });
+  if (query.resourceKind) conditions.push({ resourceKind: query.resourceKind });
+  if (query.courseId) conditions.push({ coursePermissions: { some: { courseId: query.courseId } } });
+  if (query.q) conditions.push({ OR: [
+    { title: { contains: query.q } },
+    { grade: { contains: query.q } },
+    { subject: { contains: query.q } },
+    { files: { some: { originalName: { contains: query.q } } } },
+    { tags: { some: { tag: { name: { contains: query.q } } } } },
+  ] });
+  const where: Prisma.ResourceGroupWhereInput = { AND: conditions };
+  const [total, groups, courseLinks] = await prisma.$transaction([
+    prisma.resourceGroup.count({ where }),
+    prisma.resourceGroup.findMany({
+      where,
+      include: {
+        createdBy: { select: { name: true } },
+        files: { orderBy: [{ role: "asc" }, { orderIndex: "asc" }] },
+        tags: { include: { tag: { select: { name: true } } } },
+        permissions: { where: { userId: user.id }, select: { canPreview: true, canDownload: true } },
+        coursePermissions: { include: { course: {
+          select: {
+            id: true,
+            name: true,
+            learningLinks: { where: { parentId: user.id, workspaceId: user.workspaceId, isActive: true }, select: { id: true } },
+          },
+        } } },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    }),
+    prisma.learningLink.findMany({
+      where: { parentId: user.id, workspaceId: user.workspaceId, isActive: true, courseId: { not: null } },
+      include: { course: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  const resources = groups.map((group) => {
+    const direct = group.permissions[0];
+    const courseAccess = group.coursePermissions.some((permission) => permission.course.learningLinks.length > 0);
     return {
-      id: resource.id,
-      title: resource.title,
-      description: resource.description,
-      type: resource.type,
-      resourceKind: resource.resourceKind,
-      subject: resource.subject,
-      grade: resource.grade,
-      keywords: resource.keywords,
-      fileName: resource.fileName,
-      extension: resource.extension,
-      size: resource.size,
-      uploadedByName: resource.uploadedBy.name,
-      createdAt: isoDate(resource.createdAt),
-      canPreview,
-      canDownload,
-      previewUrl: canPreview ? `/api/resources/${resource.id}/file?mode=preview` : null,
-      downloadUrl: canDownload ? `/api/resources/${resource.id}/file?mode=download` : null,
+      id: group.id,
+      title: group.title,
+      description: group.description,
+      resourceKind: group.resourceKind,
+      subject: group.subject,
+      grade: group.grade,
+      tags: group.tags.map((relation) => relation.tag.name),
+      totalSize: group.totalSize,
+      uploadedByName: group.createdBy.name,
+      createdAt: isoDate(group.createdAt),
+      updatedAt: isoDate(group.updatedAt),
+      courses: group.coursePermissions.filter((permission) => permission.course.learningLinks.length > 0).map((permission) => ({ id: permission.course.id, name: permission.course.name })),
+      files: group.files.map((file) => {
+        const { canPreview, canDownload } = resolveParentResourcePermissions(direct, courseAccess);
+        const base = `/api/mobile/resources/${group.id}/files/${file.id}`;
+        return {
+          id: file.id,
+          originalName: file.originalName,
+          extension: file.extension,
+          size: file.size,
+          role: file.role,
+          canPreview,
+          canDownload,
+          previewUrl: canPreview ? `${base}?mode=preview` : null,
+          downloadUrl: canDownload ? `${base}?mode=download` : null,
+        };
+      }),
     };
-  }));
-
-  return { resources: items };
+  });
+  return {
+    resources,
+    courseOptions: Array.from(new Map(
+      courseLinks.filter((link) => link.course).map((link) => [link.course!.id, link.course!])
+    ).values()),
+    total,
+    page: query.page,
+    pageSize: query.pageSize,
+    hasNextPage: query.page * query.pageSize < total,
+  };
 }
 
 export async function getMobileParentHomework(user: MobileParentUser) {

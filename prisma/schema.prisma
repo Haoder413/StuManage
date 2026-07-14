@@ -8,95 +8,105 @@ datasource db {
 }
 
 model Workspace {
-  id                String   @id
-  name              String
-  kind              String   @default("real")
-  gradeRolloverYear Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  users             User[]
-  students          Student[]
-  courses           Course[]
-  courseScheduleTimes CourseScheduleTime[]
-  studentCourses    StudentCourse[]
-  exams             Exam[]
-  knowledgePoints   KnowledgePoint[]
-  kpProgress        StudentKpProgress[]
-  weakPoints        WeakPoint[]
-  reviewSchedules   ReviewSchedule[]
-  schedules         Schedule[]
-  attendance        Attendance[]
-  lessonHourLogs    LessonHourLog[]
-  weakPointTags     WeakPointTag[]
-  lessonTags        LessonTag[]
-  lessonVideos      LessonVideo[]
-  lessonAttachments LessonAttachment[]
-  resources         LearningResource[]
-  resourcePermissions ResourcePermission[]
-  resourceCoursePermissions ResourceCoursePermission[]
-  homeworkAssignments HomeworkAssignment[]
-  homeworkQuestions HomeworkQuestion[]
-  homeworkSubmissions HomeworkSubmission[]
-  homeworkSubmissionVersions HomeworkSubmissionVersion[]
-  homeworkQuestionReviews HomeworkQuestionReview[]
-  learningLinks     LearningLink[]
-  parentScheduleItems ParentScheduleItem[]
-  parentScheduleSubjects ParentScheduleSubject[]
+  id                             String                          @id
+  name                           String
+  kind                           String                          @default("real")
+  gradeRolloverYear              Int                             @default(0)
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  users                          User[]
+  students                       Student[]
+  courses                        Course[]
+  courseScheduleTimes            CourseScheduleTime[]
+  studentCourses                 StudentCourse[]
+  exams                          Exam[]
+  knowledgePoints                KnowledgePoint[]
+  kpProgress                     StudentKpProgress[]
+  weakPoints                     WeakPoint[]
+  reviewSchedules                ReviewSchedule[]
+  schedules                      Schedule[]
+  attendance                     Attendance[]
+  lessonHourLogs                 LessonHourLog[]
+  weakPointTags                  WeakPointTag[]
+  lessonTags                     LessonTag[]
+  lessonVideos                   LessonVideo[]
+  lessonAttachments              LessonAttachment[]
+  resources                      LearningResource[]
+  resourcePermissions            ResourcePermission[]
+  resourceCoursePermissions      ResourceCoursePermission[]
+  resourceGroups                 ResourceGroup[]
+  resourceFiles                  ResourceFile[]
+  resourceTags                   ResourceTag[]
+  resourceGroupPermissions       ResourceGroupPermission[]
+  resourceGroupCoursePermissions ResourceGroupCoursePermission[]
+  legacyResourceMigrations       LegacyResourceMigration[]
+  homeworkAssignments            HomeworkAssignment[]
+  homeworkQuestions              HomeworkQuestion[]
+  homeworkSubmissions            HomeworkSubmission[]
+  homeworkSubmissionVersions     HomeworkSubmissionVersion[]
+  homeworkQuestionReviews        HomeworkQuestionReview[]
+  learningLinks                  LearningLink[]
+  parentScheduleItems            ParentScheduleItem[]
+  parentScheduleSubjects         ParentScheduleSubject[]
 }
 
 model User {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  name         String
-  phone        String?  @unique
-  email        String?  @unique
-  role         String
-  teachingSubject String?
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  workspace    Workspace @relation(fields: [workspaceId], references: [id])
-  sessions     Session[]
-  parentStudents ParentStudent[]
-  learningLinksAsParent LearningLink[] @relation("ParentLearningLinks")
-  learningLinksAsTeacher LearningLink[] @relation("TeacherLearningLinks")
-  createdStudents Student[] @relation("StudentsCreatedByTeacher")
-  createdCourses Course[] @relation("CoursesCreatedByTeacher")
-  uploadedResources LearningResource[]
-  uploadedLessonVideos LessonVideo[]
-  uploadedLessonAttachments LessonAttachment[]
-  resourcePermissions ResourcePermission[]
-  createdHomeworkAssignments HomeworkAssignment[] @relation("HomeworkCreatedBy")
-  submittedHomeworkVersions HomeworkSubmissionVersion[] @relation("HomeworkSubmittedBy")
-  gradedHomeworkVersions HomeworkSubmissionVersion[] @relation("HomeworkVersionGradedBy")
-  gradedHomeworkSubmissions HomeworkSubmission[] @relation("HomeworkSubmissionGradedBy")
-  parentScheduleItems ParentScheduleItem[]
-  parentScheduleSubjects ParentScheduleSubject[]
+  id                         String                      @id @default(cuid())
+  workspaceId                String
+  name                       String
+  phone                      String?                     @unique
+  email                      String?                     @unique
+  role                       String
+  teachingSubject            String?
+  passwordHash               String
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  workspace                  Workspace                   @relation(fields: [workspaceId], references: [id])
+  sessions                   Session[]
+  parentStudents             ParentStudent[]
+  learningLinksAsParent      LearningLink[]              @relation("ParentLearningLinks")
+  learningLinksAsTeacher     LearningLink[]              @relation("TeacherLearningLinks")
+  createdStudents            Student[]                   @relation("StudentsCreatedByTeacher")
+  createdCourses             Course[]                    @relation("CoursesCreatedByTeacher")
+  uploadedResources          LearningResource[]
+  uploadedLessonVideos       LessonVideo[]
+  uploadedLessonAttachments  LessonAttachment[]
+  resourcePermissions        ResourcePermission[]
+  createdResourceGroups      ResourceGroup[]
+  uploadedResourceFiles      ResourceFile[]
+  resourceGroupPermissions   ResourceGroupPermission[]
+  createdHomeworkAssignments HomeworkAssignment[]        @relation("HomeworkCreatedBy")
+  submittedHomeworkVersions  HomeworkSubmissionVersion[] @relation("HomeworkSubmittedBy")
+  gradedHomeworkVersions     HomeworkSubmissionVersion[] @relation("HomeworkVersionGradedBy")
+  gradedHomeworkSubmissions  HomeworkSubmission[]        @relation("HomeworkSubmissionGradedBy")
+  parentScheduleItems        ParentScheduleItem[]
+  parentScheduleSubjects     ParentScheduleSubject[]
+  mobileResourceTickets      MobileResourceTicket[]
 }
 
 model LearningLink {
-  id          String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  parentId    String
-  studentId   String
-  teacherId   String
-  courseId    String?
-  subject     String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  parent      User      @relation("ParentLearningLinks", fields: [parentId], references: [id], onDelete: Cascade)
-  teacher     User      @relation("TeacherLearningLinks", fields: [teacherId], references: [id], onDelete: Cascade)
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  course      Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  attendance  Attendance[]
-  exams       Exam[]
-  kpProgress  StudentKpProgress[]
-  weakPoints  WeakPoint[]
+  id                  String               @id @default(cuid())
+  workspaceId         String               @default("default-real")
+  parentId            String
+  studentId           String
+  teacherId           String
+  courseId            String?
+  subject             String
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id])
+  parent              User                 @relation("ParentLearningLinks", fields: [parentId], references: [id], onDelete: Cascade)
+  teacher             User                 @relation("TeacherLearningLinks", fields: [teacherId], references: [id], onDelete: Cascade)
+  student             Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course              Course?              @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  attendance          Attendance[]
+  exams               Exam[]
+  kpProgress          StudentKpProgress[]
+  weakPoints          WeakPoint[]
   parentScheduleItems ParentScheduleItem[]
-  lessonVideos LessonVideo[]
-  lessonAttachments LessonAttachment[]
+  lessonVideos        LessonVideo[]
+  lessonAttachments   LessonAttachment[]
 
   @@unique([parentId, studentId, teacherId, subject])
 }
@@ -115,167 +125,169 @@ model ParentStudent {
   parentId  String
   studentId String
   createdAt DateTime @default(now())
-  parent   User    @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent    User     @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([parentId, studentId])
 }
 
 model Student {
-  id               String   @id @default(cuid())
-  workspaceId      String   @default("default-real")
-  name             String
-  grade            String?
-  parentContact    String?
-  enrollmentDate   DateTime @default(now())
-  lessonFrequency  String?
-  tuition          String?
-  totalLessonHours Int      @default(0)
-  remainingLessonHours Int  @default(0)
-  notes            String?
-  createdById      String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  createdBy        User?    @relation("StudentsCreatedByTeacher", fields: [createdById], references: [id], onDelete: SetNull)
-  studentCourses   StudentCourse[]
-  exams            Exam[]
-  kpProgress       StudentKpProgress[]
-  weakPoints       WeakPoint[]
-  schedules        Schedule[]
-  attendance       Attendance[]
-  lessonHourLogs   LessonHourLog[]
-  parentLinks      ParentStudent[]
-  learningLinks    LearningLink[]
-  parentScheduleItems ParentScheduleItem[]
-  homeworkSubmissions HomeworkSubmission[]
-  lessonVideos LessonVideo[]
-  lessonAttachments LessonAttachment[]
+  id                   String               @id @default(cuid())
+  workspaceId          String               @default("default-real")
+  name                 String
+  grade                String?
+  parentContact        String?
+  enrollmentDate       DateTime             @default(now())
+  lessonFrequency      String?
+  tuition              String?
+  totalLessonHours     Int                  @default(0)
+  remainingLessonHours Int                  @default(0)
+  notes                String?
+  createdById          String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  workspace            Workspace            @relation(fields: [workspaceId], references: [id])
+  createdBy            User?                @relation("StudentsCreatedByTeacher", fields: [createdById], references: [id], onDelete: SetNull)
+  studentCourses       StudentCourse[]
+  exams                Exam[]
+  kpProgress           StudentKpProgress[]
+  weakPoints           WeakPoint[]
+  schedules            Schedule[]
+  attendance           Attendance[]
+  lessonHourLogs       LessonHourLog[]
+  parentLinks          ParentStudent[]
+  learningLinks        LearningLink[]
+  parentScheduleItems  ParentScheduleItem[]
+  homeworkSubmissions  HomeworkSubmission[]
+  lessonVideos         LessonVideo[]
+  lessonAttachments    LessonAttachment[]
 }
 
 model Course {
-  id              String   @id @default(cuid())
-  workspaceId      String   @default("default-real")
-  name            String
-  description     String?
-  type            String   @default("fixed")
-  status          String   @default("active")
-  endedAt         DateTime?
-  createdById     String?
-  defaultCapacity Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  createdBy       User?    @relation("CoursesCreatedByTeacher", fields: [createdById], references: [id], onDelete: SetNull)
-  studentCourses  StudentCourse[]
-  scheduleTimes   CourseScheduleTime[]
-  schedules       Schedule[]
-  knowledgePoints KnowledgePoint[]
-  learningLinks   LearningLink[]
-  resourcePermissions ResourceCoursePermission[]
-  homeworkAssignments HomeworkAssignment[]
+  id                       String                          @id @default(cuid())
+  workspaceId              String                          @default("default-real")
+  name                     String
+  description              String?
+  type                     String                          @default("fixed")
+  status                   String                          @default("active")
+  endedAt                  DateTime?
+  createdById              String?
+  defaultCapacity          Int?
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
+  workspace                Workspace                       @relation(fields: [workspaceId], references: [id])
+  createdBy                User?                           @relation("CoursesCreatedByTeacher", fields: [createdById], references: [id], onDelete: SetNull)
+  studentCourses           StudentCourse[]
+  scheduleTimes            CourseScheduleTime[]
+  schedules                Schedule[]
+  knowledgePoints          KnowledgePoint[]
+  learningLinks            LearningLink[]
+  resourcePermissions      ResourceCoursePermission[]
+  resourceGroupPermissions ResourceGroupCoursePermission[]
+  homeworkAssignments      HomeworkAssignment[]
 }
 
 model CourseScheduleTime {
-  id          String   @id @default(cuid())
-  workspaceId String   @default("default-real")
+  id          String    @id @default(cuid())
+  workspaceId String    @default("default-real")
   courseId    String
   dayOfWeek   Int
   startTime   String
   endTime     String
   startDate   DateTime?
   endDate     DateTime?
-  orderIndex  Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  orderIndex  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
 
 model StudentCourse {
-  id            String   @id @default(cuid())
-  workspaceId   String   @default("default-real")
+  id            String    @id @default(cuid())
+  workspaceId   String    @default("default-real")
   studentId     String
   courseId      String
-  startDate     DateTime @default(now())
+  startDate     DateTime  @default(now())
   endDate       DateTime?
   endEvaluation String?
-  status        String   @default("active")
+  status        String    @default("active")
   customContent String?
-  createdAt     DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
 
 model Exam {
-  id        String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  learningLinkId String?
-  studentId String
-  name      String
-  type      String   // entrance | monthly | quiz
-  score     Float
-  totalScore Float  @default(100)
-  date      DateTime @default(now())
-  notes     String?
-  reviewStatus String @default("approved")
-  submittedById String?
-  reviewedById String?
-  reviewedAt DateTime?
+  id              String        @id @default(cuid())
+  workspaceId     String        @default("default-real")
+  learningLinkId  String?
+  studentId       String
+  name            String
+  type            String // entrance | monthly | quiz
+  score           Float
+  totalScore      Float         @default(100)
+  date            DateTime      @default(now())
+  notes           String?
+  reviewStatus    String        @default("approved")
+  submittedById   String?
+  reviewedById    String?
+  reviewedAt      DateTime?
   rejectionReason String?
-  createdAt DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  learningLink LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id])
+  learningLink    LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
 
 model KnowledgePoint {
-  id        String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  courseId  String
-  name      String
-  parentId  String?
-  orderIndex Int     @default(0)
-  createdAt DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  parent      KnowledgePoint?     @relation("Kptree", fields: [parentId], references: [id])
-  children    KnowledgePoint[]    @relation("Kptree")
+  id              String              @id @default(cuid())
+  workspaceId     String              @default("default-real")
+  courseId        String
+  name            String
+  parentId        String?
+  orderIndex      Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  workspace       Workspace           @relation(fields: [workspaceId], references: [id])
+  course          Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent          KnowledgePoint?     @relation("Kptree", fields: [parentId], references: [id])
+  children        KnowledgePoint[]    @relation("Kptree")
   studentProgress StudentKpProgress[]
 }
 
 model StudentKpProgress {
-  id                String   @id @default(cuid())
-  workspaceId       String   @default("default-real")
-  learningLinkId    String?
-  studentId         String
-  knowledgePointId  String
-  status            String   @default("not_started")
-  masteredAt        DateTime?
-  updatedAt         DateTime @updatedAt
-  workspace       Workspace      @relation(fields: [workspaceId], references: [id])
-  learningLink    LearningLink?  @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
-  student         Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  knowledgePoint  KnowledgePoint  @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+  id               String         @id @default(cuid())
+  workspaceId      String         @default("default-real")
+  learningLinkId   String?
+  studentId        String
+  knowledgePointId String
+  status           String         @default("not_started")
+  masteredAt       DateTime?
+  updatedAt        DateTime       @updatedAt
+  workspace        Workspace      @relation(fields: [workspaceId], references: [id])
+  learningLink     LearningLink?  @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  student          Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  knowledgePoint   KnowledgePoint @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+
   @@unique([studentId, knowledgePointId, learningLinkId])
   @@unique([learningLinkId, knowledgePointId])
 }
 
 model WeakPoint {
-  id                String   @id @default(cuid())
-  workspaceId       String   @default("default-real")
-  learningLinkId    String?
-  studentId         String
-  knowledgePointId  String?
-  description       String
-  status            String   @default("active")
-  masteredAt        DateTime?
-  createdAt         DateTime @default(now())
-  workspace       Workspace       @relation(fields: [workspaceId], references: [id])
-  learningLink    LearningLink?   @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
-  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  reviewSchedules ReviewSchedule[]
+  id               String           @id @default(cuid())
+  workspaceId      String           @default("default-real")
+  learningLinkId   String?
+  studentId        String
+  knowledgePointId String?
+  description      String
+  status           String           @default("active")
+  masteredAt       DateTime?
+  createdAt        DateTime         @default(now())
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id])
+  learningLink     LearningLink?    @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  student          Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewSchedules  ReviewSchedule[]
 }
 
 model ReviewSchedule {
@@ -287,85 +299,85 @@ model ReviewSchedule {
   nextReviewAt   DateTime
   status         String    @default("pending")
   createdAt      DateTime  @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  weakPoint WeakPoint @relation(fields: [weakPointId], references: [id], onDelete: Cascade)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id])
+  weakPoint      WeakPoint @relation(fields: [weakPointId], references: [id], onDelete: Cascade)
 }
 
 model Schedule {
-  id          String   @id @default(cuid())
-  workspaceId String   @default("default-real")
-  studentId   String?
-  courseId    String?
-  type        String   // fixed | flexible
-  dayOfWeek   Int?
-  startTime   String?
-  endTime     String?
-  date        DateTime?
-  startDate   DateTime?
-  endDate     DateTime?
-  notes       String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  student    Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  course     Course?     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  attendance Attendance[]
-  lessonVideos LessonVideo[]
+  id                String             @id @default(cuid())
+  workspaceId       String             @default("default-real")
+  studentId         String?
+  courseId          String?
+  type              String // fixed | flexible
+  dayOfWeek         Int?
+  startTime         String?
+  endTime           String?
+  date              DateTime?
+  startDate         DateTime?
+  endDate           DateTime?
+  notes             String?
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id])
+  student           Student?           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course            Course?            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attendance        Attendance[]
+  lessonVideos      LessonVideo[]
   lessonAttachments LessonAttachment[]
 }
 
 model Attendance {
-  id         String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  learningLinkId String?
-  scheduleId String
-  studentId  String
-  date       DateTime
-  status     String   // present | absent | makeup
-  notes      String?
-  lessonContent String?
-  lessonFeedback String?
-  contentTags String?
-  feedbackTags String?
-  weakPointTags String?
-  createdAt  DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  learningLink LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
-  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  lessonHourLogs LessonHourLog[]
-  lessonVideo LessonVideo?
+  id                String             @id @default(cuid())
+  workspaceId       String             @default("default-real")
+  learningLinkId    String?
+  scheduleId        String
+  studentId         String
+  date              DateTime
+  status            String // present | absent | makeup
+  notes             String?
+  lessonContent     String?
+  lessonFeedback    String?
+  contentTags       String?
+  feedbackTags      String?
+  weakPointTags     String?
+  createdAt         DateTime           @default(now())
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id])
+  learningLink      LearningLink?      @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  schedule          Schedule           @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lessonHourLogs    LessonHourLog[]
+  lessonVideo       LessonVideo?
   lessonAttachments LessonAttachment[]
 }
 
 model LessonVideo {
-  id             String   @id @default(cuid())
-  workspaceId    String   @default("default-real")
-  attendanceId   String
-  studentId      String
-  learningLinkId String?
-  scheduleId     String
-  title          String?
-  storageProvider String  @default("local")
-  fileName       String
-  storedName     String
-  mimeType       String
-  extension      String
-  size           Int
-  vodFileId      String?
-  vodMediaUrl    String?
-  vodSubAppId    Int?
-  cosObjectKey   String?
-  playbackDomain String?
-  uploadedById   String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  workspace      Workspace @relation(fields: [workspaceId], references: [id])
-  attendance     Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
-  student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  learningLink   LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
-  schedule       Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  uploadedBy     User @relation(fields: [uploadedById], references: [id])
+  id              String        @id @default(cuid())
+  workspaceId     String        @default("default-real")
+  attendanceId    String
+  studentId       String
+  learningLinkId  String?
+  scheduleId      String
+  title           String?
+  storageProvider String        @default("local")
+  fileName        String
+  storedName      String
+  mimeType        String
+  extension       String
+  size            Int
+  vodFileId       String?
+  vodMediaUrl     String?
+  vodSubAppId     Int?
+  cosObjectKey    String?
+  playbackDomain  String?
+  uploadedById    String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id])
+  attendance      Attendance    @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  learningLink    LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  schedule        Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  uploadedBy      User          @relation(fields: [uploadedById], references: [id])
 
   @@unique([attendanceId])
   @@index([workspaceId, studentId, createdAt])
@@ -373,8 +385,8 @@ model LessonVideo {
 }
 
 model LessonAttachment {
-  id             String   @id @default(cuid())
-  workspaceId    String   @default("default-real")
+  id             String                 @id @default(cuid())
+  workspaceId    String                 @default("default-real")
   attendanceId   String
   studentId      String
   learningLinkId String?
@@ -386,37 +398,54 @@ model LessonAttachment {
   extension      String
   size           Int
   uploadedById   String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  workspace      Workspace @relation(fields: [workspaceId], references: [id])
-  attendance     Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
-  student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  learningLink   LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
-  schedule       Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  uploadedBy     User @relation(fields: [uploadedById], references: [id])
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  workspace      Workspace              @relation(fields: [workspaceId], references: [id])
+  attendance     Attendance             @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  student        Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  learningLink   LearningLink?          @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  schedule       Schedule               @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  uploadedBy     User                   @relation(fields: [uploadedById], references: [id])
+  mobileTickets  MobileResourceTicket[]
 
   @@index([workspaceId, studentId, createdAt])
   @@index([workspaceId, learningLinkId])
   @@index([attendanceId])
 }
 
+model MobileResourceTicket {
+  id                 String            @id @default(cuid())
+  tokenHash          String            @unique
+  userId             String
+  fileId             String
+  expiresAt          DateTime
+  createdAt          DateTime          @default(now())
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file               ResourceFile      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  LessonAttachment   LessonAttachment? @relation(fields: [lessonAttachmentId], references: [id])
+  lessonAttachmentId String?
+
+  @@index([expiresAt])
+  @@index([userId, fileId])
+}
+
 model LessonHourLog {
-  id                   String   @id @default(cuid())
-  workspaceId          String   @default("default-real")
+  id                   String      @id @default(cuid())
+  workspaceId          String      @default("default-real")
   studentId            String
   attendanceId         String?
   type                 String
-  deltaTotalHours      Int      @default(0)
-  deltaRemainingHours  Int      @default(0)
+  deltaTotalHours      Int         @default(0)
+  deltaRemainingHours  Int         @default(0)
   beforeTotalHours     Int
   afterTotalHours      Int
   beforeRemainingHours Int
   afterRemainingHours  Int
   note                 String?
   teacherFeedback      String?
-  createdAt            DateTime @default(now())
-  workspace            Workspace @relation(fields: [workspaceId], references: [id])
-  student              Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt            DateTime    @default(now())
+  workspace            Workspace   @relation(fields: [workspaceId], references: [id])
+  student              Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   attendance           Attendance? @relation(fields: [attendanceId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, studentId, createdAt])
@@ -424,14 +453,14 @@ model LessonHourLog {
 }
 
 model ParentScheduleItem {
-  id             String       @id @default(cuid())
-  workspaceId    String       @default("default-real")
-  parentId     String
-  studentId    String
+  id             String        @id @default(cuid())
+  workspaceId    String        @default("default-real")
+  parentId       String
+  studentId      String
   learningLinkId String?
   seriesId       String?
-  iconKey        String       @default("other")
-  subjectLabel   String       @default("其他")
+  iconKey        String        @default("other")
+  subjectLabel   String        @default("其他")
   seriesEndDate  DateTime?
   repeatDays     String?
   title          String
@@ -439,11 +468,11 @@ model ParentScheduleItem {
   startTime      String
   endTime        String
   notes          String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
-  parent         User         @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id])
+  parent         User          @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student        Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   learningLink   LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, parentId, date])
@@ -467,60 +496,61 @@ model ParentScheduleSubject {
 }
 
 model WeakPointTag {
-  id        String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  name      String
-  category  String?
-  createdAt DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  id          String    @id @default(cuid())
+  workspaceId String    @default("default-real")
+  name        String
+  category    String?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
 
   @@unique([workspaceId, name])
 }
 
 model LessonTag {
-  id        String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  name      String
-  type      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  id          String    @id @default(cuid())
+  workspaceId String    @default("default-real")
+  name        String
+  type        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
 
   @@unique([workspaceId, name, type])
 }
 
 model LearningResource {
-  id          String   @id @default(cuid())
-  workspaceId String  @default("default-real")
-  title       String
-  description String?
-  type        String
-  subject     String?
-  resourceKind String @default("paper")
-  fileName    String
-  storedName  String
-  mimeType    String
-  extension   String
-  size        Int
-  grade       String?
-  courseId    String?
-  keywords    String?
-  uploadedById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  uploadedBy  User      @relation(fields: [uploadedById], references: [id])
-  permissions ResourcePermission[]
+  id                String                     @id @default(cuid())
+  workspaceId       String                     @default("default-real")
+  title             String
+  description       String?
+  type              String
+  subject           String?
+  resourceKind      String                     @default("paper")
+  fileName          String
+  storedName        String
+  mimeType          String
+  extension         String
+  size              Int
+  grade             String?
+  courseId          String?
+  keywords          String?
+  uploadedById      String
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  workspace         Workspace                  @relation(fields: [workspaceId], references: [id])
+  uploadedBy        User                       @relation(fields: [uploadedById], references: [id])
+  permissions       ResourcePermission[]
   coursePermissions ResourceCoursePermission[]
+  groupMigration    LegacyResourceMigration?
 }
 
 model ResourceCoursePermission {
-  id          String   @id @default(cuid())
-  workspaceId String  @default("default-real")
+  id          String           @id @default(cuid())
+  workspaceId String           @default("default-real")
   resourceId  String
   courseId    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   workspace   Workspace        @relation(fields: [workspaceId], references: [id])
   resource    LearningResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -529,14 +559,14 @@ model ResourceCoursePermission {
 }
 
 model ResourcePermission {
-  id          String   @id @default(cuid())
-  workspaceId String  @default("default-real")
+  id          String           @id @default(cuid())
+  workspaceId String           @default("default-real")
   resourceId  String
   userId      String
-  canPreview  Boolean  @default(false)
-  canDownload Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  canPreview  Boolean          @default(false)
+  canDownload Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   workspace   Workspace        @relation(fields: [workspaceId], references: [id])
   resource    LearningResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -544,86 +574,204 @@ model ResourcePermission {
   @@unique([resourceId, userId])
 }
 
+model ResourceGroup {
+  id                String                          @id @default(cuid())
+  workspaceId       String                          @default("default-real")
+  legacyResourceId  String?                         @unique
+  title             String
+  description       String?
+  subject           String?
+  resourceKind      String                          @default("paper")
+  grade             String?
+  totalSize         Int                             @default(0)
+  infoNeedsReview   Boolean                         @default(false)
+  createdById       String
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
+  workspace         Workspace                       @relation(fields: [workspaceId], references: [id])
+  createdBy         User                            @relation(fields: [createdById], references: [id])
+  files             ResourceFile[]
+  tags              ResourceGroupTag[]
+  coursePermissions ResourceGroupCoursePermission[]
+  permissions       ResourceGroupPermission[]
+  legacyMigration   LegacyResourceMigration?
+
+  @@index([workspaceId, updatedAt])
+  @@index([workspaceId, grade, subject, resourceKind])
+}
+
+model LegacyResourceMigration {
+  id               String           @id @default(cuid())
+  workspaceId      String
+  legacyResourceId String           @unique
+  groupId          String?          @unique
+  migratedAt       DateTime         @default(now())
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id])
+  legacyResource   LearningResource @relation(fields: [legacyResourceId], references: [id], onDelete: Cascade)
+  group            ResourceGroup?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, migratedAt])
+}
+
+model ResourceFile {
+  id                   String                 @id @default(cuid())
+  workspaceId          String                 @default("default-real")
+  groupId              String
+  originalName         String
+  storedName           String
+  mimeType             String
+  extension            String
+  size                 Int
+  sha256               String
+  role                 String                 @default("supplement")
+  primaryRoleKey       String?
+  orderIndex           Int                    @default(0)
+  uploadedById         String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  workspace            Workspace              @relation(fields: [workspaceId], references: [id])
+  group                ResourceGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  uploadedBy           User                   @relation(fields: [uploadedById], references: [id])
+  MobileResourceTicket MobileResourceTicket[]
+
+  @@unique([groupId, primaryRoleKey])
+  @@index([groupId, orderIndex])
+  @@index([workspaceId, sha256])
+}
+
+model ResourceTag {
+  id          String             @id @default(cuid())
+  workspaceId String             @default("default-real")
+  name        String
+  createdAt   DateTime           @default(now())
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id])
+  groups      ResourceGroupTag[]
+
+  @@unique([workspaceId, name])
+}
+
+model ResourceGroupTag {
+  id      String        @id @default(cuid())
+  groupId String
+  tagId   String
+  group   ResourceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tag     ResourceTag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, tagId])
+}
+
+model ResourceGroupCoursePermission {
+  id          String        @id @default(cuid())
+  workspaceId String        @default("default-real")
+  groupId     String
+  courseId    String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  group       ResourceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  course      Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, courseId])
+  @@index([workspaceId, courseId])
+}
+
+model ResourceGroupPermission {
+  id          String        @id @default(cuid())
+  workspaceId String        @default("default-real")
+  groupId     String
+  userId      String
+  canPreview  Boolean       @default(false)
+  canDownload Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  group       ResourceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([workspaceId, userId])
+}
+
 model HomeworkAssignment {
-  id                       String   @id @default(cuid())
-  workspaceId              String   @default("default-real")
-  courseId                 String
-  createdById              String
-  title                    String
-  description              String?
-  dueAt                    DateTime?
-  status                   String   @default("draft")
-  questionFileName         String
-  questionFileStoredName   String
-  questionFileMimeType     String
-  questionFileExtension    String
-  questionFileSize         Int
+  id                        String               @id @default(cuid())
+  workspaceId               String               @default("default-real")
+  courseId                  String
+  createdById               String
+  title                     String
+  description               String?
+  dueAt                     DateTime?
+  status                    String               @default("draft")
+  questionFileName          String
+  questionFileStoredName    String
+  questionFileMimeType      String
+  questionFileExtension     String
+  questionFileSize          Int
   questionPreviewStoredName String?
   questionPreviewMimeType   String?
   questionPreviewExtension  String?
   questionPreviewSize       Int?
-  answerFileName           String
-  answerFileStoredName     String
-  answerFileMimeType       String
-  answerFileExtension      String
-  answerFileSize           Int
-  answerPreviewStoredName  String?
-  answerPreviewMimeType    String?
-  answerPreviewExtension   String?
-  answerPreviewSize        Int?
-  recognitionProvider      String   @default("local_rules")
-  recognitionStatus        String   @default("pending")
-  rawRecognitionResult     String?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-  workspace                Workspace @relation(fields: [workspaceId], references: [id])
-  course                   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  createdBy                User      @relation("HomeworkCreatedBy", fields: [createdById], references: [id])
-  questions                HomeworkQuestion[]
-  submissions              HomeworkSubmission[]
+  answerFileName            String
+  answerFileStoredName      String
+  answerFileMimeType        String
+  answerFileExtension       String
+  answerFileSize            Int
+  answerPreviewStoredName   String?
+  answerPreviewMimeType     String?
+  answerPreviewExtension    String?
+  answerPreviewSize         Int?
+  recognitionProvider       String               @default("local_rules")
+  recognitionStatus         String               @default("pending")
+  rawRecognitionResult      String?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  workspace                 Workspace            @relation(fields: [workspaceId], references: [id])
+  course                    Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy                 User                 @relation("HomeworkCreatedBy", fields: [createdById], references: [id])
+  questions                 HomeworkQuestion[]
+  submissions               HomeworkSubmission[]
 
   @@index([workspaceId, courseId, status])
   @@index([workspaceId, createdAt])
 }
 
 model HomeworkQuestion {
-  id              String   @id @default(cuid())
-  workspaceId     String   @default("default-real")
-  assignmentId    String
-  number          String
-  type            String   @default("其他")
-  score           Float    @default(0)
-  standardAnswer  String?
-  explanation     String?
-  orderIndex      Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  workspace       Workspace          @relation(fields: [workspaceId], references: [id])
-  assignment      HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  reviews         HomeworkQuestionReview[]
+  id             String                   @id @default(cuid())
+  workspaceId    String                   @default("default-real")
+  assignmentId   String
+  number         String
+  type           String                   @default("其他")
+  score          Float                    @default(0)
+  standardAnswer String?
+  explanation    String?
+  orderIndex     Int                      @default(0)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  workspace      Workspace                @relation(fields: [workspaceId], references: [id])
+  assignment     HomeworkAssignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  reviews        HomeworkQuestionReview[]
 
   @@index([workspaceId, assignmentId, orderIndex])
 }
 
 model HomeworkSubmission {
-  id               String   @id @default(cuid())
-  workspaceId      String   @default("default-real")
+  id               String                      @id @default(cuid())
+  workspaceId      String                      @default("default-real")
   assignmentId     String
   studentId        String
-  status           String   @default("pending")
-  currentVersionId String?  @unique
+  status           String                      @default("pending")
+  currentVersionId String?                     @unique
   totalScore       Float?
   overallComment   String?
   gradedById       String?
   gradedAt         DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  workspace        Workspace          @relation(fields: [workspaceId], references: [id])
-  assignment       HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student          Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  currentVersion   HomeworkSubmissionVersion? @relation("CurrentHomeworkVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  workspace        Workspace                   @relation(fields: [workspaceId], references: [id])
+  assignment       HomeworkAssignment          @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student          Student                     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  currentVersion   HomeworkSubmissionVersion?  @relation("CurrentHomeworkVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
   versions         HomeworkSubmissionVersion[] @relation("SubmissionVersions")
-  gradedBy         User?              @relation("HomeworkSubmissionGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+  gradedBy         User?                       @relation("HomeworkSubmissionGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
 
   @@unique([assignmentId, studentId])
   @@index([workspaceId, studentId, status])
@@ -631,48 +779,48 @@ model HomeworkSubmission {
 }
 
 model HomeworkSubmissionVersion {
-  id             String   @id @default(cuid())
-  workspaceId    String   @default("default-real")
-  submissionId   String
-  versionNumber  Int
-  fileName       String
-  storedName     String
-  mimeType       String
-  extension      String
-  size           Int
-  status         String   @default("submitted")
-  submittedById  String
-  submittedAt    DateTime @default(now())
-  gradedById     String?
-  gradedAt       DateTime?
-  totalScore     Float?
-  overallComment String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  workspace      Workspace          @relation(fields: [workspaceId], references: [id])
-  submission     HomeworkSubmission @relation("SubmissionVersions", fields: [submissionId], references: [id], onDelete: Cascade)
-  currentForSubmission HomeworkSubmission? @relation("CurrentHomeworkVersion")
-  submittedBy    User               @relation("HomeworkSubmittedBy", fields: [submittedById], references: [id], onDelete: Cascade)
-  gradedBy       User?              @relation("HomeworkVersionGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
-  reviews        HomeworkQuestionReview[]
+  id                   String                   @id @default(cuid())
+  workspaceId          String                   @default("default-real")
+  submissionId         String
+  versionNumber        Int
+  fileName             String
+  storedName           String
+  mimeType             String
+  extension            String
+  size                 Int
+  status               String                   @default("submitted")
+  submittedById        String
+  submittedAt          DateTime                 @default(now())
+  gradedById           String?
+  gradedAt             DateTime?
+  totalScore           Float?
+  overallComment       String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  workspace            Workspace                @relation(fields: [workspaceId], references: [id])
+  submission           HomeworkSubmission       @relation("SubmissionVersions", fields: [submissionId], references: [id], onDelete: Cascade)
+  currentForSubmission HomeworkSubmission?      @relation("CurrentHomeworkVersion")
+  submittedBy          User                     @relation("HomeworkSubmittedBy", fields: [submittedById], references: [id], onDelete: Cascade)
+  gradedBy             User?                    @relation("HomeworkVersionGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+  reviews              HomeworkQuestionReview[]
 
   @@unique([submissionId, versionNumber])
   @@index([workspaceId, submissionId, submittedAt])
 }
 
 model HomeworkQuestionReview {
-  id                  String   @id @default(cuid())
-  workspaceId          String   @default("default-real")
-  submissionVersionId  String
-  questionId           String
-  score                Float    @default(0)
-  comment              String?
-  isCorrect            Boolean  @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  workspace            Workspace                 @relation(fields: [workspaceId], references: [id])
-  submissionVersion    HomeworkSubmissionVersion @relation(fields: [submissionVersionId], references: [id], onDelete: Cascade)
-  question             HomeworkQuestion          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  id                  String                    @id @default(cuid())
+  workspaceId         String                    @default("default-real")
+  submissionVersionId String
+  questionId          String
+  score               Float                     @default(0)
+  comment             String?
+  isCorrect           Boolean                   @default(false)
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  workspace           Workspace                 @relation(fields: [workspaceId], references: [id])
+  submissionVersion   HomeworkSubmissionVersion @relation(fields: [submissionVersionId], references: [id], onDelete: Cascade)
+  question            HomeworkQuestion          @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([submissionVersionId, questionId])
   @@index([workspaceId, questionId])

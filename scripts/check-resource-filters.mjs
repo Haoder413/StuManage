@@ -1,36 +1,19 @@
 import { readFileSync } from "node:fs";
 
 const files = {
-  "src/app/api/resources/route.ts": ["grade", "subject", "resourceKind", "teachingSubject"],
-  "src/components/resource-center.tsx": [
-    "gradeFilter",
-    "subjectFilter",
-    "resourceKindFilter",
-    "资料属性",
-    "动画",
-    "试卷",
-    "资料",
-  ],
+  "src/lib/resource-library-validation.ts": ["grade", "subject", "resourceKind", "fileState", "courseId", "pageSize"],
+  "src/app/api/resource-groups/route.ts": ["query.grade", "query.subject", "query.resourceKind", "query.fileState", "query.courseId"],
+  "src/components/resource-search-toolbar.tsx": ["全部年级", "全部科目", "全部类型", "学生版＋答案版", "全部清除"],
 };
 
 const missing = [];
-
 for (const [file, snippets] of Object.entries(files)) {
-  let text = "";
-  try {
-    text = readFileSync(file, "utf8");
-  } catch {
-    missing.push(file);
-    continue;
-  }
-  for (const snippet of snippets) {
-    if (!text.includes(snippet)) missing.push(`${file}: ${snippet}`);
-  }
+  let source = "";
+  try { source = readFileSync(file, "utf8"); } catch { missing.push(file); continue; }
+  for (const snippet of snippets) if (!source.includes(snippet)) missing.push(`${file}: ${snippet}`);
 }
-
 if (missing.length > 0) {
   console.error(`Missing resource filter snippets: ${missing.join(", ")}`);
   process.exit(1);
 }
-
 console.log("Resource filters are present.");

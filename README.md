@@ -174,6 +174,33 @@ REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-ma
 
 生产环境中，SQLite 数据库和上传文件会放在 `/opt/student-management/shared`，升级代码时不会覆盖真实数据。
 
+## 资料中心 AI 配置与迁移
+
+新版资料中心以“一套资料”为单位管理学生版、答案版和补充文件，支持批量上传、服务端分页搜索以及 DeepSeek 文件名整理。AI 只接收原文件名，不读取 PDF、Word 或 HTML 正文。
+
+在服务器共享环境文件中配置：
+
+```env
+DEEPSEEK_API_KEY="你的 DeepSeek API Key"
+DEEPSEEK_MODEL="deepseek-chat"
+
+# 以下均为可选配置，只能下调程序默认限制
+RESOURCE_MAX_FILE_BYTES="104857600"
+RESOURCE_MAX_BATCH_FILES="50"
+RESOURCE_MAX_BATCH_BYTES="524288000"
+```
+
+未配置 `DEEPSEEK_API_KEY` 时，批量上传仍可使用，系统会自动采用本地文件名规则并允许老师手动整理。
+
+部署新版资料中心前先备份数据库和 `storage/`，随后执行：
+
+```bash
+npx prisma db push --accept-data-loss
+npm run resources:migrate
+```
+
+这里的 `--accept-data-loss` 用于确认新增“每套资料只能有一个学生版和一个答案版”的唯一索引；升级脚本本身不会删除现有资料。每条旧资料会建立一个独立资料组，并复制一份独立存储文件，避免新旧入口互相影响；无法判断学生版或答案版的旧文件会标记为“信息待完善”。迁移命令可重复执行，永久迁移标记会阻止已删除的新版资料组被再次创建。
+
 ## 常用命令
 
 ```bash
