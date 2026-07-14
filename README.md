@@ -178,28 +178,196 @@ REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-ma
 
 新版资料中心以“一套资料”为单位管理学生版、答案版和补充文件，支持批量上传、服务端分页搜索以及 DeepSeek 文件名整理。AI 只接收原文件名，不读取 PDF、Word 或 HTML 正文。
 
-在服务器共享环境文件中配置：
+### 1. 登录服务器并确认目录
+
+通过 SSH 登录服务器后执行：
+
+```bash
+cd /opt/student-management/current
+pwd
+ls -l /opt/student-management/shared/.env
+```
+
+正常情况下会看到当前目录为 `/opt/student-management/current`，共享环境文件位于：
+
+```text
+/opt/student-management/shared/.env
+```
+
+这个文件保存在共享目录中，不会被后续版本发布覆盖，也不会上传到 Git。
+
+### 2. 备份现有环境文件
+
+修改前先创建一份带时间的备份：
+
+```bash
+sudo cp -a /opt/student-management/shared/.env \
+  "/opt/student-management/shared/.env.backup-$(date +%Y%m%d-%H%M%S)"
+```
+
+查看备份是否生成：
+
+```bash
+sudo ls -lt /opt/student-management/shared/.env.backup-* | head
+```
+
+### 3. 编辑 DeepSeek 和上传限制
+
+使用服务器编辑器打开共享环境文件：
+
+```bash
+sudo nano /opt/student-management/shared/.env
+```
+
+保留文件中原有的 `DATABASE_URL`、`NODE_ENV`、`PORT`、登录开关等配置，在文件末尾新增下面内容：
 
 ```env
-DEEPSEEK_API_KEY="你的 DeepSeek API Key"
+DEEPSEEK_API_KEY="sk-替换成你在 DeepSeek 控制台创建的真实密钥"
 DEEPSEEK_MODEL="deepseek-chat"
 
-# 以下均为可选配置，只能下调程序默认限制
+# 以下三项可以不写；如需配置，只能低于或等于程序默认上限
 RESOURCE_MAX_FILE_BYTES="104857600"
 RESOURCE_MAX_BATCH_FILES="50"
 RESOURCE_MAX_BATCH_BYTES="524288000"
 ```
 
-未配置 `DEEPSEEK_API_KEY` 时，批量上传仍可使用，系统会自动采用本地文件名规则并允许老师手动整理。
+`nano` 保存方法：
 
-部署新版资料中心前先备份数据库和 `storage/`，随后执行：
+1. 按 `Ctrl + O`。
+2. 按回车确认文件名。
+3. 按 `Ctrl + X` 退出。
+
+注意：
+
+- 同一个变量只保留一行，不要重复添加多个 `DEEPSEEK_API_KEY`。
+- 不要把真实密钥发到聊天、截图或提交到 Git。
+- `104857600` 表示单文件 100 MB，`524288000` 表示单批次 500 MB。
+- 未配置 `DEEPSEEK_API_KEY` 时，上传仍然可用，系统会使用本地文件名规则并允许老师手动整理。
+
+### 4. 安全检查配置
+
+下面的命令只显示变量名及非密钥配置，不会输出真实 API Key：
 
 ```bash
+sudo sh -c '
+  if grep -q "^DEEPSEEK_API_KEY=\"[^\"]\+\"" /opt/student-management/shared/.env; then
+    echo "DEEPSEEK_API_KEY：已配置"
+  else
+    echo "DEEPSEEK_API_KEY：未配置或格式不正确"
+  fi
+  grep -E "^(DEEPSEEK_MODEL|RESOURCE_MAX_FILE_BYTES|RESOURCE_MAX_BATCH_FILES|RESOURCE_MAX_BATCH_BYTES)=" \
+    /opt/student-management/shared/.env || true
+'
+```
+
+建议限制环境文件访问权限：
+
+```bash
+sudo chmod 600 /opt/student-management/shared/.env
+```
+
+确认当前版本的 `.env` 软链接指向共享文件：
+
+```bash
+readlink -f /opt/student-management/current/.env
+```
+
+输出应为：
+
+```text
+/opt/student-management/shared/.env
+```
+
+### 5. 部署包含新版资料中心的代码
+
+如果服务器尚未部署新版资料中心，执行：
+
+```bash
+REPO_URL=git@github.com:Haoder413/StuManage.git \
+BRANCH=main \
+bash /opt/student-management/current/deploy/deploy-update.sh
+```
+
+部署脚本会自动备份 SQLite 数据库、安装依赖、同步数据库结构、构建项目并重启 PM2。代码尚未推送到远程仓库时，不要执行这一步，先确保服务器使用的分支已经包含新版资料中心提交。
+
+### 6. 备份资料并执行迁移
+
+即使部署脚本已经自动备份数据库，在首次迁移资料中心前仍建议再手动备份一次：
+
+```bash
+cd /opt/student-management/current
+sudo bash deploy/backup-db.sh
+```
+
+如果服务器中已有大量上传资料，还可以额外备份资料文件目录：
+
+```bash
+sudo tar -czf "/opt/student-management/backups/resources-$(date +%Y%m%d-%H%M%S).tar.gz" \
+  -C /opt/student-management/shared storage/resources
+```
+
+同步资料中心数据库结构：
+
+```bash
+cd /opt/student-management/current
 npx prisma db push --accept-data-loss
+```
+
+这里的 `--accept-data-loss` 用于确认新增“每套资料只能有一个学生版和一个答案版”的唯一索引。执行前必须保留数据库备份；本次资料中心升级脚本不会主动删除现有资料。
+
+然后执行旧资料迁移：
+
+```bash
+cd /opt/student-management/current
 npm run resources:migrate
 ```
 
-这里的 `--accept-data-loss` 用于确认新增“每套资料只能有一个学生版和一个答案版”的唯一索引；升级脚本本身不会删除现有资料。每条旧资料会建立一个独立资料组，并复制一份独立存储文件，避免新旧入口互相影响；无法判断学生版或答案版的旧文件会标记为“信息待完善”。迁移命令可重复执行，永久迁移标记会阻止已删除的新版资料组被再次创建。
+迁移成功后会输出旧资料数、新建资料组数、新建文件数和复制权限数。建议再执行一次：
+
+```bash
+npm run resources:migrate
+```
+
+第二次执行时，`createdGroups` 和 `createdFiles` 应为 `0`，表示迁移具有幂等性，没有重复创建资料。
+
+每条旧资料会建立一个独立资料组，并复制一份独立存储文件，避免新旧入口互相影响；无法判断学生版或答案版的旧文件会标记为“信息待完善”。永久迁移标记会阻止已删除的新版资料组被再次创建。
+
+### 7. 重启并检查服务
+
+让 PM2 重新读取共享环境变量：
+
+```bash
+sudo pm2 restart student-management --update-env
+sudo pm2 status
+```
+
+查看最近日志，确认没有数据库或环境变量错误：
+
+```bash
+sudo pm2 logs student-management --lines 80 --nostream
+```
+
+最后登录教师端，进入“资料中心”，选择几个测试文件。AI 正常时页面会提示 DeepSeek 已根据文件名完成整理；如果显示本地规则整理，请重点检查 API Key、服务器外网连接和 PM2 日志。
+
+### 8. 修改或撤销配置
+
+更换 DeepSeek 密钥后，只需重新编辑共享环境文件并重启：
+
+```bash
+sudo nano /opt/student-management/shared/.env
+sudo pm2 restart student-management --update-env
+```
+
+如果要临时关闭 AI，可删除或注释 `DEEPSEEK_API_KEY`，然后重启 PM2。批量上传不会被关闭，只会自动切换到本地文件名规则。
+
+如果环境文件修改错误，可查看备份并恢复指定版本：
+
+```bash
+sudo ls -lt /opt/student-management/shared/.env.backup-*
+sudo cp -a /opt/student-management/shared/.env.backup-YYYYMMDD-HHMMSS \
+  /opt/student-management/shared/.env
+sudo pm2 restart student-management --update-env
+```
 
 ## 常用命令
 
