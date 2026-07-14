@@ -9,6 +9,7 @@
     <view class="filter-row">
       <picker range="{{courseOptions}}" range-key="name" value="{{courseIndex}}" data-field="course" bindchange="onFilterChange"><view class="filter-chip">{{courseOptions[courseIndex].name}}</view></picker>
       <picker range="{{gradeOptions}}" value="{{gradeIndex}}" data-field="grade" bindchange="onFilterChange"><view class="filter-chip">{{gradeOptions[gradeIndex]}}</view></picker>
+      <picker range="{{yearOptions}}" range-key="name" value="{{yearIndex}}" data-field="year" bindchange="onFilterChange"><view class="filter-chip">{{yearOptions[yearIndex].name}}</view></picker>
       <picker range="{{subjectOptions}}" value="{{subjectIndex}}" data-field="subject" bindchange="onFilterChange"><view class="filter-chip">{{subjectOptions[subjectIndex]}}</view></picker>
       <picker range="{{kindOptions}}" range-key="name" value="{{kindIndex}}" data-field="kind" bindchange="onFilterChange"><view class="filter-chip">{{kindOptions[kindIndex].name}}</view></picker>
     </view>
@@ -16,14 +17,14 @@
 
   <view wx:if="{{loading}}" class="card muted">加载中...</view>
   <view wx:elif="{{loadError && resources.length === 0}}" class="card muted">{{loadError}}</view>
-  <view wx:elif="{{resources.length === 0}}" class="card muted">{{query || courseId || grade || subject || resourceKind ? '没有符合条件的资料' : '老师暂未向课程同步资料'}}</view>
+  <view wx:elif="{{resources.length === 0}}" class="card muted">{{query || courseId || grade || year || subject || resourceKind ? '没有符合条件的资料' : '老师暂未向课程同步资料'}}</view>
 
   <view wx:for="{{resources}}" wx:key="id" class="card resource-card">
     <view class="resource-head">
       <view class="resource-title">{{item.title}}</view>
       <view class="kind-badge">{{item.kindText}}</view>
     </view>
-    <view class="subtitle">{{item.grade || '未设置年级'}} · {{item.subject || '未设置科目'}}</view>
+    <view class="subtitle">{{item.grade || '未设置年级'}} · {{item.year ? item.year + '年' : '未设置年份'}} · {{item.subject || '未设置科目'}}</view>
     <view class="tag-row"><text wx:for="{{item.tags}}" wx:for-item="tag" wx:key="*this" class="tag">{{tag}}</text></view>
     <view wx:for="{{item.files}}" wx:for-item="file" wx:key="id" class="file-row">
       <text class="role-badge role-{{file.role}}">{{file.roleText}}</text>

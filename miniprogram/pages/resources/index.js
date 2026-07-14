@@ -18,13 +18,22 @@ Page({
     query: "",
     courseId: "",
     grade: "",
+    year: "",
     subject: "",
     resourceKind: "",
     page: 1,
     hasNextPage: false,
     total: 0,
     courseOptions: [{ id: "", name: "全部课程" }],
-    gradeOptions: ["全部年级", "小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三"],
+    gradeOptions: ["全部年级", "小一", "小二", "小三", "小四", "小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三"],
+    yearOptions: [
+      { id: "", name: "全部年份" },
+      { id: "unset", name: "未设置年份" },
+      ...Array.from({ length: 2100 - 1900 + 1 }, (_, index) => {
+        const year = 2100 - index;
+        return { id: String(year), name: `${year}年` };
+      })
+    ],
     subjectOptions: ["全部科目", "数学", "语文", "英语", "物理", "化学"],
     kindOptions: [
       { id: "", name: "全部类型" },
@@ -34,6 +43,7 @@ Page({
     ],
     courseIndex: 0,
     gradeIndex: 0,
+    yearIndex: 0,
     subjectIndex: 0,
     kindIndex: 0
   },
@@ -58,6 +68,7 @@ Page({
       q: this.data.query,
       courseId: this.data.courseId,
       grade: this.data.grade,
+      year: this.data.year,
       subject: this.data.subject,
       resourceKind: this.data.resourceKind,
       page,
@@ -101,6 +112,7 @@ Page({
     const index = Number(event.detail.value);
     if (field === "course") this.setData({ courseIndex: index, courseId: this.data.courseOptions[index].id });
     if (field === "grade") this.setData({ gradeIndex: index, grade: index === 0 ? "" : this.data.gradeOptions[index] });
+    if (field === "year") this.setData({ yearIndex: index, year: this.data.yearOptions[index].id });
     if (field === "subject") this.setData({ subjectIndex: index, subject: index === 0 ? "" : this.data.subjectOptions[index] });
     if (field === "kind") this.setData({ kindIndex: index, resourceKind: this.data.kindOptions[index].id });
     this.load(true);

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { getVisibleResourceGroupWhere, resolveParentResourcePermissions } from "@/lib/resource-group-access";
 import { parseResourceGroupQuery } from "@/lib/resource-library-validation";
+import { resourceGradeSearchTerms } from "@/lib/resource-metadata";
 import { getWeakPointStatusCounts } from "@/lib/weak-points";
 
 type MobileParentUser = {
@@ -170,7 +171,11 @@ export async function getMobileParentProgress(user: MobileParentUser) {
 export async function getMobileResources(user: MobileParentUser, searchParams = new URLSearchParams()) {
   const query = parseResourceGroupQuery(searchParams);
   const conditions: Prisma.ResourceGroupWhereInput[] = [getVisibleResourceGroupWhere(user)];
-  if (query.grade) conditions.push({ grade: query.grade });
+  if (query.grade) conditions.push({ OR: resourceGradeSearchTerms(query.grade).map((term) => (
+    term.mode === "startsWith" ? { grade: { startsWith: term.alias } } : { grade: { contains: term.alias } }
+  )) });
+  if (query.year === "unset") conditions.push({ year: null });
+  else if (query.year !== null) conditions.push({ year: query.year });
   if (query.subject) conditions.push({ subject: query.subject });
   if (query.resourceKind) conditions.push({ resourceKind: query.resourceKind });
   if (query.courseId) conditions.push({ coursePermissions: { some: { courseId: query.courseId } } });
@@ -219,6 +224,7 @@ export async function getMobileResources(user: MobileParentUser, searchParams = 
       resourceKind: group.resourceKind,
       subject: group.subject,
       grade: group.grade,
+      year: group.year,
       tags: group.tags.map((relation) => relation.tag.name),
       totalSize: group.totalSize,
       uploadedByName: group.createdBy.name,

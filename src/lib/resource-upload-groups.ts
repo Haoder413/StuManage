@@ -2,6 +2,7 @@ export type EditableUploadGroup = {
   groupKey: string;
   title: string;
   grade: string | null;
+  year: number | null;
   subject: string | null;
   resourceKind: "paper" | "animation" | "material";
   tags: string[];

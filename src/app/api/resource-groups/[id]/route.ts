@@ -41,6 +41,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           title: input.title,
           description: input.description,
           grade: input.grade,
+          year: input.year,
           subject: input.subject,
           resourceKind: input.resourceKind,
           ...(input.confirmInformation ? { infoNeedsReview: false } : {}),

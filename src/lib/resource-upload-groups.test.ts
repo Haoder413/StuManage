@@ -7,6 +7,7 @@ function group(groupKey: string, title: string, file: string): EditableUploadGro
     groupKey,
     title,
     grade: null,
+    year: null,
     subject: "数学",
     resourceKind: "paper",
     tags: [groupKey],

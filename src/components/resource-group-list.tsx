@@ -109,7 +109,7 @@ export function ResourceGroupList({
                 <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">{kindLabel(group.resourceKind)}</span>
                 {group.infoNeedsReview && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">信息待完善</span>}
               </div>
-              <p className="mt-1 text-sm text-slate-500">{group.grade || "未设置年级"} · {group.subject || "未设置科目"} · {formatSize(group.totalSize)} · {group.createdByName}</p>
+              <p className="mt-1 text-sm text-slate-500">{group.grade || "未设置年级"} · {group.year ? `${group.year}年` : "未设置年份"} · {group.subject || "未设置科目"} · {formatSize(group.totalSize)} · {group.createdByName}</p>
               <div className="mt-2 flex flex-wrap gap-1.5">{group.tags.length > 0 ? group.tags.map((tag) => <span key={tag.id} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{tag.name}</span>) : <span className="text-xs text-slate-400">暂无标签</span>}</div>
               {group.courses.length > 0 && <p className="mt-2 text-xs text-emerald-600">已同步：{group.courses.map((course) => course.name).join("、")}</p>}
             </div>
@@ -148,6 +148,7 @@ function EditGroupDialog({ group, onSaved }: { group: ResourceGroupItem; onSaved
     title: group.title,
     description: group.description || "",
     grade: group.grade || "",
+    year: group.year ? String(group.year) : "",
     subject: group.subject || "",
     resourceKind: group.resourceKind,
     tags: group.tags.map((tag) => tag.name).join("，"),
@@ -168,6 +169,7 @@ function EditGroupDialog({ group, onSaved }: { group: ResourceGroupItem; onSaved
         title: form.title,
         description: form.description,
         grade: form.grade,
+        year: form.year,
         subject: form.subject,
         resourceKind: form.resourceKind,
         tags: form.tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean),
@@ -186,8 +188,9 @@ function EditGroupDialog({ group, onSaved }: { group: ResourceGroupItem; onSaved
       <DialogContent>
         <DialogHeader><DialogTitle>编辑资料信息</DialogTitle><DialogDescription>完善标题、分类和标签后，搜索结果会立即更新。</DialogDescription></DialogHeader>
         <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="资料标题" />
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Input value={form.grade} onChange={(event) => setForm({ ...form, grade: event.target.value })} placeholder="年级" />
+          <Input type="number" min={1900} max={2100} value={form.year} onChange={(event) => setForm({ ...form, year: event.target.value })} placeholder="年份（可留空）" />
           <Input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} placeholder="科目" />
         </div>
         <Select value={form.resourceKind} onValueChange={(value) => setForm({ ...form, resourceKind: value as typeof form.resourceKind })}>

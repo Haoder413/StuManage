@@ -15,6 +15,13 @@ test("pairs matching student and answer variants at high confidence", () => {
   assert.deepEqual(result.groups[0].files.map((file) => file.role), ["student", "answer"]);
   assert.equal(result.groups[0].needsConfirmation, false);
   assert.equal(result.groups[0].title, "2024初二数学一次函数训练");
+  assert.equal(result.groups[0].year, 2024);
+});
+
+test("normalizes grade aliases found in filenames", () => {
+  const [group] = analyzeResourceFileNames(["2023八年级数学期末试卷.pdf"]).groups;
+  assert.equal(group.grade, "初二");
+  assert.equal(group.year, 2023);
 });
 
 test("keeps uncertain names separate and asks for confirmation", () => {

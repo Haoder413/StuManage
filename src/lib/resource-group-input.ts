@@ -1,4 +1,5 @@
-import { normalizeResourceTags } from "@/lib/resource-library-validation";
+import { normalizeResourceTags, parseOptionalResourceYear } from "@/lib/resource-library-validation";
+import { normalizeResourceGrade } from "@/lib/resource-metadata";
 
 function requiredText(value: unknown, code: string, maxLength: number) {
   if (typeof value !== "string" || !value.trim()) throw new Error(code);
@@ -31,7 +32,8 @@ export function parseResourceGroupUpdate(value: unknown) {
   return {
     title: requiredText(input.title, "missing_title", 200),
     description: optionalText(input.description, 1000),
-    grade: optionalText(input.grade, 30),
+    grade: normalizeResourceGrade(optionalText(input.grade, 30)),
+    year: parseOptionalResourceYear(input.year),
     subject: optionalText(input.subject, 30),
     resourceKind: resourceKind as "paper" | "animation" | "material",
     tags: normalizeResourceTags(input.tags),

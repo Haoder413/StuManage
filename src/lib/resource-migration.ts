@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { extractResourceYear } from "@/lib/resource-metadata";
 import {
   cloneStoredResourceFile,
   createResourceStoredName,
@@ -23,6 +24,7 @@ export type ResourceMigrationResult = {
   createdFiles: number;
   copiedCoursePermissions: number;
   copiedUserPermissions: number;
+  backfilledYears: number;
   missingFiles: string[];
 };
 
@@ -71,8 +73,20 @@ export async function migrateLegacyResources(db: PrismaClient = prisma): Promise
     createdFiles: 0,
     copiedCoursePermissions: 0,
     copiedUserPermissions: 0,
+    backfilledYears: 0,
     missingFiles: [],
   };
+
+  const groupsWithoutYear = await db.resourceGroup.findMany({
+    where: { year: null },
+    select: { id: true, title: true, files: { select: { originalName: true }, orderBy: { orderIndex: "asc" } } },
+  });
+  for (const group of groupsWithoutYear) {
+    const year = extractResourceYear(group.title, ...group.files.map((file) => file.originalName));
+    if (year === null) continue;
+    const updated = await db.resourceGroup.updateMany({ where: { id: group.id, year: null }, data: { year } });
+    result.backfilledYears += updated.count;
+  }
 
   for (const resource of legacyResources) {
     if (migratedIds.has(resource.id)) continue;
@@ -148,6 +162,7 @@ export async function migrateLegacyResources(db: PrismaClient = prisma): Promise
             subject: resource.subject,
             resourceKind: resource.resourceKind,
             grade: resource.grade,
+            year: extractResourceYear(resource.title, resource.fileName),
             totalSize: resource.size,
             infoNeedsReview: hash.missing || role === "supplement",
             createdById: resource.uploadedById,

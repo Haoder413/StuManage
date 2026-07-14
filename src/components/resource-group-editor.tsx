@@ -33,9 +33,10 @@ export function ResourceGroupEditor({
         </div>
         {group.needsConfirmation && <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">请确认配对</span>}
       </div>
-      <div className="grid gap-2 md:grid-cols-4">
+      <div className="grid gap-2 md:grid-cols-5">
         <Input value={group.title} onChange={(event) => onChange({ ...group, title: event.target.value })} placeholder="规范标题" className="md:col-span-2" />
         <Input value={group.grade || ""} onChange={(event) => onChange({ ...group, grade: event.target.value || null })} placeholder="年级" />
+        <Input type="number" min={1900} max={2100} value={group.year || ""} onChange={(event) => onChange({ ...group, year: event.target.value ? Number(event.target.value) : null })} placeholder="年份" />
         <Input value={group.subject || ""} onChange={(event) => onChange({ ...group, subject: event.target.value || null })} placeholder="科目" />
         <Select value={group.resourceKind} onValueChange={(value) => onChange({ ...group, resourceKind: value as EditableUploadGroup["resourceKind"] })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -45,7 +46,7 @@ export function ResourceGroupEditor({
             <SelectItem value="material">普通资料</SelectItem>
           </SelectContent>
         </Select>
-        <Input value={group.tags.join("，")} onChange={(event) => onChange({ ...group, tags: event.target.value.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean) })} placeholder="标签，用逗号分隔" className="md:col-span-3" />
+        <Input value={group.tags.join("，")} onChange={(event) => onChange({ ...group, tags: event.target.value.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean) })} placeholder="标签，用逗号分隔" className="md:col-span-4" />
       </div>
       <div className="space-y-2">
         {group.files.map((file, fileIndex) => (

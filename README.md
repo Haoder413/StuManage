@@ -322,13 +322,13 @@ cd /opt/student-management/current
 npm run resources:migrate
 ```
 
-迁移成功后会输出旧资料数、新建资料组数、新建文件数和复制权限数。建议再执行一次：
+迁移成功后会输出旧资料数、新建资料组数、新建文件数、复制权限数和 `backfilledYears`。其中 `backfilledYears` 表示从历史资料标题或文件名中自动补齐年份的数量；原本已有年份的数据不会被覆盖。建议再执行一次：
 
 ```bash
 npm run resources:migrate
 ```
 
-第二次执行时，`createdGroups` 和 `createdFiles` 应为 `0`，表示迁移具有幂等性，没有重复创建资料。
+第二次执行时，`createdGroups`、`createdFiles` 和 `backfilledYears` 应为 `0`，表示迁移具有幂等性，没有重复创建资料或反复修改年份。
 
 每条旧资料会建立一个独立资料组，并复制一份独立存储文件，避免新旧入口互相影响；无法判断学生版或答案版的旧文件会标记为“信息待完善”。永久迁移标记会阻止已删除的新版资料组被再次创建。
 

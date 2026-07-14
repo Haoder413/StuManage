@@ -1,4 +1,5 @@
 import { getResourceExtension, isAllowedResourceExtension } from "@/lib/resource-storage";
+import { normalizeResourceGrade } from "@/lib/resource-metadata";
 
 export type UploadFileLike = { name: string; size: number };
 export type ResourceManifestFile = {
@@ -10,6 +11,7 @@ export type ResourceManifestGroup = {
   title: string;
   description: string | null;
   grade: string | null;
+  year: number | null;
   subject: string | null;
   resourceKind: "paper" | "animation" | "material";
   tags: string[];
@@ -60,6 +62,13 @@ function optionalText(value: unknown, maxLength: number) {
   if (!text) return null;
   if (text.length > maxLength) throw new Error("manifest_text_too_long");
   return text;
+}
+
+export function parseOptionalResourceYear(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const year = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) throw new Error("invalid_resource_year");
+  return year;
 }
 
 function stringIds(value: unknown) {
@@ -117,7 +126,8 @@ export function parseResourceGroupManifest(raw: string, fileCount: number): Reso
     return {
       title,
       description: optionalText(group.description, 1000),
-      grade: optionalText(group.grade, 30),
+      grade: normalizeResourceGrade(optionalText(group.grade, 30)),
+      year: parseOptionalResourceYear(group.year),
       subject: optionalText(group.subject, 30),
       resourceKind: String(group.resourceKind) as ResourceManifestGroup["resourceKind"],
       tags: normalizeResourceTags(group.tags),
@@ -142,9 +152,17 @@ export function parseResourceGroupQuery(searchParams: URLSearchParams) {
   const allowedStates = new Set<ResourceGroupFileState>(["", "student", "answer", "complete", "incomplete"]);
   const sortValue = searchParams.get("sort") || "updated";
   const stateValue = searchParams.get("fileState") || "";
+  const yearValue = searchParams.get("year") || "";
+  let year: number | "unset" | null = null;
+  if (yearValue === "unset") year = "unset";
+  else if (yearValue) {
+    const parsedYear = Number(yearValue);
+    if (Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2100) year = parsedYear;
+  }
   return {
     q: (searchParams.get("q") || "").trim().slice(0, 100),
     grade: (searchParams.get("grade") || "").trim().slice(0, 30),
+    year,
     subject: (searchParams.get("subject") || "").trim().slice(0, 30),
     resourceKind: (searchParams.get("resourceKind") || "").trim().slice(0, 20),
     fileState: allowedStates.has(stateValue as ResourceGroupFileState) ? stateValue as ResourceGroupFileState : "",

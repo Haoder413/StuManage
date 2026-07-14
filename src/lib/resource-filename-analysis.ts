@@ -1,4 +1,5 @@
 import path from "node:path";
+import { extractResourceYear, normalizeResourceGrade } from "@/lib/resource-metadata";
 
 export type ResourceFileRole = "student" | "answer" | "supplement";
 export type ResourceKind = "paper" | "animation" | "material";
@@ -12,6 +13,7 @@ export type ResourceGroupSuggestion = {
   groupKey: string;
   title: string;
   grade: string | null;
+  year: number | null;
   subject: string | null;
   resourceKind: ResourceKind;
   tags: string[];
@@ -26,7 +28,13 @@ export type ResourceAnalysisResult = {
   groups: ResourceGroupSuggestion[];
 };
 
-const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三"];
+const grades = [
+  "小学一年级", "小学二年级", "小学三年级", "小学四年级", "小学五年级", "小学六年级",
+  "初中一年级", "初中二年级", "初中三年级", "高中一年级", "高中二年级", "高中三年级",
+  "一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "七年级", "八年级", "九年级",
+  "1年级", "2年级", "3年级", "4年级", "5年级", "6年级", "7年级", "8年级", "9年级",
+  "小一", "小二", "小三", "小四", "小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三",
+];
 const subjects = ["数学", "语文", "英语", "物理", "化学", "生物", "历史", "地理", "政治", "科学"];
 const tagCandidates = [
   "一次函数", "二次函数", "反比例函数", "函数", "几何", "代数", "方程", "不等式",
@@ -73,7 +81,7 @@ function inferTags(fileName: string) {
 
 function singleSuggestion(fileName: string): ResourceGroupSuggestion {
   const role = fileRole(fileName);
-  const grade = firstMatch(fileName, grades);
+  const grade = normalizeResourceGrade(firstMatch(fileName, grades));
   const subject = firstMatch(fileName, subjects);
   const resourceKind = inferKind(fileName);
   const uncertain = role === "supplement" && !grade && !subject;
@@ -81,6 +89,7 @@ function singleSuggestion(fileName: string): ResourceGroupSuggestion {
     groupKey: groupKey(fileName) || withoutExtension(fileName),
     title: cleanTitle(fileName) || withoutExtension(fileName),
     grade,
+    year: extractResourceYear(fileName),
     subject,
     resourceKind,
     tags: inferTags(fileName),
@@ -179,7 +188,8 @@ export function validateAnalysisResult(value: unknown, expectedFileNames: string
     groups.push({
       groupKey: group.groupKey.trim(),
       title: group.title.trim(),
-      grade: group.grade,
+      grade: normalizeResourceGrade(group.grade),
+      year: extractResourceYear(group.title.trim(), ...files.map((file) => file.originalName)),
       subject: group.subject,
       resourceKind: group.resourceKind as ResourceKind,
       tags: Array.from(new Set((group.tags as string[]).map((tag) => tag.trim()).filter(Boolean))).slice(0, 5),

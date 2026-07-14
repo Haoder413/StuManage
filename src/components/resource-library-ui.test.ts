@@ -37,6 +37,7 @@ test("teacher resource list uses paginated URL-backed search and batch actions",
   assert.match(toolbar, /useSearchParams/);
   assert.match(toolbar, /500/);
   assert.match(toolbar, /全部清除/);
+  assert.match(toolbar, /2100 - 1900 \+ 1/);
 });
 
 test("resource center composes upload and grouped list instead of legacy single upload", () => {

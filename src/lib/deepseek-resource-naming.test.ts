@@ -78,6 +78,8 @@ test("maps indexed DeepSeek references back to the untouched filename", async ()
 
   assert.equal(result.source, "deepseek");
   assert.equal(result.groups[0].files[0].originalName, originalName);
+  assert.equal(result.groups[0].grade, "初二");
+  assert.equal(result.groups[0].year, 2024);
   const body = JSON.parse(request) as { messages: Array<{ role: string; content: string }> };
   const userPayload = JSON.parse(body.messages.find((message) => message.role === "user")!.content);
   assert.equal(userPayload.files[0].fileIndex, 0);

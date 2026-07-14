@@ -9,6 +9,7 @@ async function main() {
     createdFiles: result.createdFiles,
     copiedCoursePermissions: result.copiedCoursePermissions,
     copiedUserPermissions: result.copiedUserPermissions,
+    backfilledYears: result.backfilledYears,
     missingFiles: result.missingFiles,
   }, null, 2));
 }

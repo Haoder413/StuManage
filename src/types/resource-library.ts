@@ -18,6 +18,7 @@ export type ResourceGroupItem = {
   title: string;
   description: string | null;
   grade: string | null;
+  year: number | null;
   subject: string | null;
   resourceKind: "paper" | "animation" | "material";
   totalSize: number;

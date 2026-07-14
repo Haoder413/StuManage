@@ -16,6 +16,7 @@ import {
   type StagedResourceFile,
 } from "@/lib/resource-storage";
 import { visibleCourseWhere } from "@/lib/teacher-visibility";
+import { resourceGradeSearchTerms } from "@/lib/resource-metadata";
 
 function fileStateWhere(fileState: ReturnType<typeof parseResourceGroupQuery>["fileState"]): Prisma.ResourceGroupWhereInput | null {
   if (fileState === "student") return { files: { some: { role: "student" } } };
@@ -43,7 +44,11 @@ export async function GET(request: NextRequest) {
   const conditions: Prisma.ResourceGroupWhereInput[] = [getVisibleResourceGroupWhere(user)];
   const workspaceId = user.role === "admin" ? query.workspaceId : user.workspaceId;
   if (workspaceId) conditions.push({ workspaceId });
-  if (query.grade) conditions.push({ grade: query.grade });
+  if (query.grade) conditions.push({ OR: resourceGradeSearchTerms(query.grade).map((term) => (
+    term.mode === "startsWith" ? { grade: { startsWith: term.alias } } : { grade: { contains: term.alias } }
+  )) });
+  if (query.year === "unset") conditions.push({ year: null });
+  else if (query.year !== null) conditions.push({ year: query.year });
   if (query.subject) conditions.push({ subject: query.subject });
   if (query.resourceKind) conditions.push({ resourceKind: query.resourceKind });
   if (query.courseId) conditions.push({ coursePermissions: { some: { courseId: query.courseId } } });
@@ -114,6 +119,7 @@ export async function GET(request: NextRequest) {
       title: group.title,
       description: group.description,
       grade: group.grade,
+      year: group.year,
       subject: group.subject,
       resourceKind: group.resourceKind,
       totalSize: group.totalSize,
@@ -197,6 +203,7 @@ export async function POST(request: NextRequest) {
             title: groupInput.title,
             description: groupInput.description,
             grade: groupInput.grade,
+            year: groupInput.year,
             subject: groupInput.subject || user.teachingSubject,
             resourceKind: groupInput.resourceKind,
             totalSize: groupInput.files.reduce((sum, entry) => sum + stagedFiles[entry.fileIndex].size, 0),

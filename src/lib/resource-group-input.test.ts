@@ -7,6 +7,7 @@ test("normalizes editable group metadata", () => {
     title: "  初二函数试卷  ",
     description: " ",
     grade: "初二",
+    year: 2024,
     subject: "数学",
     resourceKind: "paper",
     tags: [" 函数 ", "函数"],
@@ -15,11 +16,18 @@ test("normalizes editable group metadata", () => {
     title: "初二函数试卷",
     description: null,
     grade: "初二",
+    year: 2024,
     subject: "数学",
     resourceKind: "paper",
     tags: ["函数"],
     confirmInformation: true,
   });
+});
+
+test("allows clearing a year and rejects unreasonable years", () => {
+  const base = { title: "资料", description: "", grade: "", year: "", subject: "", resourceKind: "material", tags: [] };
+  assert.equal(parseResourceGroupUpdate(base).year, null);
+  assert.throws(() => parseResourceGroupUpdate({ ...base, year: 1800 }), /invalid_resource_year/);
 });
 
 test("metadata review is cleared only by explicit confirmation", () => {

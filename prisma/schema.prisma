@@ -583,6 +583,7 @@ model ResourceGroup {
   subject           String?
   resourceKind      String                          @default("paper")
   grade             String?
+  year              Int?
   totalSize         Int                             @default(0)
   infoNeedsReview   Boolean                         @default(false)
   createdById       String
@@ -598,6 +599,7 @@ model ResourceGroup {
 
   @@index([workspaceId, updatedAt])
   @@index([workspaceId, grade, subject, resourceKind])
+  @@index([workspaceId, year])
 }
 
 model LegacyResourceMigration {

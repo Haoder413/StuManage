@@ -25,6 +25,7 @@ test("schema stores grouped metadata, file versions, tags and group permissions"
   assert.match(schema, /model LegacyResourceMigration \{/);
   assert.match(schema, /legacyResourceId\s+String\?\s+@unique/);
   assert.match(schema, /totalSize\s+Int\s+@default\(0\)/);
+  assert.match(schema, /year\s+Int\?/);
   assert.match(schema, /role\s+String\s+@default\("supplement"\)/);
   assert.match(schema, /sha256\s+String/);
   assert.match(schema, /primaryRoleKey\s+String\?/);
@@ -42,4 +43,7 @@ test("legacy migration is idempotent and copies both permission types", () => {
   assert.match(migration, /primaryRoleKey/);
   assert.match(migration, /legacyResourceMigration/);
   assert.match(migration, /cloneStoredResourceFile/);
+  assert.match(migration, /year: null/);
+  assert.match(migration, /extractResourceYear/);
+  assert.match(migration, /backfilledYears/);
 });

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResourceGroupEditor, type EditableUploadGroup } from "@/components/resource-group-editor";
 import { createUniqueUploadGroupKey, mergeUploadGroup } from "@/lib/resource-upload-groups";
+import { extractResourceYear } from "@/lib/resource-metadata";
 import type { CourseOption, WorkspaceOption } from "@/types/resource-library";
 
 type AnalysisResponse = { source: "local" | "deepseek"; groups: Array<Omit<EditableUploadGroup, "courseIds">> };
@@ -16,6 +17,7 @@ function manualGroups(files: File[]): EditableUploadGroup[] {
     groupKey: `manual-${index}`,
     title: file.name.replace(/\.[^.]+$/, ""),
     grade: null,
+    year: extractResourceYear(file.name),
     subject: null,
     resourceKind: /\.html?$/i.test(file.name) ? "animation" : "paper",
     tags: [],
@@ -105,6 +107,7 @@ export function ResourceUploadWizard({
         ...source,
         groupKey: splitKey,
         title: file.originalName.replace(/\.[^.]+$/, ""),
+        year: extractResourceYear(file.originalName) ?? source.year,
         files: [file],
         needsConfirmation: true,
         reason: "已拆分为独立资料，请确认信息",
@@ -125,6 +128,7 @@ export function ResourceUploadWizard({
       groups: groups.map((group) => ({
         title: group.title,
         grade: group.grade,
+        year: group.year,
         subject: group.subject,
         resourceKind: group.resourceKind,
         tags: group.tags,

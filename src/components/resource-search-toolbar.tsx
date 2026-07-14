@@ -43,17 +43,26 @@ export function ResourceSearchToolbar({
   const visibleCourses = role === "admin" && selectedWorkspace !== "all"
     ? courses.filter((course) => course.workspaceId === selectedWorkspace)
     : courses;
-  const activeFilters = ["q", "grade", "subject", "resourceKind", "fileState", "courseId", "workspaceId"].filter((key) => searchParams.get(key)).length;
+  const activeFilters = ["q", "grade", "year", "subject", "resourceKind", "fileState", "courseId", "workspaceId"].filter((key) => searchParams.get(key)).length;
+  const years = Array.from({ length: 2100 - 1900 + 1 }, (_, index) => 2100 - index);
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_repeat(4,minmax(120px,160px))]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_repeat(5,minmax(110px,150px))]">
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、原文件名、标签、年级或科目" />
         <Select value={searchParams.get("grade") || "all"} onValueChange={(value) => replaceParams({ grade: value })}>
           <SelectTrigger><SelectValue placeholder="全部年级" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部年级</SelectItem>
-            {["小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三"].map((grade) => <SelectItem key={grade} value={grade}>{grade}</SelectItem>)}
+            {["小一", "小二", "小三", "小四", "小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三"].map((grade) => <SelectItem key={grade} value={grade}>{grade}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={searchParams.get("year") || "all"} onValueChange={(value) => replaceParams({ year: value })}>
+          <SelectTrigger><SelectValue placeholder="全部年份" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部年份</SelectItem>
+            <SelectItem value="unset">未设置年份</SelectItem>
+            {years.map((year) => <SelectItem key={year} value={String(year)}>{year}年</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={searchParams.get("subject") || "all"} onValueChange={(value) => replaceParams({ subject: value })}>
