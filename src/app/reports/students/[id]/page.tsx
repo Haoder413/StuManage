@@ -14,8 +14,8 @@ function dateLabel(value: Date | string | null | undefined) {
   return new Date(value).toLocaleDateString("zh-CN");
 }
 
-function money(value: number | null) {
-  return value === null ? "-" : `¥${value.toLocaleString("zh-CN")}`;
+function money(value: string | null) {
+  return value || "-";
 }
 
 function attendanceLabel(status: string) {

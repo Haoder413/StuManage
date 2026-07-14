@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         parentContact: data.parentContact || null,
         enrollmentDate: new Date(data.enrollmentDate),
         lessonFrequency: data.lessonFrequency || null,
-        tuition: data.tuition ? parseFloat(data.tuition) : null,
+        tuition: data.tuition ? String(data.tuition).trim() || null : null,
         totalLessonHours,
         remainingLessonHours,
         notes: data.notes || null,
@@ -155,8 +155,8 @@ export async function PATCH(request: NextRequest) {
         grade: normalizeStudentGrade(data.grade),
         parentContact: data.parentContact || null,
         enrollmentDate: data.enrollmentDate ? new Date(data.enrollmentDate) : undefined,
-        lessonFrequency: data.lessonFrequency || null,
-        tuition: data.tuition ? parseFloat(data.tuition) : null,
+        lessonFrequency: "lessonFrequency" in data ? data.lessonFrequency || null : undefined,
+        tuition: data.tuition ? String(data.tuition).trim() || null : null,
         totalLessonHours: data.totalLessonHours !== undefined ? parseInt(data.totalLessonHours) || 0 : undefined,
         remainingLessonHours: data.remainingLessonHours !== undefined ? parseInt(data.remainingLessonHours) || 0 : undefined,
         notes: data.notes || null,
@@ -261,6 +261,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const user = await requireTeacherLike();
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });

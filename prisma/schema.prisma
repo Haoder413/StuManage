@@ -129,7 +129,7 @@ model Student {
   parentContact    String?
   enrollmentDate   DateTime @default(now())
   lessonFrequency  String?
-  tuition          Float?
+  tuition          String?
   totalLessonHours Int      @default(0)
   remainingLessonHours Int  @default(0)
   notes            String?

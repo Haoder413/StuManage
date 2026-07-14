@@ -17,7 +17,7 @@ interface StudentInfo {
   parentContact: string | null;
   enrollmentDate: string;
   lessonFrequency: string | null;
-  tuition: number | null;
+  tuition: string | null;
   totalLessonHours: number;
   remainingLessonHours: number;
   notes: string | null;
@@ -51,8 +51,7 @@ export function StudentDetailEditor({
     grade: initialStudent.grade || "",
     parentContact: initialStudent.parentContact || "",
     enrollmentDate: formatDateInput(initialStudent.enrollmentDate),
-    lessonFrequency: initialStudent.lessonFrequency || "",
-    tuition: initialStudent.tuition?.toString() || "",
+    tuition: initialStudent.tuition || "",
     notes: initialStudent.notes || "",
   });
 
@@ -68,8 +67,7 @@ export function StudentDetailEditor({
       grade: student.grade || "",
       parentContact: student.parentContact || "",
       enrollmentDate: formatDateInput(student.enrollmentDate),
-      lessonFrequency: student.lessonFrequency || "",
-      tuition: student.tuition?.toString() || "",
+      tuition: student.tuition || "",
       notes: student.notes || "",
     });
     setShowStudentDialog(true);
@@ -145,7 +143,7 @@ export function StudentDetailEditor({
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">家长联系方式</span><span className="text-[#1a1a2e]/70">{student.parentContact || "-"}</span></div>
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">入学日期</span><span className="text-[#1a1a2e]/70">{new Date(student.enrollmentDate).toLocaleDateString("zh-CN")}</span></div>
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">上课频次</span><span className="text-[#1a1a2e]/70">{student.lessonFrequency || "-"}</span></div>
-            <div className="flex justify-between"><span className="text-[#1a1a2e]/40">学费</span><span className="text-[#1a1a2e]/70">{student.tuition ? `¥${student.tuition.toFixed(2)}` : "-"}</span></div>
+            <div className="flex justify-between"><span className="text-[#1a1a2e]/40">学费</span><span className="text-[#1a1a2e]/70">{student.tuition || "-"}</span></div>
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">总课时</span><span className="text-[#1a1a2e]/70">{student.totalLessonHours}</span></div>
             <div className="flex justify-between"><span className="text-[#1a1a2e]/40">剩余课时</span><span className="text-[#1a1a2e]/70">{student.remainingLessonHours}</span></div>
             <div className="flex justify-between gap-4"><span className="text-[#1a1a2e]/40">备注</span><span className="text-[#1a1a2e]/70 text-right">{student.notes || "-"}</span></div>
@@ -190,12 +188,8 @@ export function StudentDetailEditor({
               <Input type="date" value={studentForm.enrollmentDate} onChange={e => setStudentForm(prev => ({ ...prev, enrollmentDate: e.target.value }))} />
             </div>
             <div>
-              <Label className="text-xs text-gray-500">上课频次</Label>
-              <Input value={studentForm.lessonFrequency} onChange={e => setStudentForm(prev => ({ ...prev, lessonFrequency: e.target.value }))} />
-            </div>
-            <div>
               <Label className="text-xs text-gray-500">学费</Label>
-              <Input type="number" value={studentForm.tuition} onChange={e => setStudentForm(prev => ({ ...prev, tuition: e.target.value }))} />
+              <Input value={studentForm.tuition} onChange={e => setStudentForm(prev => ({ ...prev, tuition: e.target.value }))} placeholder="如：3000元/月、按课时结算" />
             </div>
             <div className="col-span-2">
               <Label className="text-xs text-gray-500">备注</Label>

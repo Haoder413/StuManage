@@ -161,16 +161,16 @@ async function main() {
   // ==========================================
 
   const studentsData = [
-    { name: "张三", grade: "初一", parentContact: "13800000001", lessonFrequency: "每周2次", tuition: 3200, notes: "数学基础较好，计算能力需要加强" },
-    { name: "李四", grade: "初二", parentContact: "13800000002", lessonFrequency: "每周1次", tuition: 2400, notes: "几何部分较弱，需要重点辅导" },
-    { name: "王五", grade: "初一", parentContact: "13800000003", lessonFrequency: "每周2次", tuition: 3200, notes: "学习态度认真，做题速度偏慢" },
-    { name: "赵六", grade: "初三", parentContact: "13800000004", lessonFrequency: "每周3次", tuition: 4800, notes: "中考冲刺，函数和几何都需要补" },
-    { name: "孙七", grade: "小六", parentContact: "13800000005", lessonFrequency: "每周1次", tuition: 2000, notes: "小升初准备，思维训练为主" },
-    { name: "周八", grade: "初二", parentContact: "13800000006", lessonFrequency: "每周2次", tuition: 2800, notes: "因式分解和全等三角形比较吃力" },
-    { name: "吴九", grade: "初三", parentContact: "13800000007", lessonFrequency: "每周2次", tuition: 4000, notes: "目标是重点高中，压轴题需要突破" },
-    { name: "郑十", grade: "初一", parentContact: "13800000008", lessonFrequency: "每周1次", tuition: 2400, notes: "刚上初中，需要适应中学数学思维" },
-    { name: "陈十一", grade: "小五", parentContact: "13800000009", lessonFrequency: "每周1次", tuition: 2000, notes: "对数学有兴趣，参加思维拓展课程" },
-    { name: "林十二", grade: "初二", parentContact: "13800000010", lessonFrequency: "每周2次", tuition: 2800, notes: "基础不错，想提前学初三内容" },
+    { name: "张三", grade: "初一", parentContact: "13800000001", lessonFrequency: "每周2次", tuition: "3200", notes: "数学基础较好，计算能力需要加强" },
+    { name: "李四", grade: "初二", parentContact: "13800000002", lessonFrequency: "每周1次", tuition: "2400", notes: "几何部分较弱，需要重点辅导" },
+    { name: "王五", grade: "初一", parentContact: "13800000003", lessonFrequency: "每周2次", tuition: "3200", notes: "学习态度认真，做题速度偏慢" },
+    { name: "赵六", grade: "初三", parentContact: "13800000004", lessonFrequency: "每周3次", tuition: "4800", notes: "中考冲刺，函数和几何都需要补" },
+    { name: "孙七", grade: "小六", parentContact: "13800000005", lessonFrequency: "每周1次", tuition: "2000", notes: "小升初准备，思维训练为主" },
+    { name: "周八", grade: "初二", parentContact: "13800000006", lessonFrequency: "每周2次", tuition: "2800", notes: "因式分解和全等三角形比较吃力" },
+    { name: "吴九", grade: "初三", parentContact: "13800000007", lessonFrequency: "每周2次", tuition: "4000", notes: "目标是重点高中，压轴题需要突破" },
+    { name: "郑十", grade: "初一", parentContact: "13800000008", lessonFrequency: "每周1次", tuition: "2400", notes: "刚上初中，需要适应中学数学思维" },
+    { name: "陈十一", grade: "小五", parentContact: "13800000009", lessonFrequency: "每周1次", tuition: "2000", notes: "对数学有兴趣，参加思维拓展课程" },
+    { name: "林十二", grade: "初二", parentContact: "13800000010", lessonFrequency: "每周2次", tuition: "2800", notes: "基础不错，想提前学初三内容" },
   ];
 
   const students = [];
@@ -495,7 +495,7 @@ async function main() {
       parentContact: "demo-parent",
       enrollmentDate: new Date("2026-06-01"),
       lessonFrequency: "每周2次",
-      tuition: 3600,
+      tuition: "3600",
       totalLessonHours: 40,
       remainingLessonHours: 32,
       notes: "这是一条演示数据，不属于真实学生。",

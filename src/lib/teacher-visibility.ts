@@ -40,19 +40,18 @@ export function visibleStudentByIdWhere(user: TeacherVisibilityUser, studentId: 
 }
 
 export function deletableStudentByIdWhere(user: TeacherVisibilityUser, studentId: string): Prisma.StudentWhereInput {
-  if (teacherSeesAllWorkspaceData(user)) {
+  if (user.role === "admin") {
     return { id: studentId, workspaceId: user.workspaceId };
   }
 
   return {
-    id: studentId,
+    id: "__admin_only__",
     workspaceId: user.workspaceId,
-    createdById: user.id,
   };
 }
 
-export function canDeleteStudent(user: TeacherVisibilityUser, student: { createdById: string | null }) {
-  return teacherSeesAllWorkspaceData(user) || student.createdById === user.id;
+export function canDeleteStudent(user: TeacherVisibilityUser, _student: { createdById: string | null }) {
+  return user.role === "admin";
 }
 
 export function visibleCourseWhere(user: TeacherVisibilityUser): Prisma.CourseWhereInput {

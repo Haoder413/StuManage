@@ -24,7 +24,7 @@ export default function NewStudentPage() {
       parentContact: form.get("parentContact") as string,
       enrollmentDate: new Date(form.get("enrollmentDate") as string).toISOString(),
       lessonFrequency: form.get("lessonFrequency") as string,
-      tuition: form.get("tuition") ? parseFloat(form.get("tuition") as string) : null,
+      tuition: form.get("tuition") as string,
       notes: form.get("notes") as string,
     };
     try {
@@ -55,7 +55,7 @@ export default function NewStudentPage() {
             <div><Label htmlFor="parentContact">家长联系方式</Label><Input id="parentContact" name="parentContact" placeholder="手机号" /></div>
             <div><Label htmlFor="enrollmentDate">入学日期</Label><Input id="enrollmentDate" name="enrollmentDate" type="date" defaultValue={new Date().toISOString().split("T")[0]} /></div>
             <div><Label htmlFor="lessonFrequency">上课频次</Label><Input id="lessonFrequency" name="lessonFrequency" placeholder="如：每周2次" /></div>
-            <div><Label htmlFor="tuition">学费</Label><Input id="tuition" name="tuition" type="number" step="0.01" placeholder="如：3000" /></div>
+            <div><Label htmlFor="tuition">学费</Label><Input id="tuition" name="tuition" placeholder="如：3000元/月、按课时结算" /></div>
             <div><Label htmlFor="notes">备注</Label><textarea id="notes" name="notes" className="flex min-h-[80px] w-full rounded-md border border-[#1a1a2e]/10 bg-white/50 px-3 py-2 text-sm" /></div>
             <div className="flex gap-3">
               <Button type="submit" disabled={loading}>保存</Button>
