@@ -29,6 +29,8 @@ export type CreateDeviceSessionInput = {
   displayName?: string;
   userAgent?: string;
   ipAddress?: string;
+  operatingSystem?: string;
+  clientVersion?: string;
   privacyAccepted: boolean;
 };
 
@@ -97,6 +99,8 @@ type NormalizedDeviceSessionInput = {
   displayName: string | null;
   userAgent: string | null;
   ipAddress: string | null;
+  operatingSystem: string | null;
+  clientVersion: string | null;
 };
 
 export class DeviceSessionValidationError extends Error {
@@ -183,6 +187,8 @@ export function normalizeDeviceSessionInput(input: CreateDeviceSessionInput): No
     displayName: cleanLimitedText(input.displayName, 120),
     userAgent,
     ipAddress: cleanLimitedText(input.ipAddress, 64),
+    operatingSystem: cleanLimitedText(input.operatingSystem, 120),
+    clientVersion: cleanLimitedText(input.clientVersion, 64),
   };
 }
 
@@ -414,6 +420,12 @@ export async function createDeviceSession(
   expiresAt.setDate(expiresAt.getDate() + SESSION_DAYS);
   const userAgentDescription = describeUserAgent(input.userAgent);
   const displayName = input.displayName ?? userAgentDescription.displayName;
+  const browser = input.channel === "miniProgram"
+    ? `微信小程序${input.clientVersion ? ` ${input.clientVersion}` : ""}`
+    : userAgentDescription.browser;
+  const operatingSystem = input.channel === "miniProgram"
+    ? input.operatingSystem ?? userAgentDescription.operatingSystem
+    : userAgentDescription.operatingSystem;
 
   await database.transaction(async (transaction) => {
     await transaction.deleteExpiredSessions(now);
@@ -430,8 +442,8 @@ export async function createDeviceSession(
       deviceType: input.deviceType,
       deviceKeyHash,
       displayName,
-      browser: userAgentDescription.browser,
-      operatingSystem: userAgentDescription.operatingSystem,
+      browser,
+      operatingSystem,
       userAgent: input.userAgent,
       ipAddress: input.ipAddress,
       now,

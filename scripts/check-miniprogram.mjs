@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 
 const required = {
   "src/lib/auth.ts": ["createSessionToken", "SESSION_COOKIE"],
-  "src/lib/mobile-auth.ts": ["getMobileCurrentUser", "Authorization", "Bearer"],
+  "src/lib/mobile-auth.ts": ["getMobileCurrentUser", "Authorization", "Bearer", "miniProgram", "touchSessionActivity"],
   "src/lib/mobile-parent-data.ts": ["getMobileParentHome", "getMobileParentExams", "getMobileParentProgress", "getMobileResources", "getMobileParentHomework"],
-  "src/app/api/mobile/auth/login/route.ts": ["POST", "verifyPassword", "token"],
+  "src/app/api/mobile/auth/login/route.ts": ["POST", "verifyLoginPassword", "executeMobileLogin"],
   "src/app/api/mobile/parent/home/route.ts": ["GET", "getMobileParentHome"],
   "src/app/api/mobile/parent/exams/route.ts": ["GET", "getMobileParentExams"],
   "src/app/api/mobile/parent/progress/route.ts": ["GET", "getMobileParentProgress"],
@@ -13,7 +13,8 @@ const required = {
   "miniprogram/app.json": ["pages/login/index", "pages/home/index", "pages/homework/index", "tabBar"],
   "miniprogram/app.js": ["globalData", "apiBaseUrl"],
   "miniprogram/utils/api.js": ["request", "Authorization", "Bearer"],
-  "miniprogram/pages/login/index.js": ["login", "identifier", "password"],
+  "miniprogram/utils/device-login.js": ["readStoredDeviceKey", "saveDeviceKey", "miniDeviceInfo"],
+  "miniprogram/pages/login/index.js": ["login", "identifier", "password", "privacyAccepted", "deviceKey", "deviceType"],
   "miniprogram/pages/home/index.js": ["parent/home"],
   "miniprogram/pages/exams/index.js": ["parent/exams"],
   "miniprogram/pages/progress/index.js": ["parent/progress"],

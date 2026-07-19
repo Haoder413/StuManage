@@ -135,6 +135,8 @@ type FakeDevice = {
   deviceType: string;
   deviceKeyHash: string;
   lastSeenAt?: Date;
+  browser?: string | null;
+  operatingSystem?: string | null;
 };
 
 type FakeSession = {
@@ -441,4 +443,29 @@ test("counts distinct devices despite duplicate sessions and applies a user over
   await createDeviceSession("u", baseInput(deviceKey("second")), db);
   await createDeviceSession("u", baseInput(deviceKey("third")), db);
   assert.equal(db.state.devices.length, 3);
+});
+
+test("mini-program sessions use a separate pool and preserve official client metadata", async () => {
+  const db = new FakeDeviceSessionDatabase({ devices: [], sessions: [], consents: [], overrides: {} });
+  const miniInput = (seed: string, deviceType: "mobile" | "tablet" = "mobile"): CreateDeviceSessionInput => ({
+    channel: "miniProgram",
+    deviceKey: deviceKey(seed),
+    deviceType,
+    displayName: deviceType === "tablet" ? "Apple iPad Pro" : "Xiaomi 15",
+    operatingSystem: deviceType === "tablet" ? "iOS 18.0" : "Android 16",
+    clientVersion: "8.0.50",
+    userAgent: "MicroMessenger",
+    privacyAccepted: true,
+  });
+
+  await createDeviceSession("u", miniInput("mini-phone-1"), db);
+  await createDeviceSession("u", miniInput("mini-phone-2"), db);
+  await assert.rejects(() => createDeviceSession("u", miniInput("mini-phone-3"), db), DeviceLimitError);
+  await createDeviceSession("u", miniInput("mini-tablet", "tablet"), db);
+  await createDeviceSession("u", baseInput(deviceKey("web-desktop")), db);
+
+  assert.equal(db.state.sessions.filter((session) => session.channel === "miniProgram").length, 3);
+  assert.equal(db.state.sessions.filter((session) => session.channel === "web").length, 1);
+  assert.equal(db.state.devices[0].browser, "微信小程序 8.0.50");
+  assert.equal(db.state.devices[0].operatingSystem, "Android 16");
 });

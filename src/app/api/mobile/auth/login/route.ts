@@ -1,39 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/password";
-import { createSessionToken } from "@/lib/auth";
+import { verifyLoginPassword } from "@/lib/password";
+import { createDeviceSession, getRequestIp } from "@/lib/device-session";
+import { executeMobileLogin } from "@/lib/mobile-login";
+import { randomBytes } from "node:crypto";
 
 export async function POST(request: NextRequest) {
-  const data = await request.json();
-  const identifier = String(data.identifier || "").trim();
-  const password = String(data.password || "");
-
-  if (!identifier || !password) {
-    return NextResponse.json({ error: "账号和密码不能为空" }, { status: 400 });
+  const data = await request.json().catch(() => null);
+  try {
+    const result = await executeMobileLogin(
+      data,
+      {
+        userAgent: request.headers.get("user-agent") || "WeChat Mini Program",
+        ipAddress: getRequestIp(request.headers) ?? undefined,
+      },
+      {
+        findUser: (identifier) => prisma.user.findFirst({
+          where: { OR: [{ phone: identifier }, { email: identifier }] },
+        }),
+        verifyLoginPassword,
+        createDeviceSession,
+        generateDeviceKey: () => randomBytes(32).toString("hex"),
+      },
+    );
+    return NextResponse.json(result.body, { status: result.status });
+  } catch (error) {
+    console.error("Failed to process mini-program login", error);
+    return NextResponse.json({ error: "登录失败，请稍后重试" }, { status: 500 });
   }
-
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ phone: identifier }, { email: identifier }],
-    },
-  });
-
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    return NextResponse.json({ error: "账号或密码不正确" }, { status: 401 });
-  }
-
-  if (user.role !== "parent") {
-    return NextResponse.json({ error: "小程序第一版仅支持家长账号" }, { status: 403 });
-  }
-
-  const session = await createSessionToken(user.id);
-  return NextResponse.json({
-    token: session.token,
-    expiresAt: session.expiresAt,
-    user: {
-      id: user.id,
-      name: user.name,
-      role: user.role,
-    },
-  });
 }

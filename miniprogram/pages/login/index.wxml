@@ -11,7 +11,17 @@
     <view class="field-label">密码</view>
     <input class="input" password placeholder="请输入密码" value="{{password}}" bindinput="onPasswordInput" />
 
-    <button class="button login-button" loading="{{loading}}" bindtap="login">登录</button>
+    <checkbox-group class="privacy-group" bindchange="onPrivacyChange">
+      <label class="privacy-label">
+        <checkbox value="accepted" checked="{{privacyAccepted}}" color="#2563eb" />
+        <text>我已阅读并同意设备登录与隐私说明</text>
+      </label>
+    </checkbox-group>
+    <view class="privacy-notice">
+      为保障账号安全，会记录设备类型、系统、IP、登录时间和最近活跃时间，历史记录保存 90 天。
+    </view>
+
+    <button class="button login-button" loading="{{loading}}" disabled="{{loading || !privacyAccepted}}" bindtap="login">登录</button>
     <view wx:if="{{message}}" class="message">{{message}}</view>
   </view>
 </view>
