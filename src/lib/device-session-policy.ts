@@ -59,7 +59,23 @@ function isValidLimit(value: unknown): value is number {
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Never accept a client-provided deviceId or create a session from a bare
+ * deviceId. Load the LoginDevice record server-side and pass it here before
+ * writing the session so user and channel scope cannot be crossed.
+ */
+export function assertDeviceSessionScope(
+  device: { userId: string; channel: string },
+  session: { userId: string; channel: DeviceChannel },
+): void {
+  if (device.userId !== session.userId || device.channel !== session.channel) {
+    throw new Error("Login device is outside the session scope");
+  }
 }
 
 export function validateDeviceLimits(value: unknown): value is DeviceLimits {

@@ -64,6 +64,12 @@ test("schema stores login devices, policies, consent and audit history", () => {
   assert.match(schema, /model AdminAuditLog \{/);
   assert.match(schema, /@relation\("AdminAuditLogs"/);
   assert.match(schema, /@relation\("TargetAuditLogs"/);
+  assert.match(schema, /actorUserIdSnapshot\s+String/);
+  assert.match(schema, /actorNameSnapshot\s+String/);
+  assert.match(schema, /targetUserIdSnapshot\s+String\?/);
+  assert.match(schema, /targetNameSnapshot\s+String\?/);
+  assert.match(schema, /@@index\(\[targetUserId, createdAt\]\)/);
+  assert.match(schema, /@@index\(\[adminId, createdAt\]\)/);
   assert.match(schema, /model SystemMigration \{/);
   assert.match(schema, /key\s+String\s+@id/);
 });
@@ -75,4 +81,6 @@ test("sessions optionally track their device, channel and last activity", () => 
   assert.match(schema, /channel\s+String\?/);
   assert.match(schema, /lastSeenAt\s+DateTime\?/);
   assert.match(schema, /device\s+LoginDevice\?\s+@relation\(fields: \[deviceId\], references: \[id\], onDelete: SetNull\)/);
+  assert.match(schema, /@@index\(\[deviceId\]\)/);
+  assert.match(schema, /@@index\(\[expiresAt\]\)/);
 });

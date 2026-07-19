@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_DEVICE_LIMITS,
+  assertDeviceSessionScope,
   cleanLimitedText,
   detectDeviceType,
   deviceLimitKey,
@@ -60,6 +61,13 @@ test("accepts nullable or omitted overrides and rejects invalid values", () => {
   assert.equal(validateDeviceLimitOverrides({ webMoblie: 2 }), false);
 });
 
+test("rejects non-plain objects as device limit input", () => {
+  for (const value of [new Date(), new Map(), new Set()]) {
+    assert.equal(validateDeviceLimits(value), false);
+    assert.equal(validateDeviceLimitOverrides(value), false);
+  }
+});
+
 test("cleans and limits optional device metadata text", () => {
   assert.equal(cleanLimitedText("  Safari\n\t17  ", 20), "Safari 17");
   assert.equal(cleanLimitedText("abcdef", 4), "abcd");
@@ -73,4 +81,29 @@ test("merges only non-null user overrides into global limits", () => {
     ...global,
     miniDesktop: 7,
   });
+});
+
+test("requires a login device to match both session user and channel", () => {
+  assert.doesNotThrow(() =>
+    assertDeviceSessionScope(
+      { userId: "user-a", channel: "web" },
+      { userId: "user-a", channel: "web" },
+    ),
+  );
+  assert.throws(
+    () =>
+      assertDeviceSessionScope(
+        { userId: "user-b", channel: "web" },
+        { userId: "user-a", channel: "web" },
+      ),
+    /scope/i,
+  );
+  assert.throws(
+    () =>
+      assertDeviceSessionScope(
+        { userId: "user-a", channel: "miniProgram" },
+        { userId: "user-a", channel: "web" },
+      ),
+    /scope/i,
+  );
 });

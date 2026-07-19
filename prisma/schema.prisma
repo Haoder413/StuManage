@@ -127,6 +127,9 @@ model Session {
   createdAt  DateTime     @default(now())
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   device     LoginDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([deviceId])
+  @@index([expiresAt])
 }
 
 model LoginDevice {
@@ -189,14 +192,21 @@ model PrivacyConsent {
 }
 
 model AdminAuditLog {
-  id           String   @id @default(cuid())
-  adminId      String?
-  targetUserId String?
-  action       String
-  summary      String?
-  createdAt    DateTime @default(now())
-  admin        User?    @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: SetNull)
-  targetUser   User?    @relation("TargetAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
+  id                   String   @id @default(cuid())
+  adminId              String?
+  targetUserId         String?
+  actorUserIdSnapshot  String
+  actorNameSnapshot    String
+  targetUserIdSnapshot String?
+  targetNameSnapshot   String?
+  action               String
+  summary              String?
+  createdAt            DateTime @default(now())
+  admin                User?    @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: SetNull)
+  targetUser           User?    @relation("TargetAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([adminId, createdAt])
 }
 
 model SystemMigration {
