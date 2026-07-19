@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AccountDeviceDialog } from "@/components/account-device-dialog";
 
 type Account = {
   id: string;
@@ -331,26 +332,32 @@ export function AccountManager({
         <CardContent>
           <div className="space-y-3">
             {users.map((user) => (
-              <button
-                key={user.id}
-                onClick={() => editAccount(user)}
-                className="w-full rounded-lg border bg-white px-4 py-3 text-left hover:bg-slate-50"
-                type="button"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-900">{user.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{user.phone || user.email || "未设置账号"} · {user.workspaceName}</p>
-                    {user.role === "teacher" && (
-                      <p className="mt-1 text-xs text-slate-500">教学科目：{user.teachingSubject || "未设置"}</p>
+              <div key={user.id} className="rounded-lg border bg-white p-3 hover:bg-slate-50">
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => editAccount(user)}
+                    className="min-w-0 flex-1 text-left"
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">{user.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">{user.phone || user.email || "未设置账号"} · {user.workspaceName}</p>
+                        {user.role === "teacher" && (
+                          <p className="mt-1 text-xs text-slate-500">教学科目：{user.teachingSubject || "未设置"}</p>
+                        )}
+                      </div>
+                      <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">{roleLabel(user.role)}</span>
+                    </div>
+                    {user.role === "parent" && (
+                      <p className="mt-2 text-xs text-slate-500">可见学生：{studentNames(students, user.parentStudentIds)}</p>
                     )}
+                  </button>
+                  <div className="shrink-0">
+                    <AccountDeviceDialog account={{ id: user.id, name: user.name }} />
                   </div>
-                  <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">{roleLabel(user.role)}</span>
                 </div>
-                {user.role === "parent" && (
-                  <p className="mt-2 text-xs text-slate-500">可见学生：{studentNames(students, user.parentStudentIds)}</p>
-                )}
-              </button>
+              </div>
             ))}
           </div>
         </CardContent>

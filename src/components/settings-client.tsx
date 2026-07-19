@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DevicePolicyCard } from "@/components/device-policy-card";
 
 type BackupItem = {
   fileName: string;
@@ -71,32 +72,35 @@ export function SettingsClient({ role, initialBackups }: { role: string; initial
       </Card>
 
       {role === "admin" && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>数据库备份</CardTitle>
-              <Button onClick={createBackup} disabled={isBackingUp} type="button" variant="outline">
-                {isBackingUp ? "备份中..." : "立即备份"}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {backupMessage && <p className="mb-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">{backupMessage}</p>}
-            <div className="space-y-2">
-              {backups.length === 0 ? (
-                <p className="text-sm text-slate-400">暂无数据库备份</p>
-              ) : backups.map((backup) => (
-                <div key={backup.fileName} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <div>
-                    <p className="font-semibold text-slate-800">{backup.fileName}</p>
-                    <p className="text-xs text-slate-400">{new Date(backup.modifiedAt).toLocaleString("zh-CN")}</p>
+        <>
+          <DevicePolicyCard />
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>数据库备份</CardTitle>
+                <Button onClick={createBackup} disabled={isBackingUp} type="button" variant="outline">
+                  {isBackingUp ? "备份中..." : "立即备份"}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {backupMessage && <p className="mb-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">{backupMessage}</p>}
+              <div className="space-y-2">
+                {backups.length === 0 ? (
+                  <p className="text-sm text-slate-400">暂无数据库备份</p>
+                ) : backups.map((backup) => (
+                  <div key={backup.fileName} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-semibold text-slate-800">{backup.fileName}</p>
+                      <p className="text-xs text-slate-400">{new Date(backup.modifiedAt).toLocaleString("zh-CN")}</p>
+                    </div>
+                    <p className="text-xs text-slate-500">{formatSize(backup.size)}</p>
                   </div>
-                  <p className="text-xs text-slate-500">{formatSize(backup.size)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
