@@ -27,6 +27,7 @@ const miniDeviceLogin = require("../../miniprogram/utils/device-login.js") as {
     operatingSystem: string;
     clientVersion: string;
   };
+  isValidSessionToken(value: unknown): boolean;
 };
 
 function validKey(seed: string) {
@@ -165,6 +166,9 @@ test("mini client stores only server-issued valid keys and derives official devi
     getDeviceInfo: () => ({ brand: "Google", model: "Pixel 9", system: "Android 15", deviceType: "phone" }),
     getAppBaseInfo: () => ({ version: "8.0.51" }),
   }).deviceType, "mobile");
+  assert.equal(miniDeviceLogin.isValidSessionToken(validKey("session-token")), true);
+  assert.equal(miniDeviceLogin.isValidSessionToken(""), false);
+  assert.equal(miniDeviceLogin.isValidSessionToken(undefined), false);
 });
 
 test("mobile authentication accepts only owned mini-program device sessions and throttles activity", async () => {
@@ -324,16 +328,17 @@ test("mini login blocks duplicate taps and compensates when the server key canno
     assert.equal(context.data.loading, true);
 
     const serverKey = validKey("server-key-for-storage-failure");
+    const currentSessionToken = validKey("only-this-session-token");
     requests[0].success({
       statusCode: 200,
-      data: { token: "only-this-session-token", deviceKey: serverKey, user: { id: "user-1" } },
+      data: { token: currentSessionToken, deviceKey: serverKey, user: { id: "user-1" } },
     });
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.equal(requests.length, 2);
     assert.equal(requests[1].method, "DELETE");
-    assert.equal(requests[1].header.Authorization, "Bearer only-this-session-token");
+    assert.equal(requests[1].header.Authorization, `Bearer ${currentSessionToken}`);
     assert.equal(context.data.loading, false);
     assert.match(String(context.data.message), /设备信息保存失败/);
 
@@ -342,6 +347,87 @@ test("mini login blocks duplicate taps and compensates when the server key canno
   } finally {
     delete require.cache[pagePath];
     (globalThis as any).Page = originalPage;
+    (globalThis as any).wx = originalWx;
+    (globalThis as any).getApp = originalGetApp;
+  }
+});
+
+test("missing or empty login tokens never save a key or compensate with an old stored session", async (t) => {
+  for (const invalidToken of [undefined, ""]) {
+    await t.test(invalidToken === undefined ? "missing token" : "empty token", async () => {
+      const pagePath = require.resolve("../../miniprogram/pages/login/index.js");
+      const requests: any[] = [];
+      const writes: string[] = [];
+      let pageDefinition: any;
+      const originalPage = (globalThis as any).Page;
+      const originalWx = (globalThis as any).wx;
+      const originalGetApp = (globalThis as any).getApp;
+      try {
+        (globalThis as any).Page = (definition: any) => { pageDefinition = definition; };
+        (globalThis as any).getApp = () => ({
+          globalData: { apiBaseUrl: "https://example.test/api/mobile", token: "old-session-token" },
+        });
+        (globalThis as any).wx = {
+          getStorageSync: (key: string) => key === "mobileToken" ? "old-session-token" : "",
+          setStorageSync: (key: string) => { writes.push(key); },
+          getDeviceInfo: () => ({ brand: "Google", model: "Pixel 9", system: "Android 15", deviceType: "phone" }),
+          getAppBaseInfo: () => ({ version: "8.0.51" }),
+          request: (options: any) => { requests.push(options); },
+          switchTab: () => { throw new Error("must not navigate for an invalid login response"); },
+          showToast: () => {},
+          redirectTo: () => {},
+          removeStorageSync: () => {},
+        };
+        delete require.cache[pagePath];
+        require(pagePath);
+        const context = {
+          data: { ...pageDefinition.data, identifier: "parent@example.com", password: "secret", privacyAccepted: true },
+          setData(update: Record<string, unknown>) { Object.assign(this.data, update); },
+        };
+        pageDefinition.login.call(context);
+        requests[0].success({
+          statusCode: 200,
+          data: { token: invalidToken, deviceKey: validKey("server-device-key"), user: { id: "user-1" } },
+        });
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.equal(requests.length, 1);
+        assert.deepEqual(writes, []);
+        assert.equal(context.data.loading, false);
+        assert.match(String(context.data.message), /登录响应异常/);
+      } finally {
+        delete require.cache[pagePath];
+        (globalThis as any).Page = originalPage;
+        (globalThis as any).wx = originalWx;
+        (globalThis as any).getApp = originalGetApp;
+      }
+    });
+  }
+});
+
+test("an explicitly empty request token never falls back to an old stored token", async () => {
+  const apiPath = require.resolve("../../miniprogram/utils/api.js");
+  const originalWx = (globalThis as any).wx;
+  const originalGetApp = (globalThis as any).getApp;
+  let requestCount = 0;
+  try {
+    (globalThis as any).getApp = () => ({ globalData: { apiBaseUrl: "https://example.test", token: "old-token" } });
+    (globalThis as any).wx = {
+      getStorageSync: () => "old-token",
+      request: () => { requestCount += 1; },
+    };
+    delete require.cache[apiPath];
+    const api = require(apiPath) as {
+      request(path: string, options: Record<string, unknown>): Promise<unknown>;
+      resolveRequestToken(options: Record<string, unknown>, storedToken: string): string;
+    };
+    assert.equal(api.resolveRequestToken({}, "old-token"), "old-token");
+    assert.equal(api.resolveRequestToken({ token: "" }, "old-token"), "");
+    assert.equal(api.resolveRequestToken({ token: undefined }, "old-token"), "");
+    await assert.rejects(() => api.request("/auth/session", { method: "DELETE", token: "" }), /会话凭据无效/);
+    assert.equal(requestCount, 0);
+  } finally {
+    delete require.cache[apiPath];
     (globalThis as any).wx = originalWx;
     (globalThis as any).getApp = originalGetApp;
   }

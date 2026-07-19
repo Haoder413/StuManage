@@ -1,5 +1,5 @@
 const { request } = require("../../utils/api");
-const { readStoredDeviceKey, saveDeviceKey, miniDeviceInfo } = require("../../utils/device-login");
+const { readStoredDeviceKey, saveDeviceKey, miniDeviceInfo, isValidSessionToken } = require("../../utils/device-login");
 
 Page({
   data: {
@@ -52,6 +52,9 @@ Page({
       }
     })
       .then(async (data) => {
+        if (!data || !isValidSessionToken(data.token)) {
+          throw new Error("登录响应异常，请重试");
+        }
         if (!saveDeviceKey(wx, data.deviceKey)) {
           try {
             await request("/auth/session", {

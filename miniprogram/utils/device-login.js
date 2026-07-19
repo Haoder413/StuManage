@@ -4,6 +4,10 @@ function isValidDeviceKey(value) {
   return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) && new Set(value).size >= 8;
 }
 
+function isValidSessionToken(value) {
+  return isValidDeviceKey(value);
+}
+
 function readStoredDeviceKey(wxApi = wx) {
   try {
     const value = wxApi.getStorageSync(DEVICE_KEY_STORAGE);
@@ -44,4 +48,4 @@ function miniDeviceInfo(wxApi = wx) {
   };
 }
 
-module.exports = { readStoredDeviceKey, saveDeviceKey, miniDeviceInfo };
+module.exports = { readStoredDeviceKey, saveDeviceKey, miniDeviceInfo, isValidSessionToken };
