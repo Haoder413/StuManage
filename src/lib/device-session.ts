@@ -82,7 +82,7 @@ export type DeviceSessionTransaction = {
 
 export type DeviceSessionDatabase = {
   transaction<T>(work: (transaction: DeviceSessionTransaction) => Promise<T>): Promise<T>;
-  deleteOldInactiveDevices(cutoff: Date): Promise<number>;
+  cleanupDeviceHistory(input: { now: Date; cutoff: Date }): Promise<number>;
 };
 
 export type SessionLifecycleDatabase = {
@@ -321,11 +321,14 @@ export function createPrismaDeviceSessionDatabase(client: typeof prisma): Device
         }),
       );
     },
-    async deleteOldInactiveDevices(cutoff) {
-      const result = await client.loginDevice.deleteMany({
-        where: { sessions: { none: {} }, lastSeenAt: { lt: cutoff } },
+    cleanupDeviceHistory(input) {
+      return client.$transaction(async (transaction) => {
+        await transaction.session.deleteMany({ where: { expiresAt: { lte: input.now } } });
+        const result = await transaction.loginDevice.deleteMany({
+          where: { sessions: { none: {} }, lastSeenAt: { lt: input.cutoff } },
+        });
+        return result.count;
       });
-      return result.count;
     },
   };
 }
@@ -333,10 +336,10 @@ export function createPrismaDeviceSessionDatabase(client: typeof prisma): Device
 const prismaDeviceSessionDatabase = createPrismaDeviceSessionDatabase(prisma);
 
 export async function cleanupOldDeviceHistory(
-  database: Pick<DeviceSessionDatabase, "deleteOldInactiveDevices"> = prismaDeviceSessionDatabase,
+  database: Pick<DeviceSessionDatabase, "cleanupDeviceHistory"> = prismaDeviceSessionDatabase,
   now = new Date(),
 ): Promise<number> {
-  return database.deleteOldInactiveDevices(deviceHistoryCutoff(now));
+  return database.cleanupDeviceHistory({ now, cutoff: deviceHistoryCutoff(now) });
 }
 
 export function createPrismaSessionLifecycleDatabase(client: typeof prisma): SessionLifecycleDatabase {

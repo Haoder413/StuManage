@@ -232,16 +232,19 @@ class FakeDeviceSessionDatabase implements DeviceSessionDatabase {
     return result;
   }
 
-  async deleteOldInactiveDevices(cutoff: Date): Promise<number> {
-    this.state.cleanupCutoffs = [...(this.state.cleanupCutoffs ?? []), cutoff];
-    const previousCount = this.state.devices.length;
-    this.state.devices = this.state.devices.filter(
+  async cleanupDeviceHistory(input: { now: Date; cutoff: Date }): Promise<number> {
+    const draft = copyState(this.state);
+    draft.sessions = draft.sessions.filter((session) => session.expiresAt > input.now);
+    draft.cleanupCutoffs = [...(draft.cleanupCutoffs ?? []), input.cutoff];
+    const previousCount = draft.devices.length;
+    draft.devices = draft.devices.filter(
       (device) =>
-        this.state.sessions.some((session) => session.deviceId === device.id) ||
+        draft.sessions.some((session) => session.deviceId === device.id) ||
         !device.lastSeenAt ||
-        device.lastSeenAt >= cutoff,
+        device.lastSeenAt >= input.cutoff,
     );
-    return previousCount - this.state.devices.length;
+    this.state = draft;
+    return previousCount - draft.devices.length;
   }
 }
 
@@ -283,6 +286,38 @@ test("cleans only inactive device history older than 90 days", async () => {
   });
   await cleanupOldDeviceHistory(db, now);
   assert.deepEqual(db.state.devices.map((device) => device.id), ["old-active", "recent"]);
+});
+
+test("cleanup removes expired sessions before deleting their old device in one operation", async () => {
+  const now = new Date("2026-07-19T12:00:00.000Z");
+  const db = new FakeDeviceSessionDatabase({
+    devices: [
+      {
+        id: "expired-only",
+        userId: "u",
+        channel: "web",
+        deviceType: "desktop",
+        deviceKeyHash: "1",
+        lastSeenAt: new Date("2026-04-19"),
+      },
+    ],
+    sessions: [
+      {
+        id: "expired",
+        userId: "u",
+        deviceId: "expired-only",
+        channel: "web",
+        tokenHash: "h",
+        expiresAt: new Date("2026-07-18"),
+      },
+    ],
+    consents: [],
+    overrides: {},
+  });
+  const deleted = await cleanupOldDeviceHistory(db, now);
+  assert.equal(deleted, 1);
+  assert.deepEqual(db.state.sessions, []);
+  assert.deepEqual(db.state.devices, []);
 });
 
 test("touches stale session/device activity and logs out device in one injected operation", async () => {
@@ -367,13 +402,16 @@ test("Prisma adapter emits scoped cleanup and active-device query shapes", async
   await db.transaction(async (transaction) => {
     await transaction.findActiveDeviceIds({ userId: "u", channel: "web", deviceType: "desktop", currentDeviceId: "d", now });
   });
-  await db.deleteOldInactiveDevices(deviceHistoryCutoff(now));
+  await db.cleanupDeviceHistory({ now, cutoff: deviceHistoryCutoff(now) });
   assert.deepEqual(calls.find((call) => call.name === "loginDevice.findMany")?.args, {
     where: { userId: "u", channel: "web", deviceType: "desktop", id: { not: "d" }, sessions: { some: { expiresAt: { gt: now } } } },
     select: { id: true },
   });
   assert.deepEqual(calls.find((call) => call.name === "loginDevice.deleteMany")?.args, {
     where: { sessions: { none: {} }, lastSeenAt: { lt: deviceHistoryCutoff(now) } },
+  });
+  assert.deepEqual(calls.find((call) => call.name === "session.deleteMany")?.args, {
+    where: { expiresAt: { lte: now } },
   });
 });
 

@@ -3,6 +3,7 @@ set -euo pipefail
 
 APP_NAME="${APP_NAME:-student-management}"
 APP_ROOT="${APP_ROOT:-/opt/student-management}"
+CRON_DIR="${CRON_DIR:-/etc/cron.d}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Please run as root: sudo bash deploy/install-maintenance-cron.sh"
@@ -19,8 +20,16 @@ if [[ "$APP_ROOT" != /* || "$APP_ROOT" == *[[:space:]]* ]]; then
   exit 1
 fi
 
-CRON_FILE="/etc/cron.d/${APP_NAME}-maintenance"
+apt-get install -y cron
+systemctl enable --now cron
+systemctl is-active --quiet cron
+
+cd "$APP_ROOT/current"
+npm run devices:cleanup
+
+CRON_FILE="$CRON_DIR/${APP_NAME}-maintenance"
 mkdir -p "$APP_ROOT/backups"
+mkdir -p "$CRON_DIR"
 
 cat > "$CRON_FILE" <<CRON
 SHELL=/bin/bash
