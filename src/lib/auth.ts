@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export const SESSION_COOKIE = "student_management_session";
 export const ROLE_COOKIE = "student_management_role";
+export const DEVICE_COOKIE = "student_management_device";
 const SESSION_DAYS = 14;
 
 export function hashToken(token: string) {
