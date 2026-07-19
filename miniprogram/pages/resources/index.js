@@ -1,4 +1,5 @@
 const { request } = require("../../utils/api");
+const { parseMiniYearInput, toggleMiniUnsetYear } = require("./year-filter-state");
 
 const kindText = { paper: "试卷", animation: "动画", material: "资料" };
 const roleText = { student: "学生版", answer: "答案版", supplement: "补充资料" };
@@ -114,21 +115,17 @@ Page({
   },
 
   applyYearFilter() {
-    const value = String(this.data.yearInput || "").trim();
-    if (value) {
-      const year = Number(value);
-      if (!/^\d{4}$/.test(value) || year < 1900 || year > 2100) {
-        wx.showToast({ title: "请输入 1900—2100 的年份", icon: "none" });
-        return;
-      }
+    const next = parseMiniYearInput(this.data.yearInput, this.data.year);
+    if (next.error) {
+      wx.showToast({ title: next.error, icon: "none" });
+      return;
     }
-    if (value === this.data.year) return;
-    this.setData({ year: value, yearInput: value }, () => this.load(true));
+    if (!next.changed) return;
+    this.setData({ year: next.year, yearInput: next.yearInput }, () => this.load(true));
   },
 
   filterUnsetYear() {
-    const year = this.data.year === "unset" ? "" : "unset";
-    this.setData({ year, yearInput: "" }, () => this.load(true));
+    this.setData(toggleMiniUnsetYear(this.data.year), () => this.load(true));
   },
 
   loadMore() {

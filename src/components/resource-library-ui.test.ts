@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { mergeResourceFilterParams, parseResourceYearInput, shouldSyncObservedResourceParams } from "../lib/resource-filter-state";
+import { parseMiniYearInput, toggleMiniUnsetYear } from "../../miniprogram/pages/resources/year-filter-state";
 
 function source(path: string) {
   return readFileSync(path, "utf8");
@@ -41,6 +43,7 @@ test("teacher resource list uses paginated URL-backed search and batch actions",
 
 test("resource filters use junior grades and validated year inputs", () => {
   const toolbar = source("src/components/resource-search-toolbar.tsx");
+  const filterState = source("src/lib/resource-filter-state.ts");
   assert.match(toolbar, /\["初一", "初二", "初三"\]/);
   assert.doesNotMatch(toolbar, /小一|小二|小三|小四|小五|小六|高一|高二|高三/);
   assert.doesNotMatch(toolbar, /2100 - 1900 \+ 1/);
@@ -48,20 +51,47 @@ test("resource filters use junior grades and validated year inputs", () => {
   assert.match(toolbar, /type="number"/);
   assert.match(toolbar, /min="1900"/);
   assert.match(toolbar, /max="2100"/);
-  assert.match(toolbar, /请输入 1900—2100 的年份/);
+  assert.match(filterState, /请输入 1900—2100 的年份/);
   assert.match(toolbar, /year: "unset"/);
-  assert.match(toolbar, /\[yearEditing, yearInput, searchParams\]/);
 
   const miniPage = source("miniprogram/pages/resources/index.js");
   const miniTemplate = source("miniprogram/pages/resources/index.wxml");
+  const miniYearState = source("miniprogram/pages/resources/year-filter-state.js");
   assert.match(miniPage, /gradeOptions: \["全部年级", "初一", "初二", "初三"\]/);
   assert.doesNotMatch(miniPage, /yearOptions|yearIndex|2100 - 1900 \+ 1/);
   assert.match(miniPage, /applyYearFilter/);
   assert.match(miniPage, /filterUnsetYear/);
-  assert.match(miniPage, /请输入 1900—2100 的年份/);
+  assert.match(miniYearState, /请输入 1900—2100 的年份/);
   assert.match(miniTemplate, /type="number"/);
   assert.match(miniTemplate, /bindconfirm="applyYearFilter"/);
+  assert.match(miniTemplate, /bindtap="applyYearFilter"/);
   assert.match(miniTemplate, /bindtap="filterUnsetYear"/);
+  assert.doesNotMatch(miniTemplate, /bindblur="applyYearFilter"/);
+});
+
+test("resource URL updates merge against the latest target", () => {
+  const afterYear = mergeResourceFilterParams("q=函数&page=3", { year: "2025" });
+  const afterGrade = mergeResourceFilterParams(afterYear, { grade: "初二" });
+  const params = new URLSearchParams(afterGrade);
+  assert.equal(params.get("q"), "函数");
+  assert.equal(params.get("year"), "2025");
+  assert.equal(params.get("grade"), "初二");
+  assert.equal(params.has("page"), false);
+  assert.equal(shouldSyncObservedResourceParams("q=旧", "q=新", new Set(["q=旧"]), false), false);
+  assert.equal(shouldSyncObservedResourceParams("q=旧", "q=新", new Set(["q=旧"]), true), true);
+});
+
+test("resource year parsers reject invalid values without replacing the active filter", () => {
+  assert.deepEqual(parseResourceYearInput(""), { year: "", error: "" });
+  assert.deepEqual(parseResourceYearInput("2025"), { year: "2025", error: "" });
+  assert.deepEqual(parseResourceYearInput("1899"), { year: null, error: "请输入 1900—2100 的年份" });
+  assert.deepEqual(parseMiniYearInput("2101", "2024"), { year: "2024", yearInput: "2101", error: "请输入 1900—2100 的年份", changed: false });
+  assert.deepEqual(parseMiniYearInput("2025", "2024"), { year: "2025", yearInput: "2025", error: "", changed: true });
+});
+
+test("mini program unset shortcut toggles through one deterministic state transition", () => {
+  assert.deepEqual(toggleMiniUnsetYear("2025"), { year: "unset", yearInput: "" });
+  assert.deepEqual(toggleMiniUnsetYear("unset"), { year: "", yearInput: "" });
 });
 
 test("resource center composes upload and grouped list instead of legacy single upload", () => {

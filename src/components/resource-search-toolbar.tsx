@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { mergeResourceFilterParams, parseResourceYearInput, shouldSyncObservedResourceParams } from "@/lib/resource-filter-state";
 import type { CourseOption, WorkspaceOption } from "@/types/resource-library";
 
 export function ResourceSearchToolbar({
@@ -19,29 +20,55 @@ export function ResourceSearchToolbar({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState(searchParams.get("q") || "");
-  const currentYear = searchParams.get("year") || "";
+  const searchParamsString = searchParams.toString();
+  const [targetParams, setTargetParams] = useState(searchParamsString);
+  const targetParamsRef = useRef(searchParamsString);
+  const pendingTargetsRef = useRef(new Set<string>());
+  const externalNavigationRef = useRef(false);
+  const targetSearchParams = new URLSearchParams(targetParams);
+  const [query, setQuery] = useState(targetSearchParams.get("q") || "");
+  const currentYear = targetSearchParams.get("year") || "";
   const [yearInput, setYearInput] = useState(currentYear === "unset" ? "" : currentYear);
   const [yearError, setYearError] = useState("");
   const [yearEditing, setYearEditing] = useState(false);
 
   function replaceParams(update: Record<string, string>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(update)) {
-      if (!value || value === "all") params.delete(key);
-      else params.set(key, value);
-    }
-    params.delete("page");
-    const suffix = params.toString();
+    const suffix = mergeResourceFilterParams(targetParamsRef.current, update);
+    targetParamsRef.current = suffix;
+    pendingTargetsRef.current.add(suffix);
+    setTargetParams(suffix);
     router.replace(suffix ? `${pathname}?${suffix}` : pathname, { scroll: false });
   }
 
   useEffect(() => {
+    const markExternalNavigation = () => { externalNavigationRef.current = true; };
+    window.addEventListener("popstate", markExternalNavigation);
+    return () => window.removeEventListener("popstate", markExternalNavigation);
+  }, []);
+
+  useEffect(() => {
+    const externalNavigation = externalNavigationRef.current;
+    externalNavigationRef.current = false;
+    if (searchParamsString === targetParamsRef.current) {
+      pendingTargetsRef.current.delete(searchParamsString);
+      return;
+    }
+    if (!shouldSyncObservedResourceParams(searchParamsString, targetParamsRef.current, pendingTargetsRef.current, externalNavigation)) {
+      pendingTargetsRef.current.delete(searchParamsString);
+      return;
+    }
+    pendingTargetsRef.current.clear();
+    targetParamsRef.current = searchParamsString;
+    setTargetParams(searchParamsString);
+    setQuery(searchParams.get("q") || "");
+  }, [searchParams, searchParamsString]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (query !== (searchParams.get("q") || "")) replaceParams({ q: query });
+      if (query !== (new URLSearchParams(targetParamsRef.current).get("q") || "")) replaceParams({ q: query });
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [query, searchParams]);
+  }, [query, targetParams]);
 
   useEffect(() => {
     setYearInput(currentYear === "unset" ? "" : currentYear);
@@ -52,37 +79,30 @@ export function ResourceSearchToolbar({
   useEffect(() => {
     if (!yearEditing) return;
     const timer = window.setTimeout(() => {
-      const value = yearInput.trim();
-      if (!value) {
-        setYearError("");
-        setYearEditing(false);
-        replaceParams({ year: "" });
-        return;
-      }
-      const year = Number(value);
-      if (!/^\d{4}$/.test(value) || year < 1900 || year > 2100) {
-        setYearError("请输入 1900—2100 的年份");
+      const parsed = parseResourceYearInput(yearInput);
+      if (parsed.year === null) {
+        setYearError(parsed.error);
         return;
       }
       setYearError("");
       setYearEditing(false);
-      replaceParams({ year: value });
+      replaceParams({ year: parsed.year });
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [yearEditing, yearInput, searchParams]);
+  }, [yearEditing, yearInput, targetParams]);
 
-  const selectedWorkspace = searchParams.get("workspaceId") || "all";
+  const selectedWorkspace = targetSearchParams.get("workspaceId") || "all";
   const visibleCourses = role === "admin" && selectedWorkspace !== "all"
     ? courses.filter((course) => course.workspaceId === selectedWorkspace)
     : courses;
-  const activeFilters = ["q", "grade", "year", "subject", "resourceKind", "fileState", "courseId", "workspaceId"].filter((key) => searchParams.get(key)).length;
+  const activeFilters = ["q", "grade", "year", "subject", "resourceKind", "fileState", "courseId", "workspaceId"].filter((key) => targetSearchParams.get(key)).length;
   const yearIsUnset = currentYear === "unset";
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_repeat(5,minmax(110px,150px))]">
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、原文件名、标签、年级或科目" />
-        <Select value={searchParams.get("grade") || "all"} onValueChange={(value) => replaceParams({ grade: value })}>
+        <Select value={targetSearchParams.get("grade") || "all"} onValueChange={(value) => replaceParams({ grade: value })}>
           <SelectTrigger><SelectValue placeholder="全部年级" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部年级</SelectItem>
@@ -107,14 +127,14 @@ export function ResourceSearchToolbar({
           />
           {yearError && <p id="resource-year-error" className="mt-1 text-xs text-red-600">{yearError}</p>}
         </div>
-        <Select value={searchParams.get("subject") || "all"} onValueChange={(value) => replaceParams({ subject: value })}>
+        <Select value={targetSearchParams.get("subject") || "all"} onValueChange={(value) => replaceParams({ subject: value })}>
           <SelectTrigger><SelectValue placeholder="全部科目" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部科目</SelectItem>
             {["数学", "语文", "英语", "物理", "化学"].map((subject) => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={searchParams.get("resourceKind") || "all"} onValueChange={(value) => replaceParams({ resourceKind: value })}>
+        <Select value={targetSearchParams.get("resourceKind") || "all"} onValueChange={(value) => replaceParams({ resourceKind: value })}>
           <SelectTrigger><SelectValue placeholder="全部类型" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部类型</SelectItem>
@@ -123,7 +143,7 @@ export function ResourceSearchToolbar({
             <SelectItem value="material">普通资料</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={searchParams.get("fileState") || "all"} onValueChange={(value) => replaceParams({ fileState: value })}>
+        <Select value={targetSearchParams.get("fileState") || "all"} onValueChange={(value) => replaceParams({ fileState: value })}>
           <SelectTrigger><SelectValue placeholder="全部版本" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部版本</SelectItem>
@@ -155,11 +175,11 @@ export function ResourceSearchToolbar({
             <SelectContent><SelectItem value="all">全部工作区</SelectItem>{workspaces.map((workspace) => <SelectItem key={workspace.id} value={workspace.id}>{workspace.name}</SelectItem>)}</SelectContent>
           </Select>
         )}
-        <Select value={searchParams.get("courseId") || "all"} onValueChange={(value) => replaceParams({ courseId: value })}>
+        <Select value={targetSearchParams.get("courseId") || "all"} onValueChange={(value) => replaceParams({ courseId: value })}>
           <SelectTrigger className="w-48"><SelectValue placeholder="全部课程" /></SelectTrigger>
           <SelectContent><SelectItem value="all">全部课程</SelectItem>{visibleCourses.map((course) => <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>)}</SelectContent>
         </Select>
-        <Select value={searchParams.get("sort") || "updated"} onValueChange={(value) => replaceParams({ sort: value })}>
+        <Select value={targetSearchParams.get("sort") || "updated"} onValueChange={(value) => replaceParams({ sort: value })}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="updated">最近更新</SelectItem>
@@ -169,7 +189,7 @@ export function ResourceSearchToolbar({
             <SelectItem value="size">文件大小</SelectItem>
           </SelectContent>
         </Select>
-        {activeFilters > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => { setQuery(""); setYearInput(""); setYearError(""); setYearEditing(false); router.replace(pathname, { scroll: false }); }}>全部清除（{activeFilters}）</Button>}
+        {activeFilters > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => { setQuery(""); setYearInput(""); setYearError(""); setYearEditing(false); targetParamsRef.current = ""; pendingTargetsRef.current.add(""); setTargetParams(""); router.replace(pathname, { scroll: false }); }}>全部清除（{activeFilters}）</Button>}
       </div>
     </div>
   );
