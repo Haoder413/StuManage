@@ -4,6 +4,8 @@ import {
   DEFAULT_DEVICE_LIMITS,
   DeviceChannel,
   DeviceLimitKey,
+  DeviceLimitOverrides,
+  DeviceLimits,
   DeviceType,
   assertDeviceSessionScope,
   cleanLimitedText,
@@ -24,6 +26,58 @@ export type CreateDeviceSessionInput = {
   userAgent?: string;
   ipAddress?: string;
   privacyAccepted: boolean;
+};
+
+export type DeviceSessionDevice = {
+  id: string;
+  userId: string;
+  channel: string;
+  deviceType: string;
+  deviceKeyHash: string;
+};
+
+export type DeviceSessionTransaction = {
+  deleteExpiredSessions(now: Date): Promise<void>;
+  upsertDefaultPolicy(): Promise<DeviceLimits>;
+  findUserOverride(userId: string): Promise<DeviceLimitOverrides | null>;
+  upsertDevice(input: {
+    userId: string;
+    channel: DeviceChannel;
+    deviceType: DeviceType;
+    deviceKeyHash: string;
+    displayName: string;
+    browser: string | null;
+    operatingSystem: string | null;
+    userAgent: string | null;
+    ipAddress: string | null;
+    now: Date;
+  }): Promise<DeviceSessionDevice>;
+  deleteDeviceSessions(input: { userId: string; channel: DeviceChannel; deviceId: string }): Promise<void>;
+  findActiveDeviceIds(input: {
+    userId: string;
+    channel: DeviceChannel;
+    deviceType: DeviceType;
+    currentDeviceId: string;
+    now: Date;
+  }): Promise<string[]>;
+  createSession(input: {
+    userId: string;
+    deviceId: string;
+    channel: DeviceChannel;
+    tokenHash: string;
+    expiresAt: Date;
+    lastSeenAt: Date;
+  }): Promise<void>;
+  upsertPrivacyConsent(input: {
+    userId: string;
+    channel: DeviceChannel;
+    version: string;
+    acceptedAt: Date;
+  }): Promise<void>;
+};
+
+export type DeviceSessionDatabase = {
+  transaction<T>(work: (transaction: DeviceSessionTransaction) => Promise<T>): Promise<T>;
 };
 
 type NormalizedDeviceSessionInput = {
@@ -106,9 +160,9 @@ export function normalizeDeviceSessionInput(input: CreateDeviceSessionInput): No
   }
   if (
     typeof input.deviceKey !== "string" ||
-    input.deviceKey.length < 32 ||
-    input.deviceKey.length > 200 ||
-    /[\u0000-\u001F\u007F]/.test(input.deviceKey)
+    !/^[0-9a-f]{64}$/.test(input.deviceKey) ||
+    new Set(input.deviceKey).size < 8 ||
+    hasRepeatedPattern(input.deviceKey)
   ) {
     throw new DeviceSessionValidationError("设备标识无效");
   }
@@ -127,6 +181,15 @@ export function normalizeDeviceSessionInput(input: CreateDeviceSessionInput): No
   };
 }
 
+function hasRepeatedPattern(value: string): boolean {
+  for (let length = 1; length <= value.length / 2; length += 1) {
+    if (value.length % length === 0 && value.slice(0, length).repeat(value.length / length) === value) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function hasDeviceCapacity(input: {
   activeDeviceIds: readonly string[];
   currentDeviceId: string;
@@ -142,7 +205,103 @@ export function getRequestIp(headers: Pick<Headers, "get">): string | null {
   return cleanLimitedText(firstForwarded ?? headers.get("x-real-ip"), 64);
 }
 
-export async function createDeviceSession(userId: string, rawInput: CreateDeviceSessionInput) {
+const prismaDeviceSessionDatabase: DeviceSessionDatabase = {
+  transaction(work) {
+    return prisma.$transaction(async (transaction) =>
+      work({
+        async deleteExpiredSessions(now) {
+          await transaction.session.deleteMany({ where: { expiresAt: { lte: now } } });
+        },
+        async upsertDefaultPolicy() {
+          return transaction.deviceLoginPolicy.upsert({
+            where: { id: "default" },
+            create: { id: "default", ...DEFAULT_DEVICE_LIMITS },
+            update: {},
+          });
+        },
+        async findUserOverride(userId) {
+          return transaction.userDeviceLimitOverride.findUnique({ where: { userId } });
+        },
+        async upsertDevice(input) {
+          return transaction.loginDevice.upsert({
+            where: {
+              userId_channel_deviceKeyHash: {
+                userId: input.userId,
+                channel: input.channel,
+                deviceKeyHash: input.deviceKeyHash,
+              },
+            },
+            create: {
+              userId: input.userId,
+              channel: input.channel,
+              deviceType: input.deviceType,
+              deviceKeyHash: input.deviceKeyHash,
+              displayName: input.displayName,
+              browser: input.browser,
+              operatingSystem: input.operatingSystem,
+              userAgent: input.userAgent,
+              lastIpAddress: input.ipAddress,
+              firstSeenAt: input.now,
+              lastLoginAt: input.now,
+              lastSeenAt: input.now,
+            },
+            update: {
+              deviceType: input.deviceType,
+              displayName: input.displayName,
+              browser: input.browser,
+              operatingSystem: input.operatingSystem,
+              userAgent: input.userAgent,
+              lastIpAddress: input.ipAddress,
+              lastLoginAt: input.now,
+              lastSeenAt: input.now,
+              lastLogoutAt: null,
+            },
+          });
+        },
+        async deleteDeviceSessions(input) {
+          await transaction.session.deleteMany({
+            where: { userId: input.userId, channel: input.channel, deviceId: input.deviceId },
+          });
+        },
+        async findActiveDeviceIds(input) {
+          const devices = await transaction.loginDevice.findMany({
+            where: {
+              userId: input.userId,
+              channel: input.channel,
+              deviceType: input.deviceType,
+              id: { not: input.currentDeviceId },
+              sessions: { some: { expiresAt: { gt: input.now } } },
+            },
+            select: { id: true },
+          });
+          return devices.map((device) => device.id);
+        },
+        async createSession(input) {
+          await transaction.session.create({ data: input });
+        },
+        async upsertPrivacyConsent(input) {
+          await transaction.privacyConsent.upsert({
+            where: {
+              userId_channel_version: {
+                userId: input.userId,
+                channel: input.channel,
+                version: input.version,
+              },
+            },
+            create: input,
+            update: { acceptedAt: input.acceptedAt },
+          });
+        },
+      }),
+    );
+  },
+};
+
+export async function createDeviceSession(
+  userId: string,
+  rawInput: CreateDeviceSessionInput,
+  database: DeviceSessionDatabase = prismaDeviceSessionDatabase,
+) {
   const input = normalizeDeviceSessionInput(rawInput);
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
@@ -153,73 +312,42 @@ export async function createDeviceSession(userId: string, rawInput: CreateDevice
   const userAgentDescription = describeUserAgent(input.userAgent);
   const displayName = input.displayName ?? userAgentDescription.displayName;
 
-  const result = await prisma.$transaction(async (transaction) => {
-    await transaction.session.deleteMany({ where: { expiresAt: { lte: now } } });
+  await database.transaction(async (transaction) => {
+    await transaction.deleteExpiredSessions(now);
 
-    const policy = await transaction.deviceLoginPolicy.upsert({
-      where: { id: "default" },
-      create: { id: "default", ...DEFAULT_DEVICE_LIMITS },
-      update: {},
-    });
-    const override = await transaction.userDeviceLimitOverride.findUnique({ where: { userId } });
+    const policy = await transaction.upsertDefaultPolicy();
+    const override = await transaction.findUserOverride(userId);
     const limits = effectiveDeviceLimits(policy, override);
     const limitKey = deviceLimitKey(input.channel, input.deviceType);
     const limit = limits[limitKey];
 
-    const device = await transaction.loginDevice.upsert({
-      where: {
-        userId_channel_deviceKeyHash: {
-          userId,
-          channel: input.channel,
-          deviceKeyHash,
-        },
-      },
-      create: {
-        userId,
-        channel: input.channel,
-        deviceType: input.deviceType,
-        deviceKeyHash,
-        displayName,
-        browser: userAgentDescription.browser,
-        operatingSystem: userAgentDescription.operatingSystem,
-        userAgent: input.userAgent,
-        lastIpAddress: input.ipAddress,
-        firstSeenAt: now,
-        lastLoginAt: now,
-        lastSeenAt: now,
-      },
-      update: {
-        deviceType: input.deviceType,
-        displayName,
-        browser: userAgentDescription.browser,
-        operatingSystem: userAgentDescription.operatingSystem,
-        userAgent: input.userAgent,
-        lastIpAddress: input.ipAddress,
-        lastLoginAt: now,
-        lastSeenAt: now,
-        lastLogoutAt: null,
-      },
+    const device = await transaction.upsertDevice({
+      userId,
+      channel: input.channel,
+      deviceType: input.deviceType,
+      deviceKeyHash,
+      displayName,
+      browser: userAgentDescription.browser,
+      operatingSystem: userAgentDescription.operatingSystem,
+      userAgent: input.userAgent,
+      ipAddress: input.ipAddress,
+      now,
     });
 
     assertDeviceSessionScope(device, { userId, channel: input.channel });
 
-    await transaction.session.deleteMany({
-      where: { userId, channel: input.channel, deviceId: device.id },
-    });
+    await transaction.deleteDeviceSessions({ userId, channel: input.channel, deviceId: device.id });
 
-    const activeOtherDevices = await transaction.loginDevice.findMany({
-      where: {
-        userId,
-        channel: input.channel,
-        deviceType: input.deviceType,
-        id: { not: device.id },
-        sessions: { some: { expiresAt: { gt: now } } },
-      },
-      select: { id: true },
+    const activeOtherDeviceIds = await transaction.findActiveDeviceIds({
+      userId,
+      channel: input.channel,
+      deviceType: input.deviceType,
+      currentDeviceId: device.id,
+      now,
     });
     if (
       !hasDeviceCapacity({
-        activeDeviceIds: activeOtherDevices.map((activeDevice) => activeDevice.id),
+        activeDeviceIds: activeOtherDeviceIds,
         currentDeviceId: device.id,
         limit,
       })
@@ -227,22 +355,20 @@ export async function createDeviceSession(userId: string, rawInput: CreateDevice
       throw new DeviceLimitError(limit, limitKey);
     }
 
-    await transaction.session.create({
-      data: {
-        userId,
-        deviceId: device.id,
-        channel: input.channel,
-        tokenHash,
-        expiresAt,
-        lastSeenAt: now,
-      },
+    await transaction.createSession({
+      userId,
+      deviceId: device.id,
+      channel: input.channel,
+      tokenHash,
+      expiresAt,
+      lastSeenAt: now,
     });
-    await transaction.privacyConsent.upsert({
-      where: { userId_channel_version: { userId, channel: input.channel, version: PRIVACY_VERSION } },
-      create: { userId, channel: input.channel, version: PRIVACY_VERSION, acceptedAt: now },
-      update: { acceptedAt: now },
+    await transaction.upsertPrivacyConsent({
+      userId,
+      channel: input.channel,
+      version: PRIVACY_VERSION,
+      acceptedAt: now,
     });
-
   });
 
   return { token, expiresAt };
