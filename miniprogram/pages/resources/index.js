@@ -19,21 +19,14 @@ Page({
     courseId: "",
     grade: "",
     year: "",
+    yearInput: "",
     subject: "",
     resourceKind: "",
     page: 1,
     hasNextPage: false,
     total: 0,
     courseOptions: [{ id: "", name: "全部课程" }],
-    gradeOptions: ["全部年级", "小一", "小二", "小三", "小四", "小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三"],
-    yearOptions: [
-      { id: "", name: "全部年份" },
-      { id: "unset", name: "未设置年份" },
-      ...Array.from({ length: 2100 - 1900 + 1 }, (_, index) => {
-        const year = 2100 - index;
-        return { id: String(year), name: `${year}年` };
-      })
-    ],
+    gradeOptions: ["全部年级", "初一", "初二", "初三"],
     subjectOptions: ["全部科目", "数学", "语文", "英语", "物理", "化学"],
     kindOptions: [
       { id: "", name: "全部类型" },
@@ -43,7 +36,6 @@ Page({
     ],
     courseIndex: 0,
     gradeIndex: 0,
-    yearIndex: 0,
     subjectIndex: 0,
     kindIndex: 0
   },
@@ -112,10 +104,31 @@ Page({
     const index = Number(event.detail.value);
     if (field === "course") this.setData({ courseIndex: index, courseId: this.data.courseOptions[index].id });
     if (field === "grade") this.setData({ gradeIndex: index, grade: index === 0 ? "" : this.data.gradeOptions[index] });
-    if (field === "year") this.setData({ yearIndex: index, year: this.data.yearOptions[index].id });
     if (field === "subject") this.setData({ subjectIndex: index, subject: index === 0 ? "" : this.data.subjectOptions[index] });
     if (field === "kind") this.setData({ kindIndex: index, resourceKind: this.data.kindOptions[index].id });
     this.load(true);
+  },
+
+  onYearInput(event) {
+    this.setData({ yearInput: event.detail.value });
+  },
+
+  applyYearFilter() {
+    const value = String(this.data.yearInput || "").trim();
+    if (value) {
+      const year = Number(value);
+      if (!/^\d{4}$/.test(value) || year < 1900 || year > 2100) {
+        wx.showToast({ title: "请输入 1900—2100 的年份", icon: "none" });
+        return;
+      }
+    }
+    if (value === this.data.year) return;
+    this.setData({ year: value, yearInput: value }, () => this.load(true));
+  },
+
+  filterUnsetYear() {
+    const year = this.data.year === "unset" ? "" : "unset";
+    this.setData({ year, yearInput: "" }, () => this.load(true));
   },
 
   loadMore() {

@@ -3,6 +3,7 @@
 .filter-scroll { margin-bottom: 20rpx; white-space: nowrap; }
 .filter-row { display: flex; gap: 14rpx; }
 .filter-chip { padding: 14rpx 22rpx; border: 2rpx solid #dbeafe; border-radius: 999rpx; background: #eff6ff; color: #0369a1; font-size: 24rpx; }
+.year-filter-input { box-sizing: border-box; width: 190rpx; height: auto; padding: 14rpx 22rpx; border: 2rpx solid #dbeafe; border-radius: 999rpx; background: #fff; color: #0369a1; font-size: 24rpx; }
 .resource-card { padding: 28rpx; }
 .resource-head { display: flex; align-items: flex-start; gap: 16rpx; }
 .resource-title { flex: 1; font-size: 32rpx; font-weight: 800; color: #0f172a; }

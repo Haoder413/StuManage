@@ -37,7 +37,31 @@ test("teacher resource list uses paginated URL-backed search and batch actions",
   assert.match(toolbar, /useSearchParams/);
   assert.match(toolbar, /500/);
   assert.match(toolbar, /全部清除/);
-  assert.match(toolbar, /2100 - 1900 \+ 1/);
+});
+
+test("resource filters use junior grades and validated year inputs", () => {
+  const toolbar = source("src/components/resource-search-toolbar.tsx");
+  assert.match(toolbar, /\["初一", "初二", "初三"\]/);
+  assert.doesNotMatch(toolbar, /小一|小二|小三|小四|小五|小六|高一|高二|高三/);
+  assert.doesNotMatch(toolbar, /2100 - 1900 \+ 1/);
+  assert.match(toolbar, /yearInput/);
+  assert.match(toolbar, /type="number"/);
+  assert.match(toolbar, /min="1900"/);
+  assert.match(toolbar, /max="2100"/);
+  assert.match(toolbar, /请输入 1900—2100 的年份/);
+  assert.match(toolbar, /year: "unset"/);
+  assert.match(toolbar, /\[yearEditing, yearInput, searchParams\]/);
+
+  const miniPage = source("miniprogram/pages/resources/index.js");
+  const miniTemplate = source("miniprogram/pages/resources/index.wxml");
+  assert.match(miniPage, /gradeOptions: \["全部年级", "初一", "初二", "初三"\]/);
+  assert.doesNotMatch(miniPage, /yearOptions|yearIndex|2100 - 1900 \+ 1/);
+  assert.match(miniPage, /applyYearFilter/);
+  assert.match(miniPage, /filterUnsetYear/);
+  assert.match(miniPage, /请输入 1900—2100 的年份/);
+  assert.match(miniTemplate, /type="number"/);
+  assert.match(miniTemplate, /bindconfirm="applyYearFilter"/);
+  assert.match(miniTemplate, /bindtap="filterUnsetYear"/);
 });
 
 test("resource center composes upload and grouped list instead of legacy single upload", () => {
