@@ -5,8 +5,12 @@ function isValidDeviceKey(value) {
 }
 
 function readStoredDeviceKey(wxApi = wx) {
-  const value = wxApi.getStorageSync(DEVICE_KEY_STORAGE);
-  return isValidDeviceKey(value) ? value : "";
+  try {
+    const value = wxApi.getStorageSync(DEVICE_KEY_STORAGE);
+    return isValidDeviceKey(value) ? value : "";
+  } catch (_) {
+    return "";
+  }
 }
 
 function saveDeviceKey(wxApi = wx, value) {
@@ -24,8 +28,9 @@ function miniDeviceInfo(wxApi = wx) {
     ? wxApi.getDeviceInfo()
     : (typeof wxApi.getSystemInfoSync === "function" ? wxApi.getSystemInfoSync() : {});
   const base = typeof wxApi.getAppBaseInfo === "function" ? wxApi.getAppBaseInfo() : {};
-  const description = `${device.model || ""} ${device.system || ""} ${device.platform || ""}`;
-  const deviceType = /ipad|tablet/i.test(description)
+  const officialCategory = `${device.deviceType || ""} ${device.deviceCategory || ""}`;
+  const description = `${officialCategory} ${device.model || ""} ${device.system || ""} ${device.platform || ""}`;
+  const deviceType = /ipad|tablet|\bpad\b|matepad/i.test(description)
     ? "tablet"
     : /windows|mac|devtools/i.test(description)
       ? "desktop"

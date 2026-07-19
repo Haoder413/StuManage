@@ -23,6 +23,7 @@ Page({
   },
 
   login() {
+    if (this.data.loading) return;
     const { identifier, password, privacyAccepted } = this.data;
     if (!identifier || !password) {
       this.setData({ message: "请输入账号和密码" });
@@ -50,8 +51,14 @@ Page({
         privacyAccepted
       }
     })
-      .then((data) => {
+      .then(async (data) => {
         if (!saveDeviceKey(wx, data.deviceKey)) {
+          try {
+            await request("/auth/session", {
+              method: "DELETE",
+              token: data.token
+            });
+          } catch (_) {}
           throw new Error("设备信息保存失败，请重试");
         }
         wx.setStorageSync("mobileToken", data.token);

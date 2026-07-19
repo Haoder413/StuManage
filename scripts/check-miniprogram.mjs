@@ -5,6 +5,7 @@ const required = {
   "src/lib/mobile-auth.ts": ["getMobileCurrentUser", "Authorization", "Bearer", "miniProgram", "touchSessionActivity"],
   "src/lib/mobile-parent-data.ts": ["getMobileParentHome", "getMobileParentExams", "getMobileParentProgress", "getMobileResources", "getMobileParentHomework"],
   "src/app/api/mobile/auth/login/route.ts": ["POST", "verifyLoginPassword", "executeMobileLogin"],
+  "src/app/api/mobile/auth/session/route.ts": ["DELETE", "getMobileBearerToken", "revokeMobileSession"],
   "src/app/api/mobile/parent/home/route.ts": ["GET", "getMobileParentHome"],
   "src/app/api/mobile/parent/exams/route.ts": ["GET", "getMobileParentExams"],
   "src/app/api/mobile/parent/progress/route.ts": ["GET", "getMobileParentProgress"],

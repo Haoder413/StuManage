@@ -18,7 +18,7 @@
       </label>
     </checkbox-group>
     <view class="privacy-notice">
-      为保障账号安全，会记录设备类型、系统、IP、登录时间和最近活跃时间，历史记录保存 90 天。
+      为保障账号安全，会记录设备类型、系统、小程序客户端版本（网页端为浏览器信息）、IP、登录时间和最近活跃时间，历史记录保存 90 天。
     </view>
 
     <button class="button login-button" loading="{{loading}}" disabled="{{loading || !privacyAccepted}}" bindtap="login">登录</button>

@@ -34,7 +34,7 @@ function normalizeHttpError(res) {
 
 function request(path, options = {}) {
   const config = getAppConfig();
-  const token = getToken();
+  const token = options.token !== undefined ? options.token : getToken();
   return new Promise((resolve, reject) => {
     wx.request({
       url: `${config.apiBaseUrl}${path}`,

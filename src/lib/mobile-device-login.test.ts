@@ -8,7 +8,14 @@ import {
   parseMobileLoginRequest,
   resolveMiniDeviceKey,
 } from "./mobile-login";
-import { findMobileCurrentUser, type MobileAuthDatabase } from "./mobile-auth";
+import {
+  createPrismaMobileAuthDatabase,
+  createPrismaMobileSessionRevocationDatabase,
+  findMobileCurrentUser,
+  revokeMobileSession,
+  type MobileAuthDatabase,
+  type MobileSessionRevocationDatabase,
+} from "./mobile-auth";
 
 const require = createRequire(import.meta.url);
 const miniDeviceLogin = require("../../miniprogram/utils/device-login.js") as {
@@ -144,6 +151,20 @@ test("mini client stores only server-issued valid keys and derives official devi
     operatingSystem: "iOS 18.0",
     clientVersion: "8.0.50",
   });
+
+  assert.equal(miniDeviceLogin.readStoredDeviceKey({ getStorageSync: () => { throw new Error("storage disabled"); } }), "");
+  assert.equal(miniDeviceLogin.miniDeviceInfo({
+    getDeviceInfo: () => ({ brand: "Huawei", model: "MatePad Pro", system: "HarmonyOS 5", deviceType: "pad" }),
+    getAppBaseInfo: () => ({ version: "8.0.51" }),
+  }).deviceType, "tablet");
+  assert.equal(miniDeviceLogin.miniDeviceInfo({
+    getDeviceInfo: () => ({ brand: "Xiaomi", model: "Xiaomi Pad 7", system: "Android 15", deviceCategory: "tablet" }),
+    getAppBaseInfo: () => ({ version: "8.0.51" }),
+  }).deviceType, "tablet");
+  assert.equal(miniDeviceLogin.miniDeviceInfo({
+    getDeviceInfo: () => ({ brand: "Google", model: "Pixel 9", system: "Android 15", deviceType: "phone" }),
+    getAppBaseInfo: () => ({ version: "8.0.51" }),
+  }).deviceType, "mobile");
 });
 
 test("mobile authentication accepts only owned mini-program device sessions and throttles activity", async () => {
@@ -205,4 +226,123 @@ test("mini login UI requires privacy consent and persists the server-issued key"
   assert.match(page, /data:\s*\{[\s\S]*deviceKey[\s\S]*deviceType[\s\S]*displayName[\s\S]*operatingSystem[\s\S]*clientVersion[\s\S]*privacyAccepted/);
   assert.match(markup, /checkbox/);
   assert.match(markup, /历史记录保存 90 天/);
+  assert.match(markup, /小程序客户端版本/);
+  assert.match(page, /if\s*\(this\.data\.loading\)\s*return/);
+  assert.match(page, /request\("\/auth\/session"[\s\S]*method:\s*"DELETE"[\s\S]*token:\s*data\.token/);
+});
+
+test("Prisma mobile auth lookup is restricted to owned mini-program device sessions", async () => {
+  let query: any;
+  const client = {
+    session: {
+      findFirst: async (args: unknown) => { query = args; return null; },
+    },
+  };
+  const database = createPrismaMobileAuthDatabase(client as never);
+  await database.findSession("hash", new Date("2026-07-19T12:00:00Z"));
+  assert.equal(query.where.channel, "miniProgram");
+  assert.equal(query.where.device.is.channel, "miniProgram");
+  assert.deepEqual(query.where.expiresAt, { gt: new Date("2026-07-19T12:00:00Z") });
+  assert.deepEqual(query.include.device.select, { id: true, userId: true, channel: true });
+});
+
+test("storage-failure compensation revokes only the current mini-program session token", async () => {
+  const revoked: string[] = [];
+  const database: MobileSessionRevocationDatabase = {
+    revokeSession: async (tokenHash) => { revoked.push(tokenHash); },
+  };
+  await revokeMobileSession("current-raw-token", database);
+  assert.deepEqual(revoked, [createHash("sha256").update("current-raw-token").digest("hex")]);
+});
+
+test("Prisma compensation scopes revocation to the exact mini-program session", async () => {
+  const calls: Array<{ name: string; args: any }> = [];
+  const transaction = {
+    session: {
+      findFirst: async (args: any) => {
+        calls.push({ name: "find", args });
+        return { id: "session-1", userId: "user-1", deviceId: "device-1" };
+      },
+      deleteMany: async (args: any) => { calls.push({ name: "delete", args }); return { count: 1 }; },
+    },
+    loginDevice: {
+      updateMany: async (args: any) => { calls.push({ name: "logout", args }); return { count: 1 }; },
+    },
+  };
+  const database = createPrismaMobileSessionRevocationDatabase({
+    $transaction: async (work: (tx: typeof transaction) => Promise<unknown>) => work(transaction),
+  } as never);
+  await database.revokeSession("token-hash", new Date("2026-07-19T12:00:00Z"));
+  assert.deepEqual(calls[0].args.where, { tokenHash: "token-hash", channel: "miniProgram" });
+  assert.deepEqual(calls[1].args.where, { id: "device-1", userId: "user-1" });
+  assert.deepEqual(calls[2].args.where, { id: "session-1", userId: "user-1", channel: "miniProgram" });
+
+  const route = readFileSync(new URL("../app/api/mobile/auth/session/route.ts", import.meta.url), "utf8");
+  assert.match(route, /getMobileBearerToken/);
+  assert.match(route, /revokeMobileSession/);
+});
+
+test("mini login blocks duplicate taps and compensates when the server key cannot be stored", async () => {
+  const pagePath = require.resolve("../../miniprogram/pages/login/index.js");
+  const requests: any[] = [];
+  let pageDefinition: any;
+  const originalPage = (globalThis as any).Page;
+  const originalWx = (globalThis as any).wx;
+  const originalGetApp = (globalThis as any).getApp;
+
+  try {
+    (globalThis as any).Page = (definition: any) => { pageDefinition = definition; };
+    (globalThis as any).getApp = () => ({ globalData: { apiBaseUrl: "https://example.test/api/mobile", token: "" } });
+    (globalThis as any).wx = {
+      getStorageSync: () => "",
+      setStorageSync: (key: string) => {
+        if (key === "loginDeviceKey") throw new Error("storage full");
+      },
+      getDeviceInfo: () => ({ brand: "Google", model: "Pixel 9", system: "Android 15", deviceType: "phone" }),
+      getAppBaseInfo: () => ({ version: "8.0.51" }),
+      request: (options: any) => {
+        requests.push(options);
+        if (options.method === "DELETE") {
+          setImmediate(() => options.success({ statusCode: 200, data: { success: true } }));
+        }
+      },
+      switchTab: () => { throw new Error("must not navigate when device storage fails"); },
+      showToast: () => {},
+      redirectTo: () => {},
+      removeStorageSync: () => {},
+    };
+    delete require.cache[pagePath];
+    require(pagePath);
+
+    const context = {
+      data: { ...pageDefinition.data, identifier: "parent@example.com", password: "secret", privacyAccepted: true },
+      setData(update: Record<string, unknown>) { Object.assign(this.data, update); },
+    };
+    pageDefinition.login.call(context);
+    pageDefinition.login.call(context);
+    assert.equal(requests.length, 1);
+    assert.equal(context.data.loading, true);
+
+    const serverKey = validKey("server-key-for-storage-failure");
+    requests[0].success({
+      statusCode: 200,
+      data: { token: "only-this-session-token", deviceKey: serverKey, user: { id: "user-1" } },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(requests.length, 2);
+    assert.equal(requests[1].method, "DELETE");
+    assert.equal(requests[1].header.Authorization, "Bearer only-this-session-token");
+    assert.equal(context.data.loading, false);
+    assert.match(String(context.data.message), /设备信息保存失败/);
+
+    pageDefinition.login.call(context);
+    assert.equal(requests.length, 3);
+  } finally {
+    delete require.cache[pagePath];
+    (globalThis as any).Page = originalPage;
+    (globalThis as any).wx = originalWx;
+    (globalThis as any).getApp = originalGetApp;
+  }
 });

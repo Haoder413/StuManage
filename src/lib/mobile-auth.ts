@@ -30,25 +30,67 @@ export type MobileAuthDatabase = {
   ): Promise<unknown>;
 };
 
-const prismaMobileAuthDatabase: MobileAuthDatabase = {
-  async findSession(tokenHash, now) {
-    return prisma.session.findFirst({
-      where: {
-        tokenHash,
-        channel: "miniProgram",
-        expiresAt: { gt: now },
-        device: { is: { channel: "miniProgram" } },
-      },
-      include: {
-        device: { select: { id: true, userId: true, channel: true } },
-        user: { include: { workspace: true } },
-      },
-    });
-  },
-  touchActivity(session, now) {
-    return touchSessionActivity(session, now);
-  },
+export function createPrismaMobileAuthDatabase(client: typeof prisma): MobileAuthDatabase {
+  return {
+    async findSession(tokenHash, now) {
+      return client.session.findFirst({
+        where: {
+          tokenHash,
+          channel: "miniProgram",
+          expiresAt: { gt: now },
+          device: { is: { channel: "miniProgram" } },
+        },
+        include: {
+          device: { select: { id: true, userId: true, channel: true } },
+          user: { include: { workspace: true } },
+        },
+      });
+    },
+    touchActivity(session, now) {
+      return touchSessionActivity(session, now);
+    },
+  };
+}
+
+const prismaMobileAuthDatabase = createPrismaMobileAuthDatabase(prisma);
+
+export type MobileSessionRevocationDatabase = {
+  revokeSession(tokenHash: string, now: Date): Promise<void>;
 };
+
+export function createPrismaMobileSessionRevocationDatabase(client: typeof prisma): MobileSessionRevocationDatabase {
+  return {
+    revokeSession(tokenHash, now) {
+      return client.$transaction(async (transaction) => {
+        const session = await transaction.session.findFirst({
+          where: { tokenHash, channel: "miniProgram" },
+          select: { id: true, userId: true, deviceId: true },
+        });
+        if (!session) return;
+        if (session.deviceId) {
+          await transaction.loginDevice.updateMany({
+            where: { id: session.deviceId, userId: session.userId },
+            data: { lastLogoutAt: now },
+          });
+        }
+        await transaction.session.deleteMany({
+          where: { id: session.id, userId: session.userId, channel: "miniProgram" },
+        });
+      });
+    },
+  };
+}
+
+const prismaMobileSessionRevocationDatabase = createPrismaMobileSessionRevocationDatabase(prisma);
+
+export async function revokeMobileSession(
+  rawToken: string,
+  database: MobileSessionRevocationDatabase = prismaMobileSessionRevocationDatabase,
+  now = new Date(),
+): Promise<void> {
+  if (!rawToken) return;
+  await database.revokeSession(hashToken(rawToken), now);
+}
 
 export function getMobileBearerToken(request: NextRequest) {
   const header = request.headers.get("Authorization") || request.headers.get("authorization") || "";
