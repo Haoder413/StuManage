@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/password";
+import { verifyLoginPassword } from "@/lib/password";
 import { DEVICE_COOKIE, SESSION_COOKIE } from "@/lib/auth";
 import { createDeviceSession, getRequestIp } from "@/lib/device-session";
 import { isLoginEnabled } from "@/lib/hidden-login-path";
 import {
   deviceCookieOptions,
   parseWebLoginRequest,
+  isSecureRequest,
+  resolveDeviceKey,
   sessionCookieOptions,
   webLoginErrorResponse,
 } from "@/lib/web-login";
-import { randomBytes } from "node:crypto";
 
 function getCookieSecure(request: NextRequest) {
-  const forwardedProto = request.headers.get("x-forwarded-proto");
-  const forwardedSsl = request.headers.get("x-forwarded-ssl");
-  return request.nextUrl.protocol === "https:" || forwardedProto === "https" || forwardedSsl === "on";
+  return isSecureRequest({ nodeEnv: process.env.NODE_ENV, protocol: request.nextUrl.protocol });
 }
 
 export async function POST(request: NextRequest) {
@@ -36,11 +35,12 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  if (!user || !verifyPassword(password, user.passwordHash)) {
+  const passwordValid = verifyLoginPassword(password, user);
+  if (!user || !passwordValid) {
     return NextResponse.json({ error: "账号或密码不正确" }, { status: 401 });
   }
 
-  const deviceKey = request.cookies.get(DEVICE_COOKIE)?.value ?? randomBytes(32).toString("hex");
+  const deviceKey = resolveDeviceKey(request.cookies.get(DEVICE_COOKIE)?.value);
 
   try {
     const session = await createDeviceSession(user.id, {

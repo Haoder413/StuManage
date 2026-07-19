@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { logoutDeviceSession, touchSessionActivity } from "@/lib/device-session";
 
 export const SESSION_COOKIE = "student_management_session";
 export const ROLE_COOKIE = "student_management_role";
@@ -43,7 +44,7 @@ export async function createSession(userId: string, cookieSecure?: boolean) {
 export async function clearSession() {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (token) {
-    await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
+    await logoutDeviceSession(hashToken(token));
   }
   cookies().delete(SESSION_COOKIE);
   cookies().delete(ROLE_COOKIE);
@@ -60,6 +61,10 @@ export async function getCurrentUser() {
     },
     include: { user: { include: { workspace: true } } },
   });
+
+  if (session) {
+    await touchSessionActivity(session);
+  }
 
   return session?.user ?? null;
 }

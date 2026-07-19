@@ -1,5 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { hashToken } from "@/lib/auth";
+import { createHash, randomBytes } from "node:crypto";
+import { isIP } from "node:net";
 import {
   DEFAULT_DEVICE_LIMITS,
   DeviceChannel,
@@ -17,6 +17,10 @@ import { prisma } from "@/lib/prisma";
 
 export const PRIVACY_VERSION = "2026-07-19";
 export const SESSION_DAYS = 14;
+
+function hashDeviceSessionSecret(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
 
 export type CreateDeviceSessionInput = {
   channel: DeviceChannel;
@@ -78,6 +82,12 @@ export type DeviceSessionTransaction = {
 
 export type DeviceSessionDatabase = {
   transaction<T>(work: (transaction: DeviceSessionTransaction) => Promise<T>): Promise<T>;
+  deleteOldInactiveDevices(cutoff: Date): Promise<void>;
+};
+
+export type SessionLifecycleDatabase = {
+  touchSessionAndDevice(input: { sessionId: string; deviceId: string | null; now: Date }): Promise<void>;
+  logoutSessionAndDevice(input: { tokenHash: string; now: Date }): Promise<void>;
 };
 
 type NormalizedDeviceSessionInput = {
@@ -158,12 +168,7 @@ export function normalizeDeviceSessionInput(input: CreateDeviceSessionInput): No
   if (input.privacyAccepted !== true) {
     throw new DeviceSessionValidationError("请先阅读并同意隐私说明");
   }
-  if (
-    typeof input.deviceKey !== "string" ||
-    !/^[0-9a-f]{64}$/.test(input.deviceKey) ||
-    new Set(input.deviceKey).size < 8 ||
-    hasRepeatedPattern(input.deviceKey)
-  ) {
+  if (!isValidDeviceKey(input.deviceKey)) {
     throw new DeviceSessionValidationError("设备标识无效");
   }
 
@@ -179,6 +184,15 @@ export function normalizeDeviceSessionInput(input: CreateDeviceSessionInput): No
     userAgent,
     ipAddress: cleanLimitedText(input.ipAddress, 64),
   };
+}
+
+export function isValidDeviceKey(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{64}$/.test(value) &&
+    new Set(value).size >= 8 &&
+    !hasRepeatedPattern(value)
+  );
 }
 
 function hasRepeatedPattern(value: string): boolean {
@@ -199,103 +213,188 @@ export function hasDeviceCapacity(input: {
   return activeOtherDeviceIds.size < input.limit;
 }
 
-export function getRequestIp(headers: Pick<Headers, "get">): string | null {
-  const forwarded = headers.get("x-forwarded-for");
-  const firstForwarded = forwarded?.split(",", 1)[0];
-  return cleanLimitedText(firstForwarded ?? headers.get("x-real-ip"), 64);
+export function getRequestIp(
+  headers: Pick<Headers, "get">,
+  trustProxyHeaders = process.env.TRUST_PROXY_HEADERS === "true",
+): string | null {
+  if (!trustProxyHeaders) return null;
+  const candidate = cleanLimitedText(headers.get("x-real-ip"), 64);
+  return candidate && isIP(candidate) !== 0 ? candidate : null;
 }
 
-const prismaDeviceSessionDatabase: DeviceSessionDatabase = {
-  transaction(work) {
-    return prisma.$transaction(async (transaction) =>
-      work({
-        async deleteExpiredSessions(now) {
-          await transaction.session.deleteMany({ where: { expiresAt: { lte: now } } });
-        },
-        async upsertDefaultPolicy() {
-          return transaction.deviceLoginPolicy.upsert({
-            where: { id: "default" },
-            create: { id: "default", ...DEFAULT_DEVICE_LIMITS },
-            update: {},
-          });
-        },
-        async findUserOverride(userId) {
-          return transaction.userDeviceLimitOverride.findUnique({ where: { userId } });
-        },
-        async upsertDevice(input) {
-          return transaction.loginDevice.upsert({
-            where: {
-              userId_channel_deviceKeyHash: {
+export function shouldTouchSession(lastSeenAt: Date | null | undefined, now: Date): boolean {
+  return !lastSeenAt || now.getTime() - lastSeenAt.getTime() >= 5 * 60 * 1000;
+}
+
+export function deviceHistoryCutoff(now: Date): Date {
+  return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+}
+
+export function createPrismaDeviceSessionDatabase(client: typeof prisma): DeviceSessionDatabase {
+  return {
+    transaction(work) {
+      return client.$transaction(async (transaction) =>
+        work({
+          async deleteExpiredSessions(now) {
+            await transaction.session.deleteMany({ where: { expiresAt: { lte: now } } });
+          },
+          async upsertDefaultPolicy() {
+            return transaction.deviceLoginPolicy.upsert({
+              where: { id: "default" },
+              create: { id: "default", ...DEFAULT_DEVICE_LIMITS },
+              update: {},
+            });
+          },
+          async findUserOverride(userId) {
+            return transaction.userDeviceLimitOverride.findUnique({ where: { userId } });
+          },
+          async upsertDevice(input) {
+            return transaction.loginDevice.upsert({
+              where: {
+                userId_channel_deviceKeyHash: {
+                  userId: input.userId,
+                  channel: input.channel,
+                  deviceKeyHash: input.deviceKeyHash,
+                },
+              },
+              create: {
                 userId: input.userId,
                 channel: input.channel,
+                deviceType: input.deviceType,
                 deviceKeyHash: input.deviceKeyHash,
+                displayName: input.displayName,
+                browser: input.browser,
+                operatingSystem: input.operatingSystem,
+                userAgent: input.userAgent,
+                lastIpAddress: input.ipAddress,
+                firstSeenAt: input.now,
+                lastLoginAt: input.now,
+                lastSeenAt: input.now,
               },
-            },
-            create: {
-              userId: input.userId,
-              channel: input.channel,
-              deviceType: input.deviceType,
-              deviceKeyHash: input.deviceKeyHash,
-              displayName: input.displayName,
-              browser: input.browser,
-              operatingSystem: input.operatingSystem,
-              userAgent: input.userAgent,
-              lastIpAddress: input.ipAddress,
-              firstSeenAt: input.now,
-              lastLoginAt: input.now,
-              lastSeenAt: input.now,
-            },
-            update: {
-              deviceType: input.deviceType,
-              displayName: input.displayName,
-              browser: input.browser,
-              operatingSystem: input.operatingSystem,
-              userAgent: input.userAgent,
-              lastIpAddress: input.ipAddress,
-              lastLoginAt: input.now,
-              lastSeenAt: input.now,
-              lastLogoutAt: null,
-            },
-          });
-        },
-        async deleteDeviceSessions(input) {
-          await transaction.session.deleteMany({
-            where: { userId: input.userId, channel: input.channel, deviceId: input.deviceId },
-          });
-        },
-        async findActiveDeviceIds(input) {
-          const devices = await transaction.loginDevice.findMany({
-            where: {
-              userId: input.userId,
-              channel: input.channel,
-              deviceType: input.deviceType,
-              id: { not: input.currentDeviceId },
-              sessions: { some: { expiresAt: { gt: input.now } } },
-            },
-            select: { id: true },
-          });
-          return devices.map((device) => device.id);
-        },
-        async createSession(input) {
-          await transaction.session.create({ data: input });
-        },
-        async upsertPrivacyConsent(input) {
-          await transaction.privacyConsent.upsert({
-            where: {
-              userId_channel_version: {
+              update: {
+                deviceType: input.deviceType,
+                displayName: input.displayName,
+                browser: input.browser,
+                operatingSystem: input.operatingSystem,
+                userAgent: input.userAgent,
+                lastIpAddress: input.ipAddress,
+                lastLoginAt: input.now,
+                lastSeenAt: input.now,
+                lastLogoutAt: null,
+              },
+            });
+          },
+          async deleteDeviceSessions(input) {
+            await transaction.session.deleteMany({
+              where: { userId: input.userId, channel: input.channel, deviceId: input.deviceId },
+            });
+          },
+          async findActiveDeviceIds(input) {
+            const devices = await transaction.loginDevice.findMany({
+              where: {
                 userId: input.userId,
                 channel: input.channel,
-                version: input.version,
+                deviceType: input.deviceType,
+                id: { not: input.currentDeviceId },
+                sessions: { some: { expiresAt: { gt: input.now } } },
               },
-            },
-            create: input,
-            update: { acceptedAt: input.acceptedAt },
+              select: { id: true },
+            });
+            return devices.map((device) => device.id);
+          },
+          async createSession(input) {
+            await transaction.session.create({ data: input });
+          },
+          async upsertPrivacyConsent(input) {
+            await transaction.privacyConsent.upsert({
+              where: {
+                userId_channel_version: {
+                  userId: input.userId,
+                  channel: input.channel,
+                  version: input.version,
+                },
+              },
+              create: input,
+              update: { acceptedAt: input.acceptedAt },
+            });
+          },
+        }),
+      );
+    },
+    async deleteOldInactiveDevices(cutoff) {
+      await client.loginDevice.deleteMany({
+        where: { sessions: { none: {} }, lastSeenAt: { lt: cutoff } },
+      });
+    },
+  };
+}
+
+const prismaDeviceSessionDatabase = createPrismaDeviceSessionDatabase(prisma);
+
+export async function cleanupOldDeviceHistory(
+  database: Pick<DeviceSessionDatabase, "deleteOldInactiveDevices"> = prismaDeviceSessionDatabase,
+  now = new Date(),
+): Promise<void> {
+  await database.deleteOldInactiveDevices(deviceHistoryCutoff(now));
+}
+
+export function createPrismaSessionLifecycleDatabase(client: typeof prisma): SessionLifecycleDatabase {
+  return {
+    async touchSessionAndDevice(input) {
+      await client.$transaction(async (transaction) => {
+        await transaction.session.updateMany({ where: { id: input.sessionId }, data: { lastSeenAt: input.now } });
+        if (input.deviceId) {
+          await transaction.loginDevice.updateMany({
+            where: { id: input.deviceId },
+            data: { lastSeenAt: input.now },
           });
-        },
-      }),
-    );
-  },
-};
+        }
+      });
+    },
+    async logoutSessionAndDevice(input) {
+      await client.$transaction(async (transaction) => {
+        const session = await transaction.session.findUnique({
+          where: { tokenHash: input.tokenHash },
+          select: { id: true, deviceId: true },
+        });
+        if (!session) return;
+        if (session.deviceId) {
+          await transaction.loginDevice.updateMany({
+            where: { id: session.deviceId },
+            data: { lastLogoutAt: input.now },
+          });
+        }
+        await transaction.session.delete({ where: { id: session.id } });
+      });
+    },
+  };
+}
+
+const prismaSessionLifecycleDatabase = createPrismaSessionLifecycleDatabase(prisma);
+
+export async function touchSessionActivity(
+  session: { id: string; deviceId: string | null; lastSeenAt: Date | null },
+  now = new Date(),
+  database: SessionLifecycleDatabase = prismaSessionLifecycleDatabase,
+  onError: () => void = () => console.error("Failed to update authenticated session activity"),
+): Promise<boolean> {
+  if (!shouldTouchSession(session.lastSeenAt, now)) return false;
+  try {
+    await database.touchSessionAndDevice({ sessionId: session.id, deviceId: session.deviceId, now });
+    return true;
+  } catch {
+    onError();
+    return false;
+  }
+}
+
+export async function logoutDeviceSession(
+  tokenHash: string,
+  now = new Date(),
+  database: SessionLifecycleDatabase = prismaSessionLifecycleDatabase,
+): Promise<void> {
+  await database.logoutSessionAndDevice({ tokenHash, now });
+}
 
 export async function createDeviceSession(
   userId: string,
@@ -304,8 +403,8 @@ export async function createDeviceSession(
 ) {
   const input = normalizeDeviceSessionInput(rawInput);
   const token = randomBytes(32).toString("hex");
-  const tokenHash = hashToken(token);
-  const deviceKeyHash = hashToken(input.deviceKey);
+  const tokenHash = hashDeviceSessionSecret(token);
+  const deviceKeyHash = hashDeviceSessionSecret(input.deviceKey);
   const now = new Date();
   const expiresAt = new Date(now);
   expiresAt.setDate(expiresAt.getDate() + SESSION_DAYS);
@@ -370,6 +469,12 @@ export async function createDeviceSession(
       acceptedAt: now,
     });
   });
+
+  try {
+    await cleanupOldDeviceHistory(database, now);
+  } catch {
+    console.error("Failed to clean old login device history");
+  }
 
   return { token, expiresAt };
 }

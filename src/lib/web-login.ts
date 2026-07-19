@@ -1,4 +1,5 @@
-import { DeviceLimitError, DeviceSessionValidationError } from "@/lib/device-session";
+import { DeviceLimitError, DeviceSessionValidationError, isValidDeviceKey } from "@/lib/device-session";
+import { randomBytes } from "node:crypto";
 
 export type WebLoginFailure = {
   status: number;
@@ -43,6 +44,17 @@ export function webLoginErrorResponse(error: unknown): WebLoginFailure {
     return { status: 400, body: { error: error.message, code: error.code } };
   }
   return { status: 500, body: { error: "登录失败，请稍后重试" } };
+}
+
+export function resolveDeviceKey(
+  cookieValue: string | null | undefined,
+  generate: () => string = () => randomBytes(32).toString("hex"),
+): string {
+  return isValidDeviceKey(cookieValue) ? cookieValue : generate();
+}
+
+export function isSecureRequest(input: { nodeEnv: string | undefined; protocol: string }): boolean {
+  return input.nodeEnv === "production" || input.protocol === "https:";
 }
 
 export function sessionCookieOptions(secure: boolean, expires: Date) {
