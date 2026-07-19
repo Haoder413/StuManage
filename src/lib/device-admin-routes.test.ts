@@ -126,7 +126,7 @@ test("account logout deletes only target sessions and preserves audit snapshots"
   assert.equal(state.audits[0].targetNameSnapshot, target.name);
 });
 
-test("all administrator routes enforce server-side admin access", () => {
+test("all administrator routes use JSON API authentication instead of redirecting page authentication", () => {
   const paths = [
     "src/app/api/admin/device-policy/route.ts",
     "src/app/api/admin/accounts/[id]/devices/route.ts",
@@ -135,6 +135,7 @@ test("all administrator routes enforce server-side admin access", () => {
   ];
   for (const path of paths) {
     const source = readFileSync(path, "utf8");
-    assert.match(source, /requireAdmin\(/, path);
+    assert.match(source, /requireAdminApi\(/, path);
+    assert.doesNotMatch(source, /requireAdmin\(/, path);
   }
 });

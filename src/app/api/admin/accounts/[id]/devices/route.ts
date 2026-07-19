@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminApi } from "@/lib/admin-api-auth";
 import { DeviceAdminNotFoundError, deviceAdminService } from "@/lib/device-admin";
 import { DeviceAdminInputError, parseDeviceLimitOverrideInput } from "@/lib/device-admin-input";
 
 type RouteContext = { params: { id: string } };
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.ok) return NextResponse.json(auth.body, { status: auth.status });
   try {
     return NextResponse.json(await deviceAdminService.getAccountDevices(params.id));
   } catch (error) {
@@ -17,10 +18,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 }
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const actor = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.ok) return NextResponse.json(auth.body, { status: auth.status });
   try {
     const input = parseDeviceLimitOverrideInput(await request.json());
-    const override = await deviceAdminService.updateAccountOverride(actor, params.id, input);
+    const override = await deviceAdminService.updateAccountOverride(auth.user, params.id, input);
     return NextResponse.json({ override });
   } catch (error) {
     if (error instanceof DeviceAdminNotFoundError) {
