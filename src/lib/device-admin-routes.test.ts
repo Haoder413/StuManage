@@ -4,10 +4,12 @@ import test from "node:test";
 import {
   DeviceAdminNotFoundError,
   createDeviceAdminService,
+  createPrismaDeviceAdminDatabase,
   type DeviceAdminDatabase,
 } from "./device-admin";
+import { runDeviceAdminRoute } from "./device-admin-route-handler";
 
-const actor = { id: "admin-1", name: "管理员" };
+const actor = { id: "admin-1", name: "管理员", role: "admin" };
 const target = { id: "user-1", name: "王老师", phone: "13800000000", email: null, role: "teacher" };
 const policy = {
   webMobile: 2,
@@ -87,6 +89,41 @@ test("account device list cleans history and returns active-first safe device de
   assert.equal("sessions" in result.devices[0], false);
 });
 
+test("Prisma account device list counts only active sessions owned by the target user", async () => {
+  const now = new Date("2026-07-19T12:00:00Z");
+  const cutoff = new Date("2026-04-20T12:00:00Z");
+  type DeviceListQuery = {
+    where: { userId: string };
+    select: { sessions: { where: { userId: string; expiresAt: { gt: Date } } } };
+  };
+  const client = {
+    loginDevice: {
+      findMany: async (query: DeviceListQuery) => {
+        assert.equal(query.where.userId, target.id);
+        assert.equal(query.select.sessions.where.userId, target.id);
+        const linkedSessions = [
+          { id: "owned-session", userId: target.id, expiresAt: new Date("2026-07-20T00:00:00Z") },
+          { id: "crossed-session", userId: "other-user", expiresAt: new Date("2026-07-20T00:00:00Z") },
+        ];
+        const sessions = linkedSessions.filter((session) =>
+          session.userId === query.select.sessions.where.userId &&
+          session.expiresAt > query.select.sessions.where.expiresAt.gt,
+        );
+        return [{
+          id: "device-1", channel: "web", deviceType: "desktop", displayName: "Chrome",
+          browser: "Chrome", operatingSystem: "macOS", lastIpAddress: null,
+          firstSeenAt: cutoff, lastLoginAt: now, lastSeenAt: now, lastLogoutAt: null, sessions,
+        }];
+      },
+    },
+  };
+  const database = createPrismaDeviceAdminDatabase(
+    client as unknown as Parameters<typeof createPrismaDeviceAdminDatabase>[0],
+  );
+  const devices = await database.findDevices(target.id, now, cutoff);
+  assert.equal(devices[0].activeSessionCount, 1);
+});
+
 test("clearing all override fields deletes override and audits the change", async () => {
   const { db, state } = fakeDatabase();
   state.override = { ...policy, webMobile: 7 };
@@ -102,7 +139,7 @@ test("single-device logout scopes lookup and deletion by target account and devi
   const { db, state } = fakeDatabase();
   const result = await createDeviceAdminService(db).forceLogoutDevice(actor, target.id, "device-1", new Date("2026-07-19T12:00:00Z"));
   assert.deepEqual(result, { success: true, deletedSessions: 2 });
-  assert.deepEqual(state.deletedSessionScopes, [{ userId: target.id, deviceId: "device-1" }]);
+  assert.deepEqual(state.deletedSessionScopes, [{ userId: target.id, deviceId: "device-1", channel: "web" }]);
   assert.deepEqual(state.deviceUpdates[0], { userId: target.id, deviceIds: ["device-1"], at: new Date("2026-07-19T12:00:00Z") });
   assert.equal(state.audits[0].action, "device_forced_logout");
   await assert.rejects(
@@ -135,7 +172,36 @@ test("all administrator routes use JSON API authentication instead of redirectin
   ];
   for (const path of paths) {
     const source = readFileSync(path, "utf8");
-    assert.match(source, /requireAdminApi\(/, path);
+    assert.match(source, /requireAdminApi/, path);
+    assert.match(source, /runDeviceAdminRoute\(/, path);
     assert.doesNotMatch(source, /requireAdmin\(/, path);
   }
+});
+
+test("injectable administrator route wrapper maps authorization, invalid JSON, not-found and success", async () => {
+  let called = false;
+  const forbidden = await runDeviceAdminRoute({
+    authenticate: async () => ({ ok: false, status: 403, body: { error: "无管理员权限" } }),
+    action: async () => { called = true; return { success: true }; },
+  });
+  assert.equal(called, false);
+  assert.deepEqual(forbidden, { status: 403, body: { error: "无管理员权限" } });
+
+  const authenticate = async () => ({ ok: true as const, user: actor });
+  const invalidJson = await runDeviceAdminRoute({
+    authenticate,
+    action: async () => JSON.parse("{"),
+    inputErrorMessage: "参数无效",
+  });
+  assert.deepEqual(invalidJson, { status: 400, body: { error: "参数无效" } });
+
+  const crossedDevice = await runDeviceAdminRoute({
+    authenticate,
+    action: async () => { throw new DeviceAdminNotFoundError(); },
+    notFoundMessage: "设备不存在或不属于该账号",
+  });
+  assert.deepEqual(crossedDevice, { status: 404, body: { error: "设备不存在或不属于该账号" } });
+
+  const success = await runDeviceAdminRoute({ authenticate, action: async (admin) => ({ actorId: admin.id }) });
+  assert.deepEqual(success, { status: 200, body: { actorId: actor.id } });
 });

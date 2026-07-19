@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-api-auth";
-import { DeviceAdminInputError, parseDevicePolicyInput } from "@/lib/device-admin-input";
+import { parseDevicePolicyInput } from "@/lib/device-admin-input";
 import { deviceAdminService } from "@/lib/device-admin";
+import { runDeviceAdminRoute } from "@/lib/device-admin-route-handler";
 
 export async function GET() {
-  const auth = await requireAdminApi();
-  if (!auth.ok) return NextResponse.json(auth.body, { status: auth.status });
-  return NextResponse.json(await deviceAdminService.getPolicy());
+  const result = await runDeviceAdminRoute({
+    authenticate: requireAdminApi,
+    action: () => deviceAdminService.getPolicy(),
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdminApi();
-  if (!auth.ok) return NextResponse.json(auth.body, { status: auth.status });
-  try {
-    const input = parseDevicePolicyInput(await request.json());
-    return NextResponse.json(await deviceAdminService.updatePolicy(auth.user, input));
-  } catch (error) {
-    if (error instanceof DeviceAdminInputError || error instanceof SyntaxError) {
-      return NextResponse.json({ error: "请填写 1 至 20 的整数设备上限" }, { status: 400 });
-    }
-    throw error;
-  }
+  const result = await runDeviceAdminRoute({
+    authenticate: requireAdminApi,
+    inputErrorMessage: "请填写 1 至 20 的整数设备上限",
+    action: async (actor) => {
+      const input = parseDevicePolicyInput(await request.json());
+      return deviceAdminService.updatePolicy(actor, input);
+    },
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }

@@ -129,6 +129,7 @@ model Session {
   device     LoginDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([deviceId])
+  @@index([userId])
   @@index([expiresAt])
 }
 
@@ -154,6 +155,7 @@ model LoginDevice {
 
   @@unique([userId, channel, deviceKeyHash])
   @@index([userId, channel, deviceType])
+  @@index([userId, lastSeenAt])
 }
 
 model DeviceLoginPolicy {

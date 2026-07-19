@@ -1,36 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-api-auth";
-import { DeviceAdminNotFoundError, deviceAdminService } from "@/lib/device-admin";
-import { DeviceAdminInputError, parseDeviceLimitOverrideInput } from "@/lib/device-admin-input";
+import { deviceAdminService } from "@/lib/device-admin";
+import { parseDeviceLimitOverrideInput } from "@/lib/device-admin-input";
+import { runDeviceAdminRoute } from "@/lib/device-admin-route-handler";
 
 type RouteContext = { params: { id: string } };
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAdminApi();
-  if (!auth.ok) return NextResponse.json(auth.body, { status: auth.status });
-  try {
-    return NextResponse.json(await deviceAdminService.getAccountDevices(params.id));
-  } catch (error) {
-    if (error instanceof DeviceAdminNotFoundError) {
-      return NextResponse.json({ error: "账号不存在" }, { status: 404 });
-    }
-    throw error;
-  }
+  const result = await runDeviceAdminRoute({
+    authenticate: requireAdminApi,
+    notFoundMessage: "账号不存在",
+    action: () => deviceAdminService.getAccountDevices(params.id),
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAdminApi();
-  if (!auth.ok) return NextResponse.json(auth.body, { status: auth.status });
-  try {
-    const input = parseDeviceLimitOverrideInput(await request.json());
-    const override = await deviceAdminService.updateAccountOverride(auth.user, params.id, input);
-    return NextResponse.json({ override });
-  } catch (error) {
-    if (error instanceof DeviceAdminNotFoundError) {
-      return NextResponse.json({ error: "账号不存在" }, { status: 404 });
-    }
-    if (error instanceof DeviceAdminInputError || error instanceof SyntaxError) {
-      return NextResponse.json({ error: "请填写 1 至 20 的整数，或留空以使用全局默认值" }, { status: 400 });
-    }
-    throw error;
-  }
+  const result = await runDeviceAdminRoute({
+    authenticate: requireAdminApi,
+    inputErrorMessage: "请填写 1 至 20 的整数，或留空以使用全局默认值",
+    notFoundMessage: "账号不存在",
+    action: async (actor) => {
+      const input = parseDeviceLimitOverrideInput(await request.json());
+      const override = await deviceAdminService.updateAccountOverride(actor, params.id, input);
+      return { override };
+    },
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }

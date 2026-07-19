@@ -54,6 +54,7 @@ test("schema stores login devices, policies, consent and audit history", () => {
   assert.match(schema, /model LoginDevice \{/);
   assert.match(schema, /@@unique\(\[userId, channel, deviceKeyHash\]\)/);
   assert.match(schema, /@@index\(\[userId, channel, deviceType\]\)/);
+  assert.match(schema, /@@index\(\[userId, lastSeenAt\]\)/);
   assert.match(schema, /model DeviceLoginPolicy \{/);
   assert.match(schema, /webMobile\s+Int\s+@default\(2\)/);
   assert.match(schema, /miniTablet\s+Int\s+@default\(2\)/);
@@ -82,5 +83,6 @@ test("sessions optionally track their device, channel and last activity", () => 
   assert.match(schema, /lastSeenAt\s+DateTime\?/);
   assert.match(schema, /device\s+LoginDevice\?\s+@relation\(fields: \[deviceId\], references: \[id\], onDelete: SetNull\)/);
   assert.match(schema, /@@index\(\[deviceId\]\)/);
+  assert.match(schema, /@@index\(\[userId\]\)/);
   assert.match(schema, /@@index\(\[expiresAt\]\)/);
 });

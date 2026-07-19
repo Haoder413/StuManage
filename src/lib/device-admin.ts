@@ -60,7 +60,7 @@ export type DeviceAdminTransaction = {
     deviceType: string;
   } | null>;
   findSessionDeviceIds(userId: string): Promise<string[]>;
-  deleteSessions(where: { userId: string; deviceId?: string }): Promise<number>;
+  deleteSessions(where: { userId: string; deviceId?: string; channel?: string }): Promise<number>;
   markDevicesLoggedOut(where: { userId: string; deviceIds: string[]; at: Date }): Promise<void>;
   createAudit(data: DeviceAuditInput): Promise<void>;
 };
@@ -171,7 +171,7 @@ export function createDeviceAdminService(database: DeviceAdminDatabase) {
         if (!target) throw new DeviceAdminNotFoundError();
         const device = await transaction.findDevice(userId, deviceId);
         if (!device) throw new DeviceAdminNotFoundError();
-        const deletedSessions = await transaction.deleteSessions({ userId, deviceId });
+        const deletedSessions = await transaction.deleteSessions({ userId, deviceId, channel: device.channel });
         await transaction.markDevicesLoggedOut({ userId, deviceIds: [deviceId], at: now });
         await transaction.createAudit(auditData(actor, "device_forced_logout", {
           deviceId,
@@ -253,7 +253,7 @@ export function createPrismaDeviceAdminDatabase(client: typeof prisma): DeviceAd
       },
       async findSessionDeviceIds(userId) {
         const sessions = await transaction.session.findMany({
-          where: { userId, deviceId: { not: null } },
+          where: { userId, deviceId: { not: null }, device: { userId } },
           select: { deviceId: true },
         });
         return sessions.flatMap((session) => session.deviceId ? [session.deviceId] : []);
@@ -308,7 +308,7 @@ export function createPrismaDeviceAdminDatabase(client: typeof prisma): DeviceAd
           lastLoginAt: true,
           lastSeenAt: true,
           lastLogoutAt: true,
-          sessions: { where: { expiresAt: { gt: now } }, select: { id: true } },
+          sessions: { where: { userId, expiresAt: { gt: now } }, select: { id: true } },
         },
       });
       return devices.map(({ sessions, ...device }) => ({ ...device, activeSessionCount: sessions.length }));
