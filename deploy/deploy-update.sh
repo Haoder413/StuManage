@@ -44,6 +44,7 @@ ln -sfn "$SHARED_DIR/storage/lesson-attachments" "storage/lesson-attachments"
 npm ci
 npx prisma generate
 npx prisma db push --skip-generate
+npm run devices:migrate
 
 if [ "$RUN_SEED" = "1" ]; then
   npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts

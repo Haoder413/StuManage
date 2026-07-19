@@ -107,9 +107,20 @@ REPO_URL=<REMOTE_URL> BRANCH=main bash /opt/student-management/current/deploy/de
 - 安装依赖
 - 生成 Prisma Client
 - 同步数据库结构
+- 执行幂等的设备会话迁移
 - 构建 Next.js 项目
 - 切换当前版本
 - 重启 PM2 服务
+
+设备登录功能首次上线时，`device-session-v1` 迁移会让全部账号退出一次，以便新会话绑定设备。标记写入成功后，后续更新不会再让用户退出。现有服务器可手动验证幂等性：
+
+```bash
+cd /opt/student-management/current
+npm run devices:migrate
+npm run devices:migrate
+```
+
+第二次应输出 `{"clearedSessions":0,"alreadyApplied":true}`。如遇到 Prisma Client 的 `EACCES` 或 SQLite 的 `readonly database`，请按项目根目录 `README.md` 中的“设备登录功能首次上线”命令，将 release 依赖和 shared 数据库权限修正为实际运行 PM2 的用户，不要使用 `chmod 777`。
 
 ## 5. 回滚到上一个版本
 

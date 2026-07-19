@@ -117,6 +117,51 @@ cat /etc/cron.d/student-management-maintenance
 REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
+### 设备登录功能首次上线
+
+更新脚本会在同步数据库结构后自动执行 `npm run devices:migrate`。迁移标记为 `device-session-v1`：
+
+- 首次执行会让全部账号退出一次，用户需重新登录，不会修改密码、资料或课程数据。
+- 成功写入标记后，后续部署不会再让用户退出。
+- 迁移的“删除旧会话”和“写入标记”在同一个数据库事务中，失败时会整体回滚。
+
+已有服务器如果需要手动执行，请先确认当前 release 的 `.env` 仍链接到共享环境文件，然后连续执行两次：
+
+```bash
+cd /opt/student-management/current
+readlink -f .env
+npm run devices:migrate
+npm run devices:migrate
+```
+
+第二次应输出 `{"clearedSessions":0,"alreadyApplied":true}`。
+
+如果遇到 `EACCES ... node_modules/.prisma/client`，表示当前 release 的依赖目录不属于实际运行服务的用户。下面以 PM2 由 `ubuntu` 用户运行为例；如果服务由其他用户运行，必须把 `APP_USER` 改成该用户：
+
+```bash
+APP_USER=ubuntu
+APP_GROUP="$(id -gn "$APP_USER")"
+CURRENT_RELEASE="$(readlink -f /opt/student-management/current)"
+sudo chown -R "$APP_USER:$APP_GROUP" "$CURRENT_RELEASE/node_modules"
+sudo -u "$APP_USER" bash -lc "cd '$CURRENT_RELEASE' && npx prisma generate"
+```
+
+如果遇到 `attempt to write a readonly database`，需要同时修正 SQLite 数据库文件和共享目录的写权限（SQLite 会在目录内创建 journal/WAL 文件）：
+
+```bash
+APP_USER=ubuntu
+APP_GROUP="$(id -gn "$APP_USER")"
+sudo chown "$APP_USER:$APP_GROUP" /opt/student-management/shared
+sudo chmod u+rwx /opt/student-management/shared
+sudo find /opt/student-management/shared -maxdepth 1 -type f \
+  \( -name 'dev.db' -o -name 'dev.db-wal' -o -name 'dev.db-shm' \) \
+  -exec chown "$APP_USER:$APP_GROUP" {} +
+sudo chmod u+rw /opt/student-management/shared/dev.db
+sudo -u "$APP_USER" bash -lc 'cd /opt/student-management/current && npm run devices:migrate'
+```
+
+不要使用 `chmod 777`，也不要把数据库复制进 release 目录。应让实际运行 PM2 服务的用户拥有 `/opt/student-management/shared/dev.db` 及其目录写权限。
+
 如果更新后需要回滚：
 
 ```bash
