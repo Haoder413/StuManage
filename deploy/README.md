@@ -43,12 +43,28 @@ REPO_URL=<REMOTE_URL> BRANCH=main APP_ROOT=/opt/student-management PORT=3001 sud
 - 拉取代码并构建项目
 - 启动服务
 - 写入 Nginx 反向代理配置
+- 安装每天 03:30 执行的设备历史清理任务
 
 完成后可以通过服务器 IP 访问：
 
 ```text
 http://你的服务器IP
 ```
+
+已经部署过旧版本的服务器首次上线设备登录功能时，需要单独安装一次每日维护任务：
+
+```bash
+cd /opt/student-management/current
+sudo bash deploy/install-maintenance-cron.sh
+```
+
+检查任务是否已正确写入：
+
+```bash
+cat /etc/cron.d/student-management-maintenance
+```
+
+设备历史清理日志位于 `/opt/student-management/backups/device-cleanup.log`。后续常规更新仍使用无需 `sudo` 的 `deploy-update.sh`。
 
 ## 3. 空数据库初始化
 

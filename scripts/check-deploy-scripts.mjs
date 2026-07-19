@@ -17,6 +17,12 @@ const files = {
     "cd \"$APP_ROOT/current\"",
     "pm2",
   ],
+  "deploy/install-maintenance-cron.sh": [
+    "id -u",
+    "APP_ROOT",
+    "devices:cleanup",
+    "device-cleanup.log",
+  ],
   "deploy/rollback.sh": [
     "releases",
     "current",

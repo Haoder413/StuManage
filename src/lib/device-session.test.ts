@@ -232,14 +232,16 @@ class FakeDeviceSessionDatabase implements DeviceSessionDatabase {
     return result;
   }
 
-  async deleteOldInactiveDevices(cutoff: Date): Promise<void> {
+  async deleteOldInactiveDevices(cutoff: Date): Promise<number> {
     this.state.cleanupCutoffs = [...(this.state.cleanupCutoffs ?? []), cutoff];
+    const previousCount = this.state.devices.length;
     this.state.devices = this.state.devices.filter(
       (device) =>
         this.state.sessions.some((session) => session.deviceId === device.id) ||
         !device.lastSeenAt ||
         device.lastSeenAt >= cutoff,
     );
+    return previousCount - this.state.devices.length;
   }
 }
 

@@ -49,6 +49,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_URL="$REPO_URL" BRANCH="$BRANCH" APP_ROOT="$APP_ROOT" APP_NAME="$APP_NAME" PORT="$PORT" bash "$SCRIPT_DIR/deploy-update.sh"
+APP_ROOT="$APP_ROOT" APP_NAME="$APP_NAME" bash "$APP_ROOT/current/deploy/install-maintenance-cron.sh"
 
 cat > "/etc/cron.d/$APP_NAME-backup" <<CRON
 SHELL=/bin/bash

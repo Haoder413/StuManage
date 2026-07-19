@@ -103,6 +103,14 @@ deploy/README.md
 REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main APP_ROOT=/opt/student-management PORT=3001 sudo -E bash deploy/server-init.sh
 ```
 
+现有服务器首次上线设备登录功能时，还需安装每日设备历史清理任务并检查 cron：
+
+```bash
+cd /opt/student-management/current
+sudo bash deploy/install-maintenance-cron.sh
+cat /etc/cron.d/student-management-maintenance
+```
+
 后续更新代码后，在服务器执行：
 
 ```bash
