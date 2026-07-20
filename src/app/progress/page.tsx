@@ -3,6 +3,34 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
 import { visibleCourseWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
+import { dedupeWeakPoints } from "@/lib/weak-points";
+
+// 同一知识点可能同时存在 learningLinkId = NULL 的旧记录和 learningLinkId 非空的
+// 新记录（家长账号/学习链接建立前后的数据），先按知识点去重再统计，否则同一
+// 知识点会被计多次。mastered 优先，其次取最近更新。
+function dedupeKpProgressByKnowledgePoint<T extends { knowledgePointId: string; status: string; updatedAt: Date }>(
+  rows: T[],
+) {
+  const byKnowledgePoint = new Map<string, T>();
+  for (const row of rows) {
+    const existing = byKnowledgePoint.get(row.knowledgePointId);
+    if (!existing) {
+      byKnowledgePoint.set(row.knowledgePointId, row);
+      continue;
+    }
+    if (row.status === "mastered" && existing.status !== "mastered") {
+      byKnowledgePoint.set(row.knowledgePointId, row);
+      continue;
+    }
+    if (row.status !== "mastered" && existing.status === "mastered") {
+      continue;
+    }
+    if (row.updatedAt.getTime() > existing.updatedAt.getTime()) {
+      byKnowledgePoint.set(row.knowledgePointId, row);
+    }
+  }
+  return [...byKnowledgePoint.values()];
+}
 
 export default async function ProgressPage() {
   const user = await requireTeacherLike();
@@ -10,7 +38,10 @@ export default async function ProgressPage() {
     where: visibleStudentWhere(user),
     include: {
       kpProgress: true,
-      weakPoints: { where: { status: "active" } },
+      weakPoints: {
+        where: { status: "active" },
+        include: { reviewSchedules: true },
+      },
     },
   });
   const totalKps = await prisma.knowledgePoint.count({
@@ -22,10 +53,11 @@ export default async function ProgressPage() {
       <PageHeader title="学习进度" description="查看和编辑所有学生的学习进度" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {students.map((s) => {
-          const mastered = s.kpProgress.filter((p) => p.status === "mastered").length;
-          const learning = Math.max(totalKps - mastered, 0);
+          const kpByKnowledgePoint = dedupeKpProgressByKnowledgePoint(s.kpProgress);
+          const mastered = kpByKnowledgePoint.filter((p) => p.status === "mastered").length;
+          const learning = kpByKnowledgePoint.filter((p) => p.status === "learning").length;
           const progressPct = totalKps > 0 ? Math.round((mastered / totalKps) * 100) : 0;
-          const activeWeak = s.weakPoints.length;
+          const activeWeak = dedupeWeakPoints(s.weakPoints).length;
 
           return (
             <Link key={s.id} href={`/progress/students/${s.id}`}>
