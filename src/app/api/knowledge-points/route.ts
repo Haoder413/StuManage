@@ -76,14 +76,72 @@ export async function PATCH(request: NextRequest) {
   if (!data.id) return NextResponse.json({ error: "missing id" }, { status: 400 });
   const editable = await prisma.knowledgePoint.findFirst({
     where: { id: data.id, workspaceId: user.workspaceId, course: visibleCourseWhere(user) },
-    select: { id: true },
+    select: { id: true, courseId: true },
   });
   if (!editable) return NextResponse.json({ error: "not found" }, { status: 404 });
 
+  // 仅重命名
+  if (typeof data.name === "string" && data.name.trim() && !("parentId" in data) && !Array.isArray(data.orderedIds)) {
+    await prisma.knowledgePoint.updateMany({
+      where: { id: editable.id, workspaceId: user.workspaceId },
+      data: { name: data.name.trim() },
+    });
+    const renamed = await prisma.knowledgePoint.findFirst({ where: { id: editable.id, workspaceId: user.workspaceId } });
+    if (!renamed) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json(renamed);
+  }
+
+  // 移动 / 重排
+  const parentId = typeof data.parentId === "string" && data.parentId ? data.parentId : null;
+  if (parentId) {
+    if (parentId === editable.id) {
+      return NextResponse.json({ error: "cannot move into itself" }, { status: 400 });
+    }
+    // 目标父级必须是同课程、可见的知识点，且不能是被拖节点的子孙（防循环）
+    const childIds = await collectChildIds(editable.id, user.workspaceId);
+    if (childIds.includes(parentId)) {
+      return NextResponse.json({ error: "cannot move into own descendant" }, { status: 400 });
+    }
+    const parent = await prisma.knowledgePoint.findFirst({
+      where: { id: parentId, workspaceId: user.workspaceId, courseId: editable.courseId, course: visibleCourseWhere(user) },
+      select: { id: true },
+    });
+    if (!parent) return NextResponse.json({ error: "parent not found" }, { status: 404 });
+  }
+
+  if (Array.isArray(data.orderedIds) && data.orderedIds.length > 0) {
+    // 批量重排：把 orderedIds 全部设为同一 parentId，按位次写 orderIndex
+    const ids = data.orderedIds.map((item: unknown) => String(item || "")).filter(Boolean);
+    const visible = await prisma.knowledgePoint.findMany({
+      where: { id: { in: ids }, workspaceId: user.workspaceId, courseId: editable.courseId, course: visibleCourseWhere(user) },
+      select: { id: true },
+    });
+    const visibleIds = new Set(visible.map((item) => item.id));
+    await prisma.$transaction(
+      ids
+        .filter((id: string) => visibleIds.has(id))
+        .map((id: string, idx: number) =>
+          prisma.knowledgePoint.updateMany({
+            where: { id, workspaceId: user.workspaceId },
+            data: { parentId, orderIndex: idx + 1 },
+          })
+        )
+    );
+    const refreshed = await prisma.knowledgePoint.findMany({
+      where: { workspaceId: user.workspaceId, courseId: editable.courseId },
+      orderBy: [{ orderIndex: "asc" }],
+    });
+    return NextResponse.json(refreshed);
+  }
+
+  // 兼容：单点 parentId + orderIndex
   await prisma.knowledgePoint.updateMany({
     where: { id: editable.id, workspaceId: user.workspaceId },
     data: {
-      name: data.name,
+      parentId,
+      ...(typeof data.orderIndex === "number" && Number.isFinite(data.orderIndex)
+        ? { orderIndex: Math.max(0, Math.floor(data.orderIndex)) }
+        : {}),
     },
   });
   const knowledgePoint = await prisma.knowledgePoint.findFirst({ where: { id: editable.id, workspaceId: user.workspaceId } });
