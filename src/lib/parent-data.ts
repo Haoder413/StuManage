@@ -233,6 +233,12 @@ export async function getParentLearningData(
   const selectedLink = learningLinks.find((link) => link.id === selectedLinkId) || learningLinks[0] || null;
   const activeSelectedLinkId = selectedLink?.id || "";
 
+  // 兼容历史数据：教师可能早于家长账号/学习链接创建考勤、成绩、知识点进度、薄弱点，
+  // 这些数据的 learningLinkId 为 NULL。家长选中某个学习链接时，应同时看到自己孩子的
+  // 旧数据，否则家长端会与教师端不一致。
+  const legacyVisibleWhere = {
+    OR: [{ learningLinkId: activeSelectedLinkId }, { learningLinkId: null }],
+  };
   const parentStudents = selectedLink
     ? await prisma.parentStudent.findMany({
         where: {
@@ -244,12 +250,12 @@ export async function getParentLearningData(
           student: {
             include: {
               attendance: {
-                where: { learningLinkId: activeSelectedLinkId },
+                where: legacyVisibleWhere,
                 orderBy: { date: "desc" },
                 include: { schedule: true, learningLink: { include: { teacher: true } } },
               },
               exams: {
-                where: { learningLinkId: activeSelectedLinkId },
+                where: legacyVisibleWhere,
                 orderBy: { date: "desc" },
                 include: { learningLink: { include: { teacher: true } } },
               },
@@ -268,12 +274,12 @@ export async function getParentLearningData(
                 },
               },
               kpProgress: {
-                where: { learningLinkId: activeSelectedLinkId },
+                where: legacyVisibleWhere,
                 include: { knowledgePoint: true, learningLink: { include: { teacher: true } } },
                 orderBy: { knowledgePoint: { orderIndex: "asc" } },
               },
               weakPoints: {
-                where: { learningLinkId: activeSelectedLinkId },
+                where: legacyVisibleWhere,
                 include: { reviewSchedules: { orderBy: { stage: "asc" } }, learningLink: { include: { teacher: true } } },
                 orderBy: { createdAt: "desc" },
               },
@@ -293,6 +299,7 @@ export async function getParentLearningData(
         ...itemWithKnowledgeProgress,
         student: {
           ...itemWithKnowledgeProgress.student,
+          attendance: dedupeAttendanceRecords(item.student.attendance),
           weakPoints: dedupeWeakPoints(item.student.weakPoints),
         },
       };
