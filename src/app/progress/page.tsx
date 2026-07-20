@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
-import { visibleCourseWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
+import { visibleStudentWhere } from "@/lib/teacher-visibility";
 import { dedupeWeakPoints } from "@/lib/weak-points";
 
 // 同一知识点可能同时存在 learningLinkId = NULL 的旧记录和 learningLinkId 非空的
@@ -42,10 +42,17 @@ export default async function ProgressPage() {
         where: { status: "active" },
         include: { reviewSchedules: true },
       },
+      studentCourses: {
+        where: { status: "active" },
+        include: {
+          course: {
+            select: {
+              _count: { select: { knowledgePoints: true } },
+            },
+          },
+        },
+      },
     },
-  });
-  const totalKps = await prisma.knowledgePoint.count({
-    where: { workspaceId: user.workspaceId, course: visibleCourseWhere(user) },
   });
 
   return (
@@ -53,6 +60,12 @@ export default async function ProgressPage() {
       <PageHeader title="学习进度" description="查看和编辑所有学生的学习进度" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {students.map((s) => {
+          // 与详情页口径一致：知识点总数 = 该学生实际报名的课程的知识点之和。
+          // 而不是全工作区所有课程的知识点总数。
+          const totalKps = s.studentCourses.reduce(
+            (sum, studentCourse) => sum + studentCourse.course._count.knowledgePoints,
+            0,
+          );
           const kpByKnowledgePoint = dedupeKpProgressByKnowledgePoint(s.kpProgress);
           const mastered = kpByKnowledgePoint.filter((p) => p.status === "mastered").length;
           // 与详情页口径一致：learning = 知识点总数 - 已学习。
