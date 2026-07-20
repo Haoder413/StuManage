@@ -50,6 +50,8 @@ interface Schedule {
     contentTags: string | null; feedbackTags: string | null; weakPointTags: string | null;
     lessonVideo: LessonVideo | null;
     lessonAttachments: LessonAttachment[];
+    classHomeworks: AttendanceClassHomework[];
+    studentAnswers: AttendanceStudentAnswer[];
     lessonHourLogs: { deltaRemainingHours: number }[];
   }[];
 }
@@ -62,6 +64,22 @@ interface LessonVideo {
   createdAt: string;
 }
 interface LessonAttachment {
+  id: string;
+  title: string | null;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+interface AttendanceClassHomework {
+  id: string;
+  title: string | null;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+interface AttendanceStudentAnswer {
   id: string;
   title: string | null;
   fileName: string;
@@ -372,8 +390,14 @@ export default function SchedulePage() {
   const [reviewAttendanceId, setReviewAttendanceId] = useState<string | null>(null);
   const [reviewVideoFile, setReviewVideoFile] = useState<File | null>(null);
   const [reviewAttachmentFiles, setReviewAttachmentFiles] = useState<File[]>([]);
+  const [reviewClassHomeworks, setReviewClassHomeworks] = useState<AttendanceClassHomework[]>([]);
+  const [reviewStudentAnswers, setReviewStudentAnswers] = useState<AttendanceStudentAnswer[]>([]);
+  const [reviewClassHomeworkFiles, setReviewClassHomeworkFiles] = useState<File[]>([]);
+  const [reviewStudentAnswerFiles, setReviewStudentAnswerFiles] = useState<File[]>([]);
   const [reviewVideoError, setReviewVideoError] = useState("");
   const [reviewAttachmentError, setReviewAttachmentError] = useState("");
+  const [reviewClassHomeworkError, setReviewClassHomeworkError] = useState("");
+  const [reviewStudentAnswerError, setReviewStudentAnswerError] = useState("");
   const [savingReview, setSavingReview] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [editingAttendanceKey, setEditingAttendanceKey] = useState<string | null>(null);
@@ -591,6 +615,8 @@ export default function SchedulePage() {
     setReviewLessonHourAmount(status === "present" ? String(getAttendanceLessonHourAmount(existing)) : "0");
     setReviewLessonVideo(existing?.lessonVideo || null);
     setReviewLessonAttachments(existing?.lessonAttachments || []);
+    setReviewClassHomeworks(existing?.classHomeworks || []);
+    setReviewStudentAnswers(existing?.studentAnswers || []);
     setReviewAttendanceId(existing?.id || null);
     setReviewVideoFile(null);
     setReviewAttachmentFiles([]);
@@ -609,6 +635,8 @@ export default function SchedulePage() {
     setSavingReview(true);
     setReviewVideoError("");
     setReviewAttachmentError("");
+    setReviewClassHomeworkError("");
+    setReviewStudentAnswerError("");
     setUploadProgress(0);
     const savedAttendance = await handleAttendance(
       pendingAttendance.scheduleId,
@@ -687,6 +715,58 @@ export default function SchedulePage() {
         return;
       }
     }
+    if (reviewClassHomeworkFiles.length > 0) {
+      const formData = new FormData();
+      reviewClassHomeworkFiles.forEach((file) => formData.append("files", file));
+      try {
+        const response = await fetch(`/api/attendance/${savedAttendance.id}/class-home-work`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) throw new Error("upload_failed");
+        const classHomeworks: AttendanceClassHomework[] = await response.json();
+        setReviewClassHomeworks(prev => [...prev, ...classHomeworks]);
+        setSchedules(prev => prev.map(s => {
+          if (s.id !== pendingAttendance.scheduleId) return s;
+          return {
+            ...s,
+            attendance: s.attendance.map(a => a.id === savedAttendance.id
+              ? { ...a, classHomeworks: [...(a.classHomeworks || []), ...classHomeworks] }
+              : a),
+          };
+        }));
+      } catch {
+        setSavingReview(false);
+        setReviewClassHomeworkError("本堂作业上传失败，请确认格式后重试");
+        return;
+      }
+    }
+    if (reviewStudentAnswerFiles.length > 0) {
+      const formData = new FormData();
+      reviewStudentAnswerFiles.forEach((file) => formData.append("files", file));
+      try {
+        const response = await fetch(`/api/attendance/${savedAttendance.id}/student-answers`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) throw new Error("upload_failed");
+        const studentAnswers: AttendanceStudentAnswer[] = await response.json();
+        setReviewStudentAnswers(prev => [...prev, ...studentAnswers]);
+        setSchedules(prev => prev.map(s => {
+          if (s.id !== pendingAttendance.scheduleId) return s;
+          return {
+            ...s,
+            attendance: s.attendance.map(a => a.id === savedAttendance.id
+              ? { ...a, studentAnswers: [...(a.studentAnswers || []), ...studentAnswers] }
+              : a),
+          };
+        }));
+      } catch {
+        setSavingReview(false);
+        setReviewStudentAnswerError("学生答案上传失败，请确认格式后重试");
+        return;
+      }
+    }
     const weakPointDescriptions = Array.from(new Set(selectedWeakPointTags.map(item => item.trim()).filter(Boolean)));
     if (weakPointDescriptions.length > 0) {
       await Promise.all(weakPointDescriptions.map(description =>
@@ -705,10 +785,16 @@ export default function SchedulePage() {
     setReviewLessonHourAmount("1");
     setReviewLessonVideo(null);
     setReviewLessonAttachments([]);
+    setReviewClassHomeworks([]);
+    setReviewStudentAnswers([]);
     setReviewAttendanceId(null);
     setReviewVideoFile(null);
     setReviewAttachmentFiles([]);
+    setReviewClassHomeworkFiles([]);
+    setReviewStudentAnswerFiles([]);
     setReviewAttachmentError("");
+    setReviewClassHomeworkError("");
+    setReviewStudentAnswerError("");
     setSelectedKnowledgePointIds([]);
     setReviewKnowledgePoints([]);
     setExpandedKnowledgePointIds([]);
@@ -770,6 +856,36 @@ export default function SchedulePage() {
       attendance: s.attendance.map(a => ({
         ...a,
         lessonAttachments: (a.lessonAttachments || []).filter(item => item.id !== attachment.id),
+      })),
+    } : s));
+  }
+
+  async function deleteReviewClassHomework(homework: AttendanceClassHomework) {
+    if (!pendingAttendance) return;
+    if (!confirm(`确定删除本堂作业「${homework.title || homework.fileName}」？`)) return;
+    const response = await fetch(`/api/attendance-class-homework/${homework.id}`, { method: "DELETE" });
+    if (!response.ok) return;
+    setReviewClassHomeworks(prev => prev.filter(item => item.id !== homework.id));
+    setSchedules(prev => prev.map(s => s.id === pendingAttendance.scheduleId ? {
+      ...s,
+      attendance: s.attendance.map(a => ({
+        ...a,
+        classHomeworks: (a.classHomeworks || []).filter(item => item.id !== homework.id),
+      })),
+    } : s));
+  }
+
+  async function deleteReviewStudentAnswer(answer: AttendanceStudentAnswer) {
+    if (!pendingAttendance) return;
+    if (!confirm(`确定删除学生答案「${answer.title || answer.fileName}」？`)) return;
+    const response = await fetch(`/api/attendance-student-answer/${answer.id}`, { method: "DELETE" });
+    if (!response.ok) return;
+    setReviewStudentAnswers(prev => prev.filter(item => item.id !== answer.id));
+    setSchedules(prev => prev.map(s => s.id === pendingAttendance.scheduleId ? {
+      ...s,
+      attendance: s.attendance.map(a => ({
+        ...a,
+        studentAnswers: (a.studentAnswers || []).filter(item => item.id !== answer.id),
       })),
     } : s));
   }
@@ -1421,6 +1537,112 @@ export default function SchedulePage() {
                 </div>
               )}
               {reviewAttachmentError && <p className="mt-1 text-[11px] text-red-500">{reviewAttachmentError}</p>}
+            </div>
+            <div className="rounded-lg border border-gray-100 p-3">
+              <Label className="text-xs text-gray-500">本堂作业</Label>
+              {reviewClassHomeworks.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {reviewClassHomeworks.map((homework) => (
+                    <div key={homework.id} className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate">{homework.title || homework.fileName}</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <a
+                            href={`/api/attendance-class-homework/${homework.id}/file?mode=preview`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold text-blue-500 hover:text-blue-600"
+                          >
+                            预览
+                          </a>
+                          <button
+                            type="button"
+                            className="font-semibold text-red-400 hover:text-red-500"
+                            onClick={() => deleteReviewClassHomework(homework)}
+                            disabled={savingReview}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-400">{formatFileSize(homework.size)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.txt"
+                className="mt-2"
+                disabled={savingReview}
+                onChange={(event) => {
+                  setReviewClassHomeworkFiles(Array.from(event.target.files || []));
+                  setReviewClassHomeworkError("");
+                }}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                支持 PDF、Word、PPT、图片和文本文件。老师代传学生本堂作业，新选择的内容会追加到这节课。
+              </p>
+              {reviewClassHomeworkFiles.length > 0 && (
+                <div className="mt-1 space-y-0.5 text-[11px] text-blue-500">
+                  {reviewClassHomeworkFiles.map((file) => <p key={`${file.name}-${file.size}`}>已选择：{file.name}</p>)}
+                </div>
+              )}
+              {reviewClassHomeworkError && <p className="mt-1 text-[11px] text-red-500">{reviewClassHomeworkError}</p>}
+            </div>
+            <div className="rounded-lg border border-gray-100 p-3">
+              <Label className="text-xs text-gray-500">学生答案</Label>
+              {reviewStudentAnswers.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {reviewStudentAnswers.map((answer) => (
+                    <div key={answer.id} className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate">{answer.title || answer.fileName}</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <a
+                            href={`/api/attendance-student-answer/${answer.id}/file?mode=preview`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold text-blue-500 hover:text-blue-600"
+                          >
+                            预览
+                          </a>
+                          <button
+                            type="button"
+                            className="font-semibold text-red-400 hover:text-red-500"
+                            onClick={() => deleteReviewStudentAnswer(answer)}
+                            disabled={savingReview}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-400">{formatFileSize(answer.size)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.txt"
+                className="mt-2"
+                disabled={savingReview}
+                onChange={(event) => {
+                  setReviewStudentAnswerFiles(Array.from(event.target.files || []));
+                  setReviewStudentAnswerError("");
+                }}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                支持 PDF、Word、PPT、图片和文本文件。把学生课堂上做的作业拍照或扫描后由老师代传，新选择的内容会追加到这节课。
+              </p>
+              {reviewStudentAnswerFiles.length > 0 && (
+                <div className="mt-1 space-y-0.5 text-[11px] text-blue-500">
+                  {reviewStudentAnswerFiles.map((file) => <p key={`${file.name}-${file.size}`}>已选择：{file.name}</p>)}
+                </div>
+              )}
+              {reviewStudentAnswerError && <p className="mt-1 text-[11px] text-red-500">{reviewStudentAnswerError}</p>}
             </div>
             <div className="sticky bottom-0 flex justify-end gap-2 border-t border-gray-100 bg-background pt-3">
               <Button variant="outline" size="sm" onClick={() => setShowReviewForm(false)} disabled={savingReview}>取消</Button>

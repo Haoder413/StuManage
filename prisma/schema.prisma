@@ -31,6 +31,8 @@ model Workspace {
   lessonTags                     LessonTag[]
   lessonVideos                   LessonVideo[]
   lessonAttachments              LessonAttachment[]
+  attendanceClassHomeworks        AttendanceClassHomework[]
+  attendanceStudentAnswers        AttendanceStudentAnswer[]
   resources                      LearningResource[]
   resourcePermissions            ResourcePermission[]
   resourceCoursePermissions      ResourceCoursePermission[]
@@ -71,6 +73,8 @@ model User {
   uploadedResources          LearningResource[]
   uploadedLessonVideos       LessonVideo[]
   uploadedLessonAttachments  LessonAttachment[]
+  uploadedAttendanceClassHomeworks AttendanceClassHomework[] @relation("AttendanceClassHomeworkUploadedBy")
+  uploadedAttendanceStudentAnswers AttendanceStudentAnswer[] @relation("AttendanceStudentAnswerUploadedBy")
   resourcePermissions        ResourcePermission[]
   createdResourceGroups      ResourceGroup[]
   uploadedResourceFiles      ResourceFile[]
@@ -107,6 +111,8 @@ model LearningLink {
   parentScheduleItems ParentScheduleItem[]
   lessonVideos        LessonVideo[]
   lessonAttachments   LessonAttachment[]
+  attendanceClassHomeworks AttendanceClassHomework[]
+  attendanceStudentAnswers AttendanceStudentAnswer[]
 
   @@unique([parentId, studentId, teacherId, subject])
 }
@@ -161,6 +167,8 @@ model Student {
   homeworkSubmissions  HomeworkSubmission[]
   lessonVideos         LessonVideo[]
   lessonAttachments    LessonAttachment[]
+  attendanceClassHomeworks AttendanceClassHomework[]
+  attendanceStudentAnswers AttendanceStudentAnswer[]
 }
 
 model Course {
@@ -324,6 +332,8 @@ model Schedule {
   attendance        Attendance[]
   lessonVideos      LessonVideo[]
   lessonAttachments LessonAttachment[]
+  attendanceClassHomeworks AttendanceClassHomework[]
+  attendanceStudentAnswers AttendanceStudentAnswer[]
 }
 
 model Attendance {
@@ -348,6 +358,8 @@ model Attendance {
   lessonHourLogs    LessonHourLog[]
   lessonVideo       LessonVideo?
   lessonAttachments LessonAttachment[]
+  attendanceClassHomeworks AttendanceClassHomework[]
+  attendanceStudentAnswers AttendanceStudentAnswer[]
 }
 
 model LessonVideo {
@@ -826,4 +838,60 @@ model HomeworkQuestionReview {
 
   @@unique([submissionVersionId, questionId])
   @@index([workspaceId, questionId])
+}
+
+model AttendanceClassHomework {
+  id             String        @id @default(cuid())
+  workspaceId    String        @default("default-real")
+  attendanceId   String
+  studentId      String
+  learningLinkId String?
+  scheduleId     String
+  title          String?
+  fileName       String
+  storedName     String
+  mimeType       String
+  extension      String
+  size           Int
+  uploadedById   String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id])
+  attendance     Attendance    @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  student        Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  learningLink   LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  schedule       Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  uploadedBy     User          @relation("AttendanceClassHomeworkUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([workspaceId, studentId, createdAt])
+  @@index([workspaceId, learningLinkId])
+  @@index([attendanceId])
+}
+
+model AttendanceStudentAnswer {
+  id             String        @id @default(cuid())
+  workspaceId    String        @default("default-real")
+  attendanceId   String
+  studentId      String
+  learningLinkId String?
+  scheduleId     String
+  title          String?
+  fileName       String
+  storedName     String
+  mimeType       String
+  extension      String
+  size           Int
+  uploadedById   String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id])
+  attendance     Attendance    @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  student        Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  learningLink   LearningLink? @relation(fields: [learningLinkId], references: [id], onDelete: SetNull)
+  schedule       Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  uploadedBy     User          @relation("AttendanceStudentAnswerUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([workspaceId, studentId, createdAt])
+  @@index([workspaceId, learningLinkId])
+  @@index([attendanceId])
 }

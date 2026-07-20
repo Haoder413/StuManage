@@ -186,6 +186,8 @@ export async function getParentStudents(user: { id: string; workspaceId: string 
               schedule: { include: { course: true } },
               lessonVideo: true,
               lessonAttachments: true,
+              attendanceClassHomeworks: true,
+              attendanceStudentAnswers: true,
               learningLink: {
                 include: {
                   teacher: { select: { id: true, name: true, teachingSubject: true } },

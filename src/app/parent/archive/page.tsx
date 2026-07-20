@@ -29,6 +29,20 @@ type ArchiveLesson = {
     mimeType: string;
     size: number;
   }[];
+  classHomeworks: {
+    id: string;
+    title: string | null;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }[];
+  studentAnswers: {
+    id: string;
+    title: string | null;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }[];
 };
 
 export default async function ParentLearningArchivePage() {
@@ -64,6 +78,20 @@ export default async function ParentLearningArchivePage() {
           fileName: attachment.fileName,
           mimeType: attachment.mimeType,
           size: attachment.size,
+        })),
+        classHomeworks: (attendance.attendanceClassHomeworks || []).map((homework) => ({
+          id: homework.id,
+          title: homework.title,
+          fileName: homework.fileName,
+          mimeType: homework.mimeType,
+          size: homework.size,
+        })),
+        studentAnswers: (attendance.attendanceStudentAnswers || []).map((answer) => ({
+          id: answer.id,
+          title: answer.title,
+          fileName: answer.fileName,
+          mimeType: answer.mimeType,
+          size: answer.size,
         })),
       }))
     )
@@ -160,6 +188,72 @@ export default async function ParentLearningArchivePage() {
                     </div>
                   )}
                 </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                  <p className="mb-2 text-sm font-bold text-slate-800">本堂作业</p>
+                  {lesson.classHomeworks.length > 0 ? (
+                    <div className="space-y-2">
+                      {lesson.classHomeworks.map((homework) => (
+                        <div key={homework.id} className="rounded-md bg-white px-3 py-2 text-xs text-slate-600">
+                          <p className="truncate font-semibold text-slate-700">{homework.title || homework.fileName}</p>
+                          <p className="mt-1 text-slate-400">{formatFileSize(homework.size)}</p>
+                          <div className="mt-2 flex gap-2">
+                            <a
+                              href={`/api/attendance-class-homework/${homework.id}/file?mode=preview`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-sky-600 hover:text-sky-700"
+                            >
+                              预览
+                            </a>
+                            <a
+                              href={`/api/attendance-class-homework/${homework.id}/file?mode=download`}
+                              className="font-semibold text-slate-500 hover:text-slate-700"
+                            >
+                              下载
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-24 items-center justify-center rounded-md bg-white text-sm text-slate-400">
+                      暂无本堂作业
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                  <p className="mb-2 text-sm font-bold text-slate-800">学生答案</p>
+                  {lesson.studentAnswers.length > 0 ? (
+                    <div className="space-y-2">
+                      {lesson.studentAnswers.map((answer) => (
+                        <div key={answer.id} className="rounded-md bg-white px-3 py-2 text-xs text-slate-600">
+                          <p className="truncate font-semibold text-slate-700">{answer.title || answer.fileName}</p>
+                          <p className="mt-1 text-slate-400">{formatFileSize(answer.size)}</p>
+                          <div className="mt-2 flex gap-2">
+                            <a
+                              href={`/api/attendance-student-answer/${answer.id}/file?mode=preview`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-sky-600 hover:text-sky-700"
+                            >
+                              预览
+                            </a>
+                            <a
+                              href={`/api/attendance-student-answer/${answer.id}/file?mode=download`}
+                              className="font-semibold text-slate-500 hover:text-slate-700"
+                            >
+                              下载
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-24 items-center justify-center rounded-md bg-white text-sm text-slate-400">
+                      暂无学生答案
+                    </div>
+                  )}
+                </div>
                 </div>
               </div>
             </article>
@@ -240,6 +334,8 @@ function archiveLessonScore(lesson: ArchiveLesson) {
   return (
     (lesson.lessonVideo ? 100 : 0) +
     (lesson.lessonAttachments.length ? 50 : 0) +
+    (lesson.classHomeworks.length ? 40 : 0) +
+    (lesson.studentAnswers.length ? 40 : 0) +
     (lesson.lessonContent ? 10 : 0) +
     (lesson.lessonFeedback ? 10 : 0) +
     lesson.contentTags.length +

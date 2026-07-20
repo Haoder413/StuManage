@@ -90,7 +90,7 @@ async function findReusableAttendance(data: {
         ? [{ learningLinkId: data.learningLinkId }, { learningLinkId: null }]
         : [{ learningLinkId: null }],
     },
-    include: { lessonVideo: true, lessonAttachments: true, lessonHourLogs: true },
+    include: { lessonVideo: true, lessonAttachments: true, attendanceClassHomeworks: true, attendanceStudentAnswers: true, lessonHourLogs: true },
   });
 
   return records.sort((a, b) => reusableAttendanceScore(b) - reusableAttendanceScore(a))[0] || null;
@@ -322,7 +322,7 @@ export async function POST(request: NextRequest) {
 
   const attendanceWithRelations = await prisma.attendance.findFirst({
     where: { id: attendance.id, workspaceId: user.workspaceId },
-    include: { lessonVideo: true, lessonAttachments: true, lessonHourLogs: true },
+    include: { lessonVideo: true, lessonAttachments: true, attendanceClassHomeworks: true, attendanceStudentAnswers: true, lessonHourLogs: true },
   });
 
   return NextResponse.json(attendanceWithRelations || attendance, { status: 201 });
