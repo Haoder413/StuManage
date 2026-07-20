@@ -55,7 +55,9 @@ export default async function ProgressPage() {
         {students.map((s) => {
           const kpByKnowledgePoint = dedupeKpProgressByKnowledgePoint(s.kpProgress);
           const mastered = kpByKnowledgePoint.filter((p) => p.status === "mastered").length;
-          const learning = kpByKnowledgePoint.filter((p) => p.status === "learning").length;
+          // 与详情页口径一致：learning = 知识点总数 - 已学习。
+          // 包括"正在学"和"未开始"——学生还没掌握的所有知识点都视为在学习中。
+          const learning = Math.max(totalKps - mastered, 0);
           const progressPct = totalKps > 0 ? Math.round((mastered / totalKps) * 100) : 0;
           const activeWeak = dedupeWeakPoints(s.weakPoints).length;
 
