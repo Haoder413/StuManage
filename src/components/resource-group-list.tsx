@@ -65,6 +65,19 @@ export function ResourceGroupList({
     await load();
   }
 
+  async function deleteSelectedGroups() {
+    if (selectedGroupIds.length === 0) return;
+    if (!window.confirm(`确定删除选中的 ${selectedGroupIds.length} 套资料及其中全部文件吗？此操作无法撤销。`)) return;
+    const response = await fetch(`/api/resource-groups/batch-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: selectedGroupIds }),
+    });
+    if (!response.ok) return setError("批量删除失败，请稍后重试。");
+    setSelectedGroupIds([]);
+    await load();
+  }
+
   const manageableItems = useMemo(() => data.items.filter((group) => group.canManage), [data.items]);
   const selectedItems = useMemo(() => manageableItems.filter((item) => selectedGroupIds.includes(item.id)), [manageableItems, selectedGroupIds]);
   const selectedWorkspaceIds = Array.from(new Set(selectedItems.map((item) => item.workspaceId)));
@@ -83,6 +96,7 @@ export function ResourceGroupList({
           </label>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400">已选 {selectedGroupIds.length} 套</span>
+            <Button type="button" size="sm" variant="destructive" disabled={selectedGroupIds.length === 0} onClick={() => void deleteSelectedGroups()}>批量删除</Button>
             <ResourceCourseDialog
               groupIds={selectedGroupIds}
               courses={batchWorkspaceId ? courses : []}
