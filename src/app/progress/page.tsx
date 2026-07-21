@@ -4,14 +4,13 @@ import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
 import { visibleStudentWhere } from "@/lib/teacher-visibility";
 import { dedupeWeakPoints } from "@/lib/weak-points";
-import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
 
 // 同一知识点可能同时存在 learningLinkId = NULL 的旧记录和 learningLinkId 非空的
 // 新记录（家长账号/学习链接建立前后的数据），先按知识点去重再统计，否则同一
 // 知识点会被计多次。mastered 优先，其次取最近更新。
-function dedupeKpProgressByKnowledgePoint<
-  T extends { knowledgePointId: string; status: string; updatedAt: Date }
->(rows: T[]) {
+function dedupeKpProgressByKnowledgePoint<T extends { knowledgePointId: string; status: string; updatedAt: Date }>(
+  rows: T[],
+) {
   const byKnowledgePoint = new Map<string, T>();
   for (const row of rows) {
     const existing = byKnowledgePoint.get(row.knowledgePointId);
@@ -33,39 +32,12 @@ function dedupeKpProgressByKnowledgePoint<
   return [...byKnowledgePoint.values()];
 }
 
-// 与详情页保持一致：父知识点在所有子知识点都 mastered 后自动算作 mastered。
-// 列表页如果不调用这个函数，mastered 会比详情页少（父节点不会自动升级）。
-function countMasteredWithConsistency<
-  T extends {
-    knowledgePointId: string;
-    status: string;
-    knowledgePoint: { id: string; parentId: string | null };
-  }
->(dedupedProgress: T[]) {
-  const points = dedupedProgress.map((p) => ({
-    id: p.knowledgePointId,
-    parentId: p.knowledgePoint.parentId,
-  }));
-  const statuses: Record<string, string> = {};
-  for (const p of dedupedProgress) {
-    statuses[p.knowledgePointId] = p.status;
-  }
-  const consistentStatuses = calculateConsistentProgressStatuses(points, statuses);
-  return Object.values(consistentStatuses).filter((s) => s === "mastered").length;
-}
-
 export default async function ProgressPage() {
   const user = await requireTeacherLike();
   const students = await prisma.student.findMany({
     where: visibleStudentWhere(user),
     include: {
-      kpProgress: {
-        include: {
-          knowledgePoint: {
-            select: { id: true, parentId: true },
-          },
-        },
-      },
+      kpProgress: true,
       weakPoints: {
         where: { status: "active" },
         include: { reviewSchedules: true },
@@ -95,9 +67,7 @@ export default async function ProgressPage() {
             0,
           );
           const kpByKnowledgePoint = dedupeKpProgressByKnowledgePoint(s.kpProgress);
-          // 与详情页口径一致：调用 calculateConsistentProgressStatuses 自动升级父节点，
-          // 否则列表页的 mastered 会比详情页少（子知识点全 mastered 时父节点也要算 mastered）。
-          const mastered = countMasteredWithConsistency(kpByKnowledgePoint);
+          const mastered = kpByKnowledgePoint.filter((p) => p.status === "mastered").length;
           // 与详情页口径一致：learning = 知识点总数 - 已学习。
           // 包括"正在学"和"未开始"——学生还没掌握的所有知识点都视为在学习中。
           const learning = Math.max(totalKps - mastered, 0);
