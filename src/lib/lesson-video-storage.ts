@@ -340,6 +340,7 @@ export async function getCosLessonVideoPlaybackUrl(cosObjectKey?: string | null)
   const region = getCosRegion();
   const expires = getLessonVideoPlaybackExpiresSeconds();
   const cos = getCosClient();
+  const cdnDomain = getCosPlaybackBaseUrl();
 
   return new Promise<string>((resolve, reject) => {
     cos.getObjectUrl(
@@ -350,6 +351,7 @@ export async function getCosLessonVideoPlaybackUrl(cosObjectKey?: string | null)
         Sign: true,
         Expires: expires,
         Protocol: "https:",
+        ...(cdnDomain ? { Domain: cdnDomain, SignHost: false } : {}),
       },
       (error: Error | null, data: { Url?: string }) => {
         if (error) reject(error);
