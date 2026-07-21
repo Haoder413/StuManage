@@ -142,7 +142,7 @@ export default async function ParentLearningArchivePage() {
                       <video
                         className="aspect-video w-full rounded-md bg-black"
                         controls
-                        preload="metadata"
+                        preload="none"
                         src={`/api/lesson-videos/${lesson.lessonVideo.id}/file`}
                       />
                       <p className="truncate text-xs text-slate-500">

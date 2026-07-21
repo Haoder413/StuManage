@@ -781,7 +781,7 @@ function ScheduleDetail({
                   <video
                     className="aspect-video w-full rounded-md bg-black"
                     controls
-                    preload="metadata"
+                    preload="none"
                     src={attendance.lessonVideo.videoUrl}
                   />
                   <p className="truncate text-[10px] text-blue-500">
