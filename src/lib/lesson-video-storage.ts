@@ -343,6 +343,7 @@ export async function getCosLessonVideoPlaybackUrl(cosObjectKey?: string | null)
   const cdnDomain = getCosPlaybackBaseUrl();
 
   return new Promise<string>((resolve, reject) => {
+    // 先用默认 COS 源站域名生成签名（签名包含正确的 host）
     cos.getObjectUrl(
       {
         Bucket: bucket,
@@ -351,12 +352,19 @@ export async function getCosLessonVideoPlaybackUrl(cosObjectKey?: string | null)
         Sign: true,
         Expires: expires,
         Protocol: "https:",
-        ...(cdnDomain ? { Domain: cdnDomain, SignHost: false } : {}),
       },
       (error: Error | null, data: { Url?: string }) => {
         if (error) reject(error);
         else if (!data?.Url) reject(new Error("cos_signed_url_missing"));
-        else resolve(data.Url);
+        else {
+          // 若配置了 CDN 域名，将 URL 中的 COS 源站域名替换为 CDN 域名
+          // 签名已基于正确 host 计算，CDN 回源时 Host 头不变，验签通过
+          if (cdnDomain) {
+            resolve(data.Url.replace(/https:\/\/[^/]+/, cdnDomain));
+          } else {
+            resolve(data.Url);
+          }
+        }
       }
     );
   });
