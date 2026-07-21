@@ -17,6 +17,7 @@ interface KPNode {
   name: string;
   parentId: string | null;
   orderIndex: number;
+  courseId?: string;
   children: KPNode[];
   status?: string;
 }
@@ -101,6 +102,13 @@ export default function StudentProgressDetailPage() {
   const [deleteWeakPointTarget, setDeleteWeakPointTarget] = useState<WeakPoint | null>(null);
   const [savingWeakPoint, setSavingWeakPoint] = useState(false);
 
+  // 课程切换：保存全部加载的知识点数据，按选中的课程过滤展示。
+  // "all" = 该学生所有报名课程合并；选中某 courseId = 只看该课程。
+  const [allNodes, setAllNodes] = useState<KPNode[]>([]);
+  const [allProgressMap, setAllProgressMap] = useState<Record<string, string>>({});
+  const [courseOptions, setCourseOptions] = useState<{ id: string; name: string }[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>("all");
+
   useEffect(() => {
     let cancelled = false;
 
@@ -123,15 +131,23 @@ export default function StudentProgressDetailPage() {
         const progressMap: Record<string, string> = {};
         const nodes: KPNode[] = [];
         const seen = new Set<string>();
+        // 收集该学生所有报名课程的列表，用于课程切换 chip。
+        const courseMap = new Map<string, string>();
         studentProgress.forEach((p: any) => {
           if (!p.knowledgePointId || seen.has(p.knowledgePointId)) return;
           seen.add(p.knowledgePointId);
           progressMap[p.knowledgePointId] = p.status;
+          const courseId = p.knowledgePoint?.courseId || p.knowledgePoint?.course?.id || "";
+          const courseName = p.knowledgePoint?.course?.name || "";
+          if (courseId && !courseMap.has(courseId)) {
+            courseMap.set(courseId, courseName);
+          }
           nodes.push({
             id: p.knowledgePointId,
             name: p.knowledgePoint?.name || "未知",
             parentId: p.knowledgePoint?.parentId || null,
             orderIndex: Number(p.knowledgePoint?.orderIndex || 0),
+            courseId: courseId || undefined,
             children: [],
             status: p.status,
           });
@@ -146,11 +162,11 @@ export default function StudentProgressDetailPage() {
 
         if (!cancelled) {
           setStudent(found);
-          setKpProgress(calculateConsistentProgressStatuses(
-            nodes.map((node) => ({ id: node.id, parentId: node.parentId })),
-            progressMap,
-          ));
-          setKpTree(buildKpTree(nodes));
+          setAllNodes(nodes);
+          setAllProgressMap(progressMap);
+          setCourseOptions([...courseMap.entries()].map(([id, name]) => ({ id, name })));
+          setSelectedCourseId("all");
+          applyCourseFilter(nodes, progressMap, "all");
           setWeakPoints(activeWeakPoints);
           setHistoryWeakPoints(historyPoints);
         }
@@ -160,6 +176,10 @@ export default function StudentProgressDetailPage() {
           setStudent(null);
           setKpProgress({});
           setKpTree([]);
+          setAllNodes([]);
+          setAllProgressMap({});
+          setCourseOptions([]);
+          setSelectedCourseId("all");
           setWeakPoints([]);
           setHistoryWeakPoints([]);
         }
@@ -186,6 +206,20 @@ export default function StudentProgressDetailPage() {
       if (res.ok) return await res.json();
     } catch {}
     return [];
+  }
+
+  // 按课程过滤知识点树。selectedCourseId="all" 表示显示所有课程合并；
+  // 选中具体 courseId 时只展示该课程的知识点，并重新计算父节点一致性状态。
+  function applyCourseFilter(nodes: KPNode[], progressMap: Record<string, string>, courseId: string) {
+    const filteredNodes = courseId === "all"
+      ? nodes
+      : nodes.filter((node) => node.courseId === courseId);
+    const consistentStatuses = calculateConsistentProgressStatuses(
+      filteredNodes.map((node) => ({ id: node.id, parentId: node.parentId })),
+      progressMap,
+    );
+    setKpProgress(consistentStatuses);
+    setKpTree(buildKpTree(filteredNodes));
   }
 
   async function refreshWeakPoints() {
@@ -423,6 +457,44 @@ export default function StudentProgressDetailPage() {
         title={`${student.name} · 学习进度`}
         description={`${student.grade || ""} · ${student.lessonFrequency || ""}`}
       />
+
+      {/* 课程切换：同科目多课程合并查看（全部），或单独查看某一门课程 */}
+      {courseOptions.length > 1 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              setSelectedCourseId("all");
+              applyCourseFilter(allNodes, allProgressMap, "all");
+            }}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              selectedCourseId === "all"
+                ? "border-blue-200 bg-blue-50 text-blue-700"
+                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            全部课程
+          </button>
+          {courseOptions.map((course) => {
+            const active = selectedCourseId === course.id;
+            return (
+              <button
+                key={course.id}
+                onClick={() => {
+                  setSelectedCourseId(course.id);
+                  applyCourseFilter(allNodes, allProgressMap, course.id);
+                }}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                {course.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-4 gap-4 mb-6">
