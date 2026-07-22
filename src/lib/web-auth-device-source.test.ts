@@ -21,6 +21,7 @@ import {
 const loginRoute = readFileSync(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
 const logoutRoute = readFileSync(new URL("../app/api/auth/logout/route.ts", import.meta.url), "utf8");
 const loginUi = readFileSync(new URL("../components/login-page-client.tsx", import.meta.url), "utf8");
+const disclaimerUi = readFileSync(new URL("../components/site-disclaimer.tsx", import.meta.url), "utf8");
 const authSource = readFileSync(new URL("./auth.ts", import.meta.url), "utf8");
 
 test("web login uses the unified device session service and both secure cookies", () => {
@@ -178,14 +179,19 @@ test("Prisma web auth query requires an owned web device relation", async () => 
   assert.deepEqual(query.include.device.select, { id: true, userId: true, channel: true });
 });
 
-test("login UI requires consent, explains recorded metadata, and submits consent", () => {
+test("login UI requires consent below the password field and submits consent", () => {
   assert.match(loginUi, /type="checkbox"/);
   assert.match(loginUi, /privacyAccepted/);
-  for (const phrase of ["设备类型", "浏览器", "操作系统", "IP", "登录/活跃时间", "90 天"]) {
-    assert.match(loginUi, new RegExp(phrase));
-  }
   assert.match(loginUi, /JSON\.stringify\(\{[^}]*privacyAccepted/);
   const passwordPosition = loginUi.indexOf('type="password"');
   const consentPosition = loginUi.indexOf('type="checkbox"');
   assert.ok(passwordPosition >= 0 && consentPosition > passwordPosition);
+});
+
+test("login UI uses its own concise notices without changing the default disclaimer", () => {
+  assert.match(loginUi, /我已阅读并同意登录安全说明，相关信息仅用于账号安全与登录管理。/);
+  assert.match(loginUi, /<SiteDisclaimer compact variant="login" \/>/);
+  assert.match(disclaimerUi, /variant\s*=\s*"default"/);
+  assert.match(disclaimerUi, /全站对外公开展示的知识点动画、自编习题、学习笔记均由网站备案持有人独立创作发布/);
+  assert.match(disclaimerUi, /本网站为个人学习分享博客/);
 });
