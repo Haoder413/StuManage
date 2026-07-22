@@ -235,3 +235,78 @@ node scripts/backfill-course-ownership.mjs --course=<课程ID> --apply
 ```
 
 执行 `--apply` 前应先确认 `/opt/student-management/backups` 中已有最新数据库备份。脚本只更新当前 `createdById` 为空且归属唯一的课程，不覆盖已有课程归属。
+
+## 9. 课程视频 CDN 鉴权切换
+
+课程视频使用腾讯云 CDN Type D 鉴权。网站仍先检查登录状态和课程权限，通过后才生成临时播放地址；CDN 控制台将地址有效时间限制为 `7200` 秒。鉴权密钥只保存在腾讯云和服务器共享环境文件中，不要提交到 Git，也不要在截图中显示。
+
+### 9.1 第一次部署：先保持鉴权关闭
+
+先正常部署包含 CDN 鉴权能力的新版本。随后输入准备在腾讯云 CDN 使用的随机密钥，终端输入过程不会回显：
+
+```bash
+read -rsp '请输入与腾讯云 CDN Type D 完全相同的鉴权密钥：' TENCENT_CDN_KEY
+echo
+sudo sed -i '/^TENCENT_CDN_URL_AUTH_ENABLED=/d' /opt/student-management/shared/.env
+sudo sed -i '/^TENCENT_CDN_URL_AUTH_KEY=/d' /opt/student-management/shared/.env
+printf 'TENCENT_CDN_URL_AUTH_ENABLED=false\nTENCENT_CDN_URL_AUTH_KEY=%s\n' "$TENCENT_CDN_KEY" \
+  | sudo tee -a /opt/student-management/shared/.env >/dev/null
+unset TENCENT_CDN_KEY
+```
+
+这里必须先写入 `TENCENT_CDN_URL_AUTH_ENABLED=false`。此时线上继续使用原有 COS 签名兼容路径，不会因为只部署了新代码而改变播放行为。
+
+确认服务器时间已自动同步：
+
+```bash
+timedatectl show -p NTPSynchronized
+```
+
+应显示 `NTPSynchronized=yes`。
+
+### 9.2 先让程序生成 Type D 地址
+
+把程序开关改为开启并重启；此时 CDN 控制台尚未开启鉴权，Type D 参数不会导致播放中断：
+
+```bash
+sudo sed -i 's/^TENCENT_CDN_URL_AUTH_ENABLED=false$/TENCENT_CDN_URL_AUTH_ENABLED=true/' /opt/student-management/shared/.env
+sudo pm2 restart student-management --update-env
+```
+
+登录网站播放一个课程视频，在浏览器网络请求中确认地址使用 `video.taotaomath.top`，并包含 `sign` 和 `t` 参数。不要把完整鉴权地址发送给其他人。
+
+### 9.3 开启腾讯云 CDN 鉴权
+
+进入：`腾讯云 CDN → 域名管理 → video.taotaomath.top → 管理 → 访问控制 → 鉴权配置`，配置：
+
+- 配置状态：开启。
+- 鉴权模式：`Type D`。
+- 鉴权密钥：与服务器 `TENCENT_CDN_URL_AUTH_KEY` 完全一致。
+- 时间格式：十进制 Unix 时间戳。
+- 签名参数：`sign`，时间参数：`t`。
+- 有效时间：`7200` 秒。
+- 鉴权范围：指定文件后缀 `mp4;webm;mov;m4v`。
+
+保存后验证：网站内正常播放和拖动进度条应成功；去掉 `sign`、`t` 参数的同一路径应返回 403；修改路径、签名或使用过期地址也应返回 403。
+
+### 9.4 开启私有 COS 回源
+
+CDN 鉴权验证成功后，进入：`CDN → 域名管理 → video.taotaomath.top → 管理 → 基本配置 → 源站配置`，开启“私有存储桶访问”或“回源鉴权”。先再次验证网站视频可以播放，再进入对应 COS 存储桶的权限管理，将存储桶改为“私有读写”。
+
+最终应同时满足：
+
+- 网站签发的 CDN 地址返回 200 或分段请求的 206。
+- 不带 CDN 鉴权参数的地址返回 403。
+- COS 源站的不带签名地址返回 403。
+- COS 监控以少量“CDN 回源流量”为主，不再持续产生大量“外网下行流量”。
+
+### 9.5 回滚
+
+如果 CDN 鉴权开启后播放异常，先在腾讯云控制台关闭 CDN URL 鉴权，再执行：
+
+```bash
+sudo sed -i 's/^TENCENT_CDN_URL_AUTH_ENABLED=true$/TENCENT_CDN_URL_AUTH_ENABLED=false/' /opt/student-management/shared/.env
+sudo pm2 restart student-management --update-env
+```
+
+顺序不能颠倒：如果 CDN 仍要求 Type D 鉴权，而程序已经恢复旧地址，视频会暂时返回 403。故障排除后应尽快重新启用 CDN 鉴权，避免视频地址长期缺少访问保护。

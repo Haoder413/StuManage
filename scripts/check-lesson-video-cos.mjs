@@ -17,6 +17,7 @@ function assertNotIncludes(file, snippet, label) {
 }
 
 const storage = read("src/lib/lesson-video-storage.ts");
+const cdnAuth = read("src/lib/tencent-cdn-auth.ts");
 const packageJson = read("package.json");
 const nextConfig = read("next.config.mjs");
 
@@ -35,6 +36,9 @@ assertIncludes(storage, "cosObjectKey", "COS object key should be persisted");
 assertIncludes(storage, "storageProvider: \"cos\"", "COS uploads should mark provider");
 assertIncludes(storage, "getObjectUrl", "COS playback should generate object URLs");
 assertIncludes(storage, "Sign: true", "COS playback URLs should be signed");
+assertIncludes(storage, "getTencentCdnUrlAuthConfig", "COS playback should read CDN auth config");
+assertIncludes(storage, "buildTencentCdnTypeDUrl", "COS playback should generate CDN Type D URLs");
+assertIncludes(cdnAuth, "TENCENT_CDN_URL_AUTH_ENABLED", "CDN auth should use an explicit rollout switch");
 assertIncludes(storage, "putObject", "COS upload should put objects");
 assertIncludes(storage, "deleteObject", "COS delete should delete objects");
 assertNotIncludes(storage, "cos_lesson_video_storage_not_configured", "COS provider should not be a placeholder");

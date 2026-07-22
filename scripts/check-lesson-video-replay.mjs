@@ -27,7 +27,7 @@ const serverInit = read("deploy/server-init.sh");
 const nextConfig = read("next.config.mjs");
 
 assertIncludes(schema, "model LessonVideo", "schema should define lesson videos");
-assertIncludes(schema, "lessonVideo LessonVideo?", "attendance should expose one lesson video");
+assertMatches(schema, /lessonVideo\s+LessonVideo\?/, "attendance should expose one lesson video");
 assertIncludes(schema, "@@unique([attendanceId])", "one video per attendance");
 assertIncludes(schema, "storageProvider", "lesson video should record storage provider");
 assertIncludes(schema, "vodFileId", "lesson video should record VOD file id");

@@ -2,6 +2,10 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import {
+  buildTencentCdnTypeDUrl,
+  getTencentCdnUrlAuthConfig,
+} from "./tencent-cdn-auth";
 
 export type LessonVideoStorageProvider = "local" | "vod" | "cos";
 
@@ -336,6 +340,11 @@ export async function deleteLessonVideo(video: {
 
 export async function getCosLessonVideoPlaybackUrl(cosObjectKey?: string | null) {
   if (!cosObjectKey) throw new Error("cos_video_missing_object_key");
+  const cdnAuth = getTencentCdnUrlAuthConfig();
+  if (cdnAuth) {
+    return buildTencentCdnTypeDUrl(cosObjectKey, cdnAuth);
+  }
+
   const bucket = getRequiredEnv("TENCENT_COS_BUCKET");
   const region = getCosRegion();
   const expires = getLessonVideoPlaybackExpiresSeconds();
