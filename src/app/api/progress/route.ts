@@ -2,34 +2,71 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
-import { teacherSeesAllWorkspaceData, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
+import {
+  teacherSeesAllWorkspaceData,
+  teacherSubjectMatches,
+  visibleProgressCourseWhere,
+  visibleProgressStudentByIdWhere,
+  visibleProgressStudentWhere,
+} from "@/lib/teacher-visibility";
 import { buildEffectiveProgressStatuses, calculateAncestorProgressUpdates } from "@/lib/knowledge-progress-tree";
 
-function progressKey(studentId: string, knowledgePointId: string, learningLinkId: string | null) {
-  return `${studentId}:${knowledgePointId}:${learningLinkId || "legacy"}`;
+function progressKey(studentId: string, knowledgePointId: string) {
+  return `${studentId}:${knowledgePointId}`;
 }
 
 export async function GET(request: NextRequest) {
   const user = await requireTeacherLike();
   const studentId = request.nextUrl.searchParams.get("studentId");
+  const selectedCourseId = request.nextUrl.searchParams.get("courseId")?.trim() || null;
+  if (selectedCourseId && !studentId) {
+    return NextResponse.json({ error: "studentId is required when courseId is set" }, { status: 400 });
+  }
   if (studentId) {
     const visibleStudent = await prisma.student.findFirst({
-      where: visibleStudentByIdWhere(user, studentId),
+      where: visibleProgressStudentByIdWhere(user, studentId),
       select: { id: true },
     });
     if (!visibleStudent) {
       return NextResponse.json({ error: "student not found" }, { status: 404 });
     }
   }
-  const studentWhere = studentId ? visibleStudentByIdWhere(user, studentId) : visibleStudentWhere(user);
+  if (studentId && selectedCourseId) {
+    const enrollment = await prisma.studentCourse.findFirst({
+      where: {
+        workspaceId: user.workspaceId,
+        studentId,
+        courseId: selectedCourseId,
+        status: "active",
+        course: visibleProgressCourseWhere(user),
+      },
+      select: { id: true },
+    });
+    if (!enrollment) {
+      return NextResponse.json({ error: "course not found" }, { status: 404 });
+    }
+  }
+  const studentWhere = studentId
+    ? visibleProgressStudentByIdWhere(user, studentId)
+    : visibleProgressStudentWhere(user);
+  const courseWhere = {
+    ...visibleProgressCourseWhere(user),
+    ...(selectedCourseId ? { id: selectedCourseId } : {}),
+  };
   const teacherLinks = await prisma.learningLink.findMany({
-    where: { workspaceId: user.workspaceId, teacherId: user.id, isActive: true },
+    where: {
+      workspaceId: user.workspaceId,
+      teacherId: user.id,
+      isActive: true,
+      ...(user.teachingSubject?.trim() ? { subject: user.teachingSubject.trim() } : {}),
+    },
     select: { id: true },
   });
   const progress = await prisma.studentKpProgress.findMany({
     where: {
       workspaceId: user.workspaceId,
       student: studentWhere,
+      knowledgePoint: { course: courseWhere },
       ...(teacherSeesAllWorkspaceData(user)
         ? {}
         : {
@@ -62,7 +99,7 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const progressKeys = new Set(progress.map((item) => progressKey(item.studentId, item.knowledgePointId, item.learningLinkId)));
+  const progressKeys = new Set(progress.map((item) => progressKey(item.studentId, item.knowledgePointId)));
   const studentsWithCourseKnowledge = await prisma.student.findMany({
     where: studentWhere,
     select: {
@@ -71,7 +108,7 @@ export async function GET(request: NextRequest) {
       grade: true,
       lessonFrequency: true,
       studentCourses: {
-        where: { status: "active" },
+        where: { status: "active", course: courseWhere },
         select: {
           course: {
             select: {
@@ -91,14 +128,14 @@ export async function GET(request: NextRequest) {
   const syntheticProgress = studentsWithCourseKnowledge.flatMap((student) =>
     student.studentCourses.flatMap((studentCourse) =>
       studentCourse.course.knowledgePoints
-        .filter((knowledgePoint) => !progressKeys.has(progressKey(student.id, knowledgePoint.id, null)))
+        .filter((knowledgePoint) => !progressKeys.has(progressKey(student.id, knowledgePoint.id)))
         .map((knowledgePoint) => ({
           id: `synthetic-${student.id}-${knowledgePoint.id}`,
           workspaceId: user.workspaceId,
           learningLinkId: null,
           studentId: student.id,
           knowledgePointId: knowledgePoint.id,
-          status: "learning",
+          status: "not_started",
           masteredAt: null,
           updatedAt: new Date(0),
           student,
@@ -117,16 +154,33 @@ export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
   const student = await prisma.student.findFirst({
-    where: visibleStudentByIdWhere(user, String(data.studentId || "")),
+    where: visibleProgressStudentByIdWhere(user, String(data.studentId || "")),
     select: { id: true },
   });
   if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });
   const changedKnowledgePoint = await prisma.knowledgePoint.findFirst({
-    where: { id: String(data.knowledgePointId || ""), workspaceId: user.workspaceId },
+    where: {
+      id: String(data.knowledgePointId || ""),
+      workspaceId: user.workspaceId,
+      course: visibleProgressCourseWhere(user),
+    },
     select: { courseId: true },
   });
   if (!changedKnowledgePoint) {
     return NextResponse.json({ error: "knowledge point not found" }, { status: 404 });
+  }
+  const enrollment = await prisma.studentCourse.findFirst({
+    where: {
+      workspaceId: user.workspaceId,
+      studentId: student.id,
+      courseId: changedKnowledgePoint.courseId,
+      status: "active",
+      course: visibleProgressCourseWhere(user),
+    },
+    select: { id: true },
+  });
+  if (!enrollment) {
+    return NextResponse.json({ error: "course not found" }, { status: 404 });
   }
   const learningLink = data.learningLinkId
     ? user.role === "teacher"
@@ -136,12 +190,19 @@ export async function POST(request: NextRequest) {
         user,
         String(data.studentId || ""),
         changedKnowledgePoint.courseId,
+        user.role === "teacher" ? user.teachingSubject : null,
       );
   if (data.learningLinkId && !learningLink) {
     return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
   }
   if (learningLink && learningLink.studentId !== String(data.studentId || "")) {
     return NextResponse.json({ error: "learning link student mismatch" }, { status: 400 });
+  }
+  if (learningLink?.courseId && learningLink.courseId !== changedKnowledgePoint.courseId) {
+    return NextResponse.json({ error: "learning link course mismatch" }, { status: 400 });
+  }
+  if (learningLink && !teacherSubjectMatches(user, learningLink.subject)) {
+    return NextResponse.json({ error: "learning link subject mismatch" }, { status: 400 });
   }
   const existing = await prisma.studentKpProgress.findFirst({
     where: {
@@ -178,6 +239,7 @@ export async function POST(request: NextRequest) {
       where: {
         workspaceId: user.workspaceId,
         studentId: String(data.studentId || ""),
+        knowledgePoint: { courseId: changedKnowledgePoint.courseId },
         ...(learningLink
           ? { OR: [{ learningLinkId: learningLink.id }, { learningLinkId: null }] }
           : { learningLinkId: null }),

@@ -2,52 +2,59 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { requireTeacherLike } from "@/lib/auth";
-import { visibleStudentWhere } from "@/lib/teacher-visibility";
+import {
+  calculateConsistentTeacherProgressStatuses,
+  dedupeTeacherProgress,
+  summarizeTeacherProgress,
+} from "@/lib/teacher-progress";
+import {
+  teacherSeesAllWorkspaceData,
+  visibleProgressCourseWhere,
+  visibleProgressStudentWhere,
+  visibleProgressWeakPointWhere,
+} from "@/lib/teacher-visibility";
 import { dedupeWeakPoints } from "@/lib/weak-points";
-
-// 同一知识点可能同时存在 learningLinkId = NULL 的旧记录和 learningLinkId 非空的
-// 新记录（家长账号/学习链接建立前后的数据），先按知识点去重再统计，否则同一
-// 知识点会被计多次。mastered 优先，其次取最近更新。
-function dedupeKpProgressByKnowledgePoint<T extends { knowledgePointId: string; status: string; updatedAt: Date }>(
-  rows: T[],
-) {
-  const byKnowledgePoint = new Map<string, T>();
-  for (const row of rows) {
-    const existing = byKnowledgePoint.get(row.knowledgePointId);
-    if (!existing) {
-      byKnowledgePoint.set(row.knowledgePointId, row);
-      continue;
-    }
-    if (row.status === "mastered" && existing.status !== "mastered") {
-      byKnowledgePoint.set(row.knowledgePointId, row);
-      continue;
-    }
-    if (row.status !== "mastered" && existing.status === "mastered") {
-      continue;
-    }
-    if (row.updatedAt.getTime() > existing.updatedAt.getTime()) {
-      byKnowledgePoint.set(row.knowledgePointId, row);
-    }
-  }
-  return [...byKnowledgePoint.values()];
-}
 
 export default async function ProgressPage() {
   const user = await requireTeacherLike();
   const students = await prisma.student.findMany({
-    where: visibleStudentWhere(user),
+    where: visibleProgressStudentWhere(user),
     include: {
-      kpProgress: true,
+      kpProgress: {
+        where: {
+          knowledgePoint: { course: visibleProgressCourseWhere(user) },
+          ...(teacherSeesAllWorkspaceData(user)
+            ? {}
+            : {
+                OR: [
+                  {
+                    learningLink: {
+                      workspaceId: user.workspaceId,
+                      teacherId: user.id,
+                      isActive: true,
+                      ...(user.teachingSubject?.trim() ? { subject: user.teachingSubject.trim() } : {}),
+                    },
+                  },
+                  { learningLinkId: null },
+                ],
+              }),
+        },
+        include: { knowledgePoint: { select: { courseId: true } } },
+      },
       weakPoints: {
-        where: { status: "active" },
+        where: {
+          ...visibleProgressWeakPointWhere(user),
+          status: "active",
+        },
         include: { reviewSchedules: true },
       },
       studentCourses: {
-        where: { status: "active" },
+        where: { status: "active", course: visibleProgressCourseWhere(user) },
         include: {
           course: {
             select: {
-              _count: { select: { knowledgePoints: true } },
+              id: true,
+              knowledgePoints: { select: { id: true, parentId: true } },
             },
           },
         },
@@ -60,18 +67,25 @@ export default async function ProgressPage() {
       <PageHeader title="学习进度" description="查看和编辑所有学生的学习进度" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {students.map((s) => {
-          // 与详情页口径一致：知识点总数 = 该学生实际报名的课程的知识点之和。
-          // 而不是全工作区所有课程的知识点总数。
-          const totalKps = s.studentCourses.reduce(
-            (sum, studentCourse) => sum + studentCourse.course._count.knowledgePoints,
-            0,
+          const activeCourseIds = new Set(s.studentCourses.map((studentCourse) => studentCourse.course.id));
+          const coursePoints = s.studentCourses.flatMap((studentCourse) => studentCourse.course.knowledgePoints);
+          const activeProgress = dedupeTeacherProgress(
+            s.kpProgress.filter((row) => activeCourseIds.has(row.knowledgePoint.courseId)),
           );
-          const kpByKnowledgePoint = dedupeKpProgressByKnowledgePoint(s.kpProgress);
-          const mastered = kpByKnowledgePoint.filter((p) => p.status === "mastered").length;
-          // 与详情页口径一致：learning = 知识点总数 - 已学习。
-          // 包括"正在学"和"未开始"——学生还没掌握的所有知识点都视为在学习中。
-          const learning = Math.max(totalKps - mastered, 0);
-          const progressPct = totalKps > 0 ? Math.round((mastered / totalKps) * 100) : 0;
+          const consistentStatuses = calculateConsistentTeacherProgressStatuses(
+            coursePoints,
+            Object.fromEntries(activeProgress.map((row) => [row.knowledgePointId, row.status])),
+          );
+          const normalizedProgress = coursePoints.map((point) => ({
+            knowledgePointId: point.id,
+            status: consistentStatuses[point.id] || "not_started",
+            updatedAt: new Date(0),
+          }));
+          const totalKps = coursePoints.length;
+          const { mastered, learning, notStarted, progressPct } = summarizeTeacherProgress(
+            totalKps,
+            normalizedProgress,
+          );
           const activeWeak = dedupeWeakPoints(s.weakPoints).length;
 
           return (
@@ -93,8 +107,9 @@ export default async function ProgressPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-4 text-xs text-gray-500">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                   <span>📖 学习中 <strong className="text-blue-500">{learning}</strong></span>
+                  <span>⏳ 未开始 <strong className="text-gray-500">{notStarted}</strong></span>
                   <span>⚠️ 薄弱点 <strong className="text-orange-500">{activeWeak}</strong></span>
                 </div>
               </div>
