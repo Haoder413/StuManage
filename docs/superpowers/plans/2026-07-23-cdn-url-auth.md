@@ -353,13 +353,13 @@ unset TENCENT_CDN_KEY
 
 Document this console configuration without exposing the key in screenshots or shell history:
 
-1. CDN domain `video.taotaomath.top` → 访问控制 → 鉴权配置 → Type D.
-2. Use decimal Unix timestamp, signature parameters `sign` and `t`, validity `7200` seconds, and video-file suffix scope.
-3. CDN domain → 基本配置 → 源站配置 → enable 私有存储桶访问.
-4. COS bucket → 权限管理 → set 私有读写 after private-origin verification.
-5. Set `TENCENT_CDN_URL_AUTH_ENABLED=true`, rebuild, and restart PM2.
+1. Set `TENCENT_CDN_URL_AUTH_ENABLED=true`, restart PM2, and verify generated URLs contain `sign` and `t` before CDN starts enforcing them.
+2. CDN domain `video.taotaomath.top` → 访问控制 → 鉴权配置 → Type D.
+3. Use decimal Unix timestamp, signature parameters `sign` and `t`, validity `7200` seconds, and video-file suffix scope.
+4. CDN domain → 基本配置 → 源站配置 → enable 私有存储桶访问 and verify playback.
+5. COS bucket → 权限管理 → set 私有读写 after private-origin verification.
 
-Document rollback: set `TENCENT_CDN_URL_AUTH_ENABLED=false`, restart, then temporarily disable CDN URL authentication only if old COS-signed fallback must be restored.
+Document rollback: disable CDN URL authentication first, then set `TENCENT_CDN_URL_AUTH_ENABLED=false` and restart so the old COS-signed fallback is accepted.
 
 - [ ] **Step 4: Run documentation and focused tests**
 

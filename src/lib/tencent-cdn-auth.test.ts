@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   buildTencentCdnTypeDUrl,
@@ -88,5 +89,19 @@ test("COS lesson playback returns CDN auth without requiring COS credentials", a
     restore("TENCENT_COS_BUCKET", previous.bucket);
     restore("TENCENTCLOUD_SECRET_ID", previous.secretId);
     restore("TENCENTCLOUD_SECRET_KEY", previous.secretKey);
+  }
+});
+
+test("deployment guide documents the gated CDN authentication rollout", () => {
+  const guide = readFileSync("deploy/README.md", "utf8");
+  for (const text of [
+    "TENCENT_CDN_URL_AUTH_ENABLED",
+    "TENCENT_CDN_URL_AUTH_KEY",
+    "Type D",
+    "7200",
+    "私有存储桶访问",
+    "TENCENT_CDN_URL_AUTH_ENABLED=false",
+  ]) {
+    assert.ok(guide.includes(text), `deployment guide is missing: ${text}`);
   }
 });
