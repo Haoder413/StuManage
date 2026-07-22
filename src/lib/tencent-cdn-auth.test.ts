@@ -54,3 +54,39 @@ test("fails closed when enabled CDN authentication is incomplete", () => {
     /missing_tencent_cdn_url_auth_key/,
   );
 });
+
+test("COS lesson playback returns CDN auth without requiring COS credentials", async () => {
+  const previous = {
+    enabled: process.env.TENCENT_CDN_URL_AUTH_ENABLED,
+    baseUrl: process.env.TENCENT_COS_PUBLIC_BASE_URL,
+    key: process.env.TENCENT_CDN_URL_AUTH_KEY,
+    bucket: process.env.TENCENT_COS_BUCKET,
+    secretId: process.env.TENCENTCLOUD_SECRET_ID,
+    secretKey: process.env.TENCENTCLOUD_SECRET_KEY,
+  };
+  process.env.TENCENT_CDN_URL_AUTH_ENABLED = "true";
+  process.env.TENCENT_COS_PUBLIC_BASE_URL = "https://video.taotaomath.top";
+  process.env.TENCENT_CDN_URL_AUTH_KEY = "test-secret";
+  delete process.env.TENCENT_COS_BUCKET;
+  delete process.env.TENCENTCLOUD_SECRET_ID;
+  delete process.env.TENCENTCLOUD_SECRET_KEY;
+
+  try {
+    const { getCosLessonVideoPlaybackUrl } = await import("./lesson-video-storage");
+    const url = new URL(await getCosLessonVideoPlaybackUrl("lesson-videos/workspace/video.mp4"));
+    assert.equal(url.origin, "https://video.taotaomath.top");
+    assert.match(url.searchParams.get("sign") || "", /^[0-9a-f]{32}$/);
+    assert.match(url.searchParams.get("t") || "", /^\d{10}$/);
+  } finally {
+    const restore = (name: string, value: string | undefined) => {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    };
+    restore("TENCENT_CDN_URL_AUTH_ENABLED", previous.enabled);
+    restore("TENCENT_COS_PUBLIC_BASE_URL", previous.baseUrl);
+    restore("TENCENT_CDN_URL_AUTH_KEY", previous.key);
+    restore("TENCENT_COS_BUCKET", previous.bucket);
+    restore("TENCENTCLOUD_SECRET_ID", previous.secretId);
+    restore("TENCENTCLOUD_SECRET_KEY", previous.secretKey);
+  }
+});
