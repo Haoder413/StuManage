@@ -242,15 +242,15 @@ node scripts/backfill-course-ownership.mjs --course=<课程ID> --apply
 
 ### 9.1 第一次部署：先保持鉴权关闭
 
-先正常部署包含 CDN 鉴权能力的新版本。随后输入准备在腾讯云 CDN 使用的随机密钥，终端输入过程不会回显：
+先正常部署包含 CDN 鉴权能力的新版本。腾讯云 Type D 密钥必须是 `6 至 32 位`字母或数字；下面生成一个符合要求的 32 位随机密钥：
 
 ```bash
-read -rsp '请输入与腾讯云 CDN Type D 完全相同的鉴权密钥：' TENCENT_CDN_KEY
-echo
+TENCENT_CDN_KEY="$(openssl rand -hex 16)"
 sudo sed -i '/^TENCENT_CDN_URL_AUTH_ENABLED=/d' /opt/student-management/shared/.env
 sudo sed -i '/^TENCENT_CDN_URL_AUTH_KEY=/d' /opt/student-management/shared/.env
 printf 'TENCENT_CDN_URL_AUTH_ENABLED=false\nTENCENT_CDN_URL_AUTH_KEY=%s\n' "$TENCENT_CDN_KEY" \
   | sudo tee -a /opt/student-management/shared/.env >/dev/null
+printf '请复制到腾讯云 CDN 控制台并妥善保存：%s\n' "$TENCENT_CDN_KEY"
 unset TENCENT_CDN_KEY
 ```
 
@@ -264,7 +264,13 @@ timedatectl show -p NTPSynchronized
 
 应显示 `NTPSynchronized=yes`。
 
-### 9.2 先让程序生成 Type D 地址
+### 9.2 先开启私有 COS 回源
+
+程序开关保持 `false`。进入：`CDN → 域名管理 → video.taotaomath.top → 管理 → 基本配置 → 源站配置`，开启“私有存储桶访问”或“回源鉴权”。如果控制台要求 CDN 服务授权，先完成授权再保存。等待配置下发后，确认旧的 COS 签名地址仍能正常播放。
+
+私有 COS 必须先完成这一步；否则程序改用 Type D 地址后不再携带 COS 签名，CDN 无权读取源站时会返回拒绝访问。
+
+### 9.3 再让程序生成 Type D 地址
 
 把程序开关改为开启并重启；此时 CDN 控制台尚未开启鉴权，Type D 参数不会导致播放中断：
 
@@ -275,7 +281,7 @@ sudo pm2 restart student-management --update-env
 
 登录网站播放一个课程视频，在浏览器网络请求中确认地址使用 `video.taotaomath.top`，并包含 `sign` 和 `t` 参数。不要把完整鉴权地址发送给其他人。
 
-### 9.3 开启腾讯云 CDN 鉴权
+### 9.4 开启腾讯云 CDN 鉴权
 
 进入：`腾讯云 CDN → 域名管理 → video.taotaomath.top → 管理 → 访问控制 → 鉴权配置`，配置：
 
@@ -288,10 +294,6 @@ sudo pm2 restart student-management --update-env
 - 鉴权范围：指定文件后缀 `mp4;webm;mov;m4v`。
 
 保存后验证：网站内正常播放和拖动进度条应成功；去掉 `sign`、`t` 参数的同一路径应返回 403；修改路径、签名或使用过期地址也应返回 403。
-
-### 9.4 开启私有 COS 回源
-
-CDN 鉴权验证成功后，进入：`CDN → 域名管理 → video.taotaomath.top → 管理 → 基本配置 → 源站配置`，开启“私有存储桶访问”或“回源鉴权”。先再次验证网站视频可以播放，再进入对应 COS 存储桶的权限管理，将存储桶改为“私有读写”。
 
 最终应同时满足：
 

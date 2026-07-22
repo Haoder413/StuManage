@@ -56,6 +56,20 @@ test("fails closed when enabled CDN authentication is incomplete", () => {
   );
 });
 
+test("rejects CDN keys outside Tencent's 6 to 32 alphanumeric limit", () => {
+  for (const key of ["short", "a".repeat(33), "abc123_bad"]) {
+    assert.throws(
+      () =>
+        getTencentCdnUrlAuthConfig({
+          TENCENT_CDN_URL_AUTH_ENABLED: "true",
+          TENCENT_COS_PUBLIC_BASE_URL: "https://video.taotaomath.top",
+          TENCENT_CDN_URL_AUTH_KEY: key,
+        }),
+      /invalid_tencent_cdn_url_auth_key/,
+    );
+  }
+});
+
 test("COS lesson playback returns CDN auth without requiring COS credentials", async () => {
   const previous = {
     enabled: process.env.TENCENT_CDN_URL_AUTH_ENABLED,
@@ -67,7 +81,7 @@ test("COS lesson playback returns CDN auth without requiring COS credentials", a
   };
   process.env.TENCENT_CDN_URL_AUTH_ENABLED = "true";
   process.env.TENCENT_COS_PUBLIC_BASE_URL = "https://video.taotaomath.top";
-  process.env.TENCENT_CDN_URL_AUTH_KEY = "test-secret";
+  process.env.TENCENT_CDN_URL_AUTH_KEY = "testsecret123";
   delete process.env.TENCENT_COS_BUCKET;
   delete process.env.TENCENTCLOUD_SECRET_ID;
   delete process.env.TENCENTCLOUD_SECRET_KEY;
@@ -101,7 +115,13 @@ test("deployment guide documents the gated CDN authentication rollout", () => {
     "7200",
     "私有存储桶访问",
     "TENCENT_CDN_URL_AUTH_ENABLED=false",
+    "openssl rand -hex 16",
+    "6 至 32 位",
   ]) {
     assert.ok(guide.includes(text), `deployment guide is missing: ${text}`);
   }
+  assert.ok(
+    guide.indexOf("先开启私有 COS 回源") < guide.indexOf("再让程序生成 Type D 地址"),
+    "private COS origin access must be enabled before the app stops issuing COS signatures",
+  );
 });
