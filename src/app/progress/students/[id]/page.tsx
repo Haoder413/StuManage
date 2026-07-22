@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,12 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, ChevronDown, Circle } from "lucide-react";
-import { calculateConsistentProgressStatuses } from "@/lib/knowledge-progress-tree";
+import {
+  calculateConsistentTeacherProgressStatuses,
+  dedupeTeacherProgress,
+  resolveTeacherProgressCourse,
+  type ProgressCourseOption,
+} from "@/lib/teacher-progress";
 import { filterWeakPointsByStatus, getWeakPointStatusCounts } from "@/lib/weak-points";
 
 interface KPNode {
@@ -51,6 +56,11 @@ interface ReviewSchedule {
   lastReviewedAt: string | null;
 }
 
+interface ProgressCoursePayload {
+  viewerId: string;
+  courses: ProgressCourseOption[];
+}
+
 function buildKpTree(items: KPNode[]) {
   const map = new Map<string, KPNode>();
   items.forEach((item) => map.set(item.id, { ...item, children: [] }));
@@ -84,11 +94,16 @@ export default function StudentProgressDetailPage() {
   const [knowledgeProgressOpen, setKnowledgeProgressOpen] = useState(true);
   const [reviewFilter, setReviewFilter] = useState<"all" | "pending" | "mastered">("all");
   const [student, setStudent] = useState<StudentData | null>(null);
+  const [viewerId, setViewerId] = useState("");
+  const [courses, setCourses] = useState<ProgressCourseOption[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const selectedProgressScopeRef = useRef("");
   const [kpTree, setKpTree] = useState<KPNode[]>([]);
   const [kpProgress, setKpProgress] = useState<Record<string, string>>({});
   const [weakPoints, setWeakPoints] = useState<WeakPoint[]>([]);
   const [historyWeakPoints, setHistoryWeakPoints] = useState<WeakPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [progressLoading, setProgressLoading] = useState(false);
   const [newWeakDesc, setNewWeakDesc] = useState("");
   const [tags, setTags] = useState<any[]>([]);
   const [showTagManager, setShowTagManager] = useState(false);
@@ -106,51 +121,39 @@ export default function StudentProgressDetailPage() {
 
     async function load() {
       setLoading(true);
+      selectedProgressScopeRef.current = "";
+      setSelectedCourseId(null);
       try {
-        const [studentsRes, progressRes] = await Promise.all([
+        const [studentsRes, coursesRes, activeWeakPoints, historyPoints] = await Promise.all([
           fetch("/api/students"),
-          fetch(`/api/progress?studentId=${encodeURIComponent(studentId)}`),
+          fetch(`/api/progress/courses?studentId=${encodeURIComponent(studentId)}`),
+          loadWeakPoints(studentId),
+          loadWeakPoints(studentId, "history"),
         ]);
         const allStudents = studentsRes.ok ? await studentsRes.json() : [];
-        const allProgress = progressRes.ok ? await progressRes.json() : [];
         const studentList: StudentData[] = Array.isArray(allStudents) ? allStudents : [];
-        const progressList: any[] = Array.isArray(allProgress) ? allProgress : [];
         const found = studentList.find((s) => s.id === studentId) || null;
-        const studentProgress = progressList
-          .filter((p: any) => p.studentId === studentId)
-          .sort((a: any, b: any) => Number(Boolean(b.learningLinkId)) - Number(Boolean(a.learningLinkId)));
-
-        const progressMap: Record<string, string> = {};
-        const nodes: KPNode[] = [];
-        const seen = new Set<string>();
-        studentProgress.forEach((p: any) => {
-          if (!p.knowledgePointId || seen.has(p.knowledgePointId)) return;
-          seen.add(p.knowledgePointId);
-          progressMap[p.knowledgePointId] = p.status;
-          nodes.push({
-            id: p.knowledgePointId,
-            name: p.knowledgePoint?.name || "未知",
-            parentId: p.knowledgePoint?.parentId || null,
-            orderIndex: Number(p.knowledgePoint?.orderIndex || 0),
-            children: [],
-            status: p.status,
-          });
-        });
-
-        const [activeWeakPoints, historyPoints] = found?.id
-          ? await Promise.all([
-              loadWeakPoints(found.id),
-              loadWeakPoints(found.id, "history"),
-            ])
-          : [[], []];
+        const coursePayload: ProgressCoursePayload = coursesRes.ok
+          ? await coursesRes.json()
+          : { viewerId: "", courses: [] };
+        const visibleCourses = Array.isArray(coursePayload.courses) ? coursePayload.courses : [];
+        const storageKey = coursePayload.viewerId
+          ? `teacher-progress-course:${coursePayload.viewerId}:${studentId}`
+          : "";
+        let storedCourseId: string | null = null;
+        try {
+          storedCourseId = storageKey ? window.localStorage.getItem(storageKey) : null;
+        } catch {
+          storedCourseId = null;
+        }
+        const nextCourseId = resolveTeacherProgressCourse(visibleCourses, storedCourseId);
 
         if (!cancelled) {
           setStudent(found);
-          setKpProgress(calculateConsistentProgressStatuses(
-            nodes.map((node) => ({ id: node.id, parentId: node.parentId })),
-            progressMap,
-          ));
-          setKpTree(buildKpTree(nodes));
+          setViewerId(coursePayload.viewerId || "");
+          setCourses(visibleCourses);
+          selectedProgressScopeRef.current = nextCourseId ? `${studentId}:${nextCourseId}` : "";
+          setSelectedCourseId(nextCourseId);
           setWeakPoints(activeWeakPoints);
           setHistoryWeakPoints(historyPoints);
         }
@@ -158,6 +161,10 @@ export default function StudentProgressDetailPage() {
         console.error("Failed to load student progress detail", error);
         if (!cancelled) {
           setStudent(null);
+          setViewerId("");
+          setCourses([]);
+          selectedProgressScopeRef.current = "";
+          setSelectedCourseId(null);
           setKpProgress({});
           setKpTree([]);
           setWeakPoints([]);
@@ -175,6 +182,71 @@ export default function StudentProgressDetailPage() {
       cancelled = true;
     };
   }, [studentId]);
+
+  useEffect(() => {
+    if (!selectedCourseId) {
+      setKpProgress({});
+      setKpTree([]);
+      setProgressLoading(false);
+      return;
+    }
+
+    const courseId = selectedCourseId;
+    selectedProgressScopeRef.current = `${studentId}:${courseId}`;
+    const controller = new AbortController();
+    setProgressLoading(true);
+    setKpProgress({});
+    setKpTree([]);
+
+    async function loadSelectedCourseProgress() {
+      try {
+        const response = await fetch(
+          `/api/progress?studentId=${encodeURIComponent(studentId)}&courseId=${encodeURIComponent(courseId)}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error("progress request failed");
+        const payload = await response.json();
+        const progressList: any[] = Array.isArray(payload) ? payload : [];
+        const studentProgress = dedupeTeacherProgress(
+          progressList.filter((row) => row.studentId === studentId),
+        );
+        const progressMap: Record<string, string> = {};
+        const nodes: KPNode[] = [];
+        const seen = new Set<string>();
+        studentProgress.forEach((row) => {
+          if (!row.knowledgePointId || seen.has(row.knowledgePointId)) return;
+          seen.add(row.knowledgePointId);
+          progressMap[row.knowledgePointId] = row.status;
+          nodes.push({
+            id: row.knowledgePointId,
+            name: row.knowledgePoint?.name || "未知",
+            parentId: row.knowledgePoint?.parentId || null,
+            orderIndex: Number(row.knowledgePoint?.orderIndex || 0),
+            children: [],
+            status: row.status,
+          });
+        });
+        if (!controller.signal.aborted) {
+          setKpProgress(calculateConsistentTeacherProgressStatuses(
+            nodes.map((node) => ({ id: node.id, parentId: node.parentId })),
+            progressMap,
+          ));
+          setKpTree(buildKpTree(nodes));
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Failed to load selected course progress", error);
+          setKpProgress({});
+          setKpTree([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) setProgressLoading(false);
+      }
+    }
+
+    loadSelectedCourseProgress();
+    return () => controller.abort();
+  }, [selectedCourseId, studentId, viewerId]);
 
   // Load tags for autocomplete
   useEffect(() => {
@@ -198,13 +270,17 @@ export default function StudentProgressDetailPage() {
   }
 
   async function updateKpStatus(kpId: string, status: string) {
+    const courseId = selectedCourseId;
+    if (!courseId) return;
+    const requestScope = `${studentId}:${courseId}`;
     const res = await fetch("/api/progress", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId, knowledgePointId: kpId, status }),
     });
-    if (!res.ok) return;
+    if (!res.ok || selectedProgressScopeRef.current !== requestScope) return;
     const result = await res.json();
+    if (selectedProgressScopeRef.current !== requestScope) return;
     setKpProgress((prev) => {
       const next = { ...prev, [kpId]: status };
       const ancestorUpdates = Array.isArray(result.ancestorUpdates) ? result.ancestorUpdates : [];
@@ -313,7 +389,8 @@ export default function StudentProgressDetailPage() {
 
   const totalKps = countKpNodes(kpTree);
   const masteredCount = Object.values(kpProgress).filter((s) => s === "mastered").length;
-  const learningCount = totalKps - masteredCount;
+  const learningCount = Object.values(kpProgress).filter((s) => s === "learning").length;
+  const notStartedCount = Math.max(totalKps - masteredCount - learningCount, 0);
   const progressPct = totalKps > 0 ? Math.round((masteredCount / totalKps) * 100) : 0;
 
   const allReviewWeakPoints = [...weakPoints, ...historyWeakPoints];
@@ -353,16 +430,23 @@ export default function StudentProgressDetailPage() {
   });
 
   function renderKpNode(kp: KPNode, depth = 0) {
-    const status = kpProgress[kp.id] === "mastered" ? "mastered" : "learning";
+    const status = kpProgress[kp.id] === "mastered"
+      ? "mastered"
+      : kpProgress[kp.id] === "learning"
+        ? "learning"
+        : "not_started";
     const statusColors: Record<string, string> = {
       mastered: "bg-green-100 text-green-700 border-green-200",
       learning: "bg-blue-100 text-blue-700 border-blue-200",
+      not_started: "bg-gray-100 text-gray-500 border-gray-200",
     };
     const statusLabels: Record<string, string> = {
       mastered: "已学习",
       learning: "学习中",
+      not_started: "未开始",
     };
     const nextStatus: Record<string, string> = {
+      not_started: "learning",
       learning: "mastered",
       mastered: "learning",
     };
@@ -424,8 +508,57 @@ export default function StudentProgressDetailPage() {
         description={`${student.grade || ""} · ${student.lessonFrequency || ""}`}
       />
 
+      {courses.length > 0 ? (
+        <div className="glass-card mb-6 rounded-xl p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">当前课程</p>
+              <p className="mt-1 text-sm text-gray-500">知识点和统计一次只展示一套课程</p>
+            </div>
+            {progressLoading && <span className="text-xs font-medium text-blue-500">加载中...</span>}
+          </div>
+          {courses.length === 1 ? (
+            <span className="inline-flex rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700">
+              {courses[0].name}
+            </span>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {courses.map((course) => (
+                <button
+                  key={course.id}
+                  type="button"
+                  aria-pressed={selectedCourseId === course.id}
+                  onClick={() => {
+                    selectedProgressScopeRef.current = `${studentId}:${course.id}`;
+                    setSelectedCourseId(course.id);
+                    if (viewerId) {
+                      try {
+                        window.localStorage.setItem(`teacher-progress-course:${viewerId}:${studentId}`, course.id);
+                      } catch {
+                        // Storage can be unavailable in restricted browser contexts.
+                      }
+                    }
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    selectedCourseId === course.id
+                      ? "border-blue-500 bg-blue-500 text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600"
+                  }`}
+                >
+                  {course.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="glass-card mb-6 rounded-xl p-6 text-center text-sm text-gray-500">
+          暂无可查看的课程，请检查课程分配
+        </div>
+      )}
+
       {/* Stats cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
         <div className="glass-card rounded-xl p-4">
           <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">知识点总数</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{totalKps}</p>
@@ -437,6 +570,10 @@ export default function StudentProgressDetailPage() {
         <div className="glass-card rounded-xl p-4">
           <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">学习中</p>
           <p className="text-2xl font-bold text-blue-500 mt-1">{learningCount}</p>
+        </div>
+        <div className="glass-card rounded-xl p-4">
+          <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">未开始</p>
+          <p className="mt-1 text-2xl font-bold text-gray-500">{notStartedCount}</p>
         </div>
         <div className="glass-card rounded-xl p-4">
           <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">整体进度</p>
@@ -489,7 +626,9 @@ export default function StudentProgressDetailPage() {
 
           {knowledgeProgressOpen && (
             <div id="teacher-knowledge-progress-content" className="border-t border-gray-100 px-5 pb-5 pt-4">
-              {kpTree.length === 0 ? (
+              {progressLoading ? (
+                <p className="py-8 text-center text-sm text-gray-400">正在加载课程知识点...</p>
+              ) : kpTree.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">暂无知识点数据</p>
               ) : (
                 <div className="divide-y divide-[#1a1a2e]/5">

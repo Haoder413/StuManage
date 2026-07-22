@@ -3,16 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { getTodayReviewDate } from "@/lib/review-scheduler";
 import { requireTeacherLike } from "@/lib/auth";
 import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
-import { visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
+import {
+  teacherSubjectMatches,
+  type TeacherVisibilityUser,
+  visibleProgressStudentByIdWhere,
+  visibleProgressWeakPointWhere,
+} from "@/lib/teacher-visibility";
 import { dedupeWeakPoints, normalizeWeakPointDescription } from "@/lib/weak-points";
 import { ensureWeakPointReview } from "@/lib/weak-point-reuse";
 
-async function findWeakPointGroup(user: { workspaceId: string; id: string; role: string }, id: string) {
+async function findWeakPointGroup(user: TeacherVisibilityUser, id: string) {
   const selected = await prisma.weakPoint.findFirst({
     where: {
       id,
-      workspaceId: user.workspaceId,
-      student: visibleStudentWhere(user),
+      ...visibleProgressWeakPointWhere(user),
     },
     select: { id: true, studentId: true, description: true, status: true },
   });
@@ -21,10 +25,9 @@ async function findWeakPointGroup(user: { workspaceId: string; id: string; role:
   const statusFilter = selected.status === "active" ? "active" : { not: "active" };
   const candidates = await prisma.weakPoint.findMany({
     where: {
-      workspaceId: user.workspaceId,
+      ...visibleProgressWeakPointWhere(user),
       studentId: selected.studentId,
       status: statusFilter,
-      student: visibleStudentWhere(user),
     },
     select: { id: true, description: true },
   });
@@ -46,9 +49,12 @@ export async function GET(request: NextRequest) {
   const learningLinkId = searchParams.get("learningLinkId");
   const statusParam = searchParams.get("status");
   const statusFilter = statusParam === "history" ? { not: "active" } : "active";
-  const where = studentId
-    ? { workspaceId: user.workspaceId, studentId, student: visibleStudentWhere(user), ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter }
-    : { workspaceId: user.workspaceId, student: visibleStudentWhere(user), ...(learningLinkId ? { learningLinkId } : {}), status: statusFilter };
+  const where = {
+    ...visibleProgressWeakPointWhere(user),
+    ...(studentId ? { studentId } : {}),
+    ...(learningLinkId ? { learningLinkId } : {}),
+    status: statusFilter,
+  };
   const weakPoints = await prisma.weakPoint.findMany({
     where,
     include: {
@@ -63,7 +69,7 @@ export async function POST(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
   const student = await prisma.student.findFirst({
-    where: visibleStudentByIdWhere(user, String(data.studentId || "")),
+    where: visibleProgressStudentByIdWhere(user, String(data.studentId || "")),
     select: { id: true },
   });
   if (!student) return NextResponse.json({ error: "student not found" }, { status: 404 });
@@ -71,12 +77,20 @@ export async function POST(request: NextRequest) {
     ? user.role === "teacher"
       ? await ensureTeacherCanUseLearningLink(user, String(data.learningLinkId))
       : await prisma.learningLink.findFirst({ where: { id: String(data.learningLinkId), workspaceId: user.workspaceId } })
-    : await findLearningLinkForTeacherStudent(user, String(data.studentId || ""));
+    : await findLearningLinkForTeacherStudent(
+        user,
+        String(data.studentId || ""),
+        undefined,
+        user.role === "teacher" ? user.teachingSubject : null,
+      );
   if (data.learningLinkId && !learningLink) {
     return NextResponse.json({ error: "invalid learning link" }, { status: 400 });
   }
   if (learningLink && learningLink.studentId !== student.id) {
     return NextResponse.json({ error: "learning link student mismatch" }, { status: 400 });
+  }
+  if (learningLink && !teacherSubjectMatches(user, learningLink.subject)) {
+    return NextResponse.json({ error: "learning link subject mismatch" }, { status: 400 });
   }
   const description = normalizeWeakPointDescription(data.description);
   if (!description) return NextResponse.json({ error: "description required" }, { status: 400 });
@@ -165,7 +179,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(updated);
   }
   const weakPoint = await prisma.weakPoint.findFirst({
-    where: { id: data.id, workspaceId: user.workspaceId, student: visibleStudentWhere(user) },
+    where: { id: data.id, ...visibleProgressWeakPointWhere(user) },
     select: { id: true },
   });
   if (!weakPoint) return NextResponse.json({ error: "not found" }, { status: 404 });
