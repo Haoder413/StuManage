@@ -44,6 +44,9 @@ export function getTencentCdnUrlAuthConfig(
   const key = environment.TENCENT_CDN_URL_AUTH_KEY;
   if (!baseUrl) throw new Error("missing_tencent_cos_public_base_url");
   if (!key) throw new Error("missing_tencent_cdn_url_auth_key");
+  if (!/^[A-Za-z0-9]{6,32}$/.test(key)) {
+    throw new Error("invalid_tencent_cdn_url_auth_key");
+  }
 
   return { baseUrl: normalizeBaseUrl(baseUrl), key };
 }
