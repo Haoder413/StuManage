@@ -1,4 +1,5 @@
 const { request } = require("../../utils/api");
+const { parseMiniYearInput, toggleMiniUnsetYear } = require("./year-filter-state");
 
 const kindText = { paper: "试卷", animation: "动画", material: "资料" };
 const roleText = { student: "学生版", answer: "答案版", supplement: "补充资料" };
@@ -19,21 +20,14 @@ Page({
     courseId: "",
     grade: "",
     year: "",
+    yearInput: "",
     subject: "",
     resourceKind: "",
     page: 1,
     hasNextPage: false,
     total: 0,
     courseOptions: [{ id: "", name: "全部课程" }],
-    gradeOptions: ["全部年级", "小一", "小二", "小三", "小四", "小五", "小六", "初一", "初二", "初三", "高一", "高二", "高三"],
-    yearOptions: [
-      { id: "", name: "全部年份" },
-      { id: "unset", name: "未设置年份" },
-      ...Array.from({ length: 2100 - 1900 + 1 }, (_, index) => {
-        const year = 2100 - index;
-        return { id: String(year), name: `${year}年` };
-      })
-    ],
+    gradeOptions: ["全部年级", "初一", "初二", "初三"],
     subjectOptions: ["全部科目", "数学", "语文", "英语", "物理", "化学"],
     kindOptions: [
       { id: "", name: "全部类型" },
@@ -43,7 +37,6 @@ Page({
     ],
     courseIndex: 0,
     gradeIndex: 0,
-    yearIndex: 0,
     subjectIndex: 0,
     kindIndex: 0
   },
@@ -112,10 +105,27 @@ Page({
     const index = Number(event.detail.value);
     if (field === "course") this.setData({ courseIndex: index, courseId: this.data.courseOptions[index].id });
     if (field === "grade") this.setData({ gradeIndex: index, grade: index === 0 ? "" : this.data.gradeOptions[index] });
-    if (field === "year") this.setData({ yearIndex: index, year: this.data.yearOptions[index].id });
     if (field === "subject") this.setData({ subjectIndex: index, subject: index === 0 ? "" : this.data.subjectOptions[index] });
     if (field === "kind") this.setData({ kindIndex: index, resourceKind: this.data.kindOptions[index].id });
     this.load(true);
+  },
+
+  onYearInput(event) {
+    this.setData({ yearInput: event.detail.value });
+  },
+
+  applyYearFilter() {
+    const next = parseMiniYearInput(this.data.yearInput, this.data.year);
+    if (next.error) {
+      wx.showToast({ title: next.error, icon: "none" });
+      return;
+    }
+    if (!next.changed) return;
+    this.setData({ year: next.year, yearInput: next.yearInput }, () => this.load(true));
+  },
+
+  filterUnsetYear() {
+    this.setData(toggleMiniUnsetYear(this.data.year), () => this.load(true));
   },
 
   loadMore() {

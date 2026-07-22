@@ -32,9 +32,20 @@ function normalizeHttpError(res) {
   return new Error(serverMessage || `HTTP ${res.statusCode}：请求失败`);
 }
 
+function resolveRequestToken(options = {}, storedToken = "") {
+  if (Object.prototype.hasOwnProperty.call(options, "token")) {
+    return typeof options.token === "string" ? options.token.trim() : "";
+  }
+  return typeof storedToken === "string" ? storedToken.trim() : "";
+}
+
 function request(path, options = {}) {
   const config = getAppConfig();
-  const token = getToken();
+  const hasExplicitToken = Object.prototype.hasOwnProperty.call(options, "token");
+  const token = resolveRequestToken(options, hasExplicitToken ? "" : getToken());
+  if (hasExplicitToken && !token) {
+    return Promise.reject(new Error("会话凭据无效"));
+  }
   return new Promise((resolve, reject) => {
     wx.request({
       url: `${config.apiBaseUrl}${path}`,
@@ -121,4 +132,4 @@ function upload(path, filePath, name = "file") {
   });
 }
 
-module.exports = { request, upload, fileUrl };
+module.exports = { request, upload, fileUrl, resolveRequestToken };

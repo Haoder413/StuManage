@@ -15,8 +15,10 @@ function requireFile(file, snippets) {
 
 requireFile("deploy/backup-db.sh", [
   "KEEP_BACKUPS=\"${KEEP_BACKUPS:-15}\"",
-  "DB_PATH=\"${DB_PATH:-$APP_ROOT/shared/dev.db}\"",
+  "APP_DIR=\"${APP_DIR:-$APP_ROOT/current}\"",
+  "resolve-sqlite-database-path.ts",
   "BACKUP_DIR=\"${BACKUP_DIR:-$APP_ROOT/backups}\"",
+  "PRAGMA integrity_check;",
   "dev-$(date +%Y%m%d-%H%M%S).db",
   "tail -n +$((KEEP_BACKUPS + 1))",
 ]);

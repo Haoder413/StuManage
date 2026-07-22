@@ -9,18 +9,23 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!privacyAccepted) {
+      setError("请先阅读并同意设备登录与隐私说明");
+      return;
+    }
     setSubmitting(true);
     setError("");
 
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ identifier, password, privacyAccepted }),
     });
     const result = await response.json();
     setSubmitting(false);
@@ -51,6 +56,19 @@ function LoginForm() {
             />
           </label>
 
+          <label className="mt-4 flex cursor-pointer items-start gap-2 text-xs leading-5 text-slate-600">
+            <input
+              type="checkbox"
+              checked={privacyAccepted}
+              onChange={(event) => setPrivacyAccepted(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600"
+            />
+            <span>
+              我已阅读并同意设备登录与隐私说明。为保障账号安全，系统会记录设备类型、浏览器、操作系统、IP、
+              登录/活跃时间，相关历史记录保留 90 天。
+            </span>
+          </label>
+
           <label className="mt-4 block text-sm font-medium text-slate-700">
             密码
             <input
@@ -66,7 +84,7 @@ function LoginForm() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !privacyAccepted}
             className="mt-6 w-full rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             {submitting ? "登录中..." : "登录"}

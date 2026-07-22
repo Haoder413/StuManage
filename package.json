@@ -11,6 +11,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "resources:migrate": "node --import tsx scripts/migrate-resource-library.ts",
+    "devices:migrate": "node --import tsx scripts/migrate-device-sessions.ts",
+    "devices:cleanup": "node --import tsx scripts/cleanup-device-history.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

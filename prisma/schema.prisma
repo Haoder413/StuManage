@@ -86,6 +86,11 @@ model User {
   parentScheduleItems        ParentScheduleItem[]
   parentScheduleSubjects     ParentScheduleSubject[]
   mobileResourceTickets      MobileResourceTicket[]
+  loginDevices               LoginDevice[]
+  deviceLimitOverride        UserDeviceLimitOverride?
+  privacyConsents            PrivacyConsent[]
+  adminAuditLogs             AdminAuditLog[]             @relation("AdminAuditLogs")
+  targetedAuditLogs          AdminAuditLog[]             @relation("TargetAuditLogs")
 }
 
 model LearningLink {
@@ -118,12 +123,103 @@ model LearningLink {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String       @id @default(cuid())
+  userId     String
+  deviceId   String?
+  channel    String?
+  tokenHash  String       @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime?
+  createdAt  DateTime     @default(now())
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device     LoginDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([deviceId])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginDevice {
+  id              String    @id @default(cuid())
+  userId          String
+  channel         String
+  deviceType      String
+  deviceKeyHash   String
+  displayName     String
+  browser         String?
+  operatingSystem String?
+  userAgent       String?
+  lastIpAddress   String?
+  firstSeenAt     DateTime  @default(now())
+  lastLoginAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  lastLogoutAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions        Session[]
+
+  @@unique([userId, channel, deviceKeyHash])
+  @@index([userId, channel, deviceType])
+  @@index([userId, lastSeenAt])
+}
+
+model DeviceLoginPolicy {
+  id          String   @id
+  webMobile   Int      @default(2)
+  webDesktop  Int      @default(2)
+  webTablet   Int      @default(2)
+  miniMobile  Int      @default(2)
+  miniDesktop Int      @default(2)
+  miniTablet  Int      @default(2)
+  updatedAt   DateTime @updatedAt
+}
+
+model UserDeviceLimitOverride {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  webMobile   Int?
+  webDesktop  Int?
+  webTablet   Int?
+  miniMobile  Int?
+  miniDesktop Int?
+  miniTablet  Int?
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PrivacyConsent {
+  id         String   @id @default(cuid())
+  userId     String
+  channel    String
+  version    String
+  acceptedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel, version])
+}
+
+model AdminAuditLog {
+  id                   String   @id @default(cuid())
+  adminId              String?
+  targetUserId         String?
+  actorUserIdSnapshot  String
+  actorNameSnapshot    String
+  targetUserIdSnapshot String?
+  targetNameSnapshot   String?
+  action               String
+  summary              String?
+  createdAt            DateTime @default(now())
+  admin                User?    @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: SetNull)
+  targetUser           User?    @relation("TargetAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([adminId, createdAt])
+}
+
+model SystemMigration {
+  key       String   @id
+  appliedAt DateTime @default(now())
 }
 
 model ParentStudent {

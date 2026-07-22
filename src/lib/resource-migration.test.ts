@@ -47,3 +47,42 @@ test("legacy migration is idempotent and copies both permission types", () => {
   assert.match(migration, /extractResourceYear/);
   assert.match(migration, /backfilledYears/);
 });
+
+test("schema stores login devices, policies, consent and audit history", () => {
+  const schema = readFileSync("prisma/schema.prisma", "utf8");
+
+  assert.match(schema, /model LoginDevice \{/);
+  assert.match(schema, /@@unique\(\[userId, channel, deviceKeyHash\]\)/);
+  assert.match(schema, /@@index\(\[userId, channel, deviceType\]\)/);
+  assert.match(schema, /@@index\(\[userId, lastSeenAt\]\)/);
+  assert.match(schema, /model DeviceLoginPolicy \{/);
+  assert.match(schema, /webMobile\s+Int\s+@default\(2\)/);
+  assert.match(schema, /miniTablet\s+Int\s+@default\(2\)/);
+  assert.match(schema, /model UserDeviceLimitOverride \{/);
+  assert.match(schema, /userId\s+String\s+@unique/);
+  assert.match(schema, /model PrivacyConsent \{/);
+  assert.match(schema, /@@unique\(\[userId, channel, version\]\)/);
+  assert.match(schema, /model AdminAuditLog \{/);
+  assert.match(schema, /@relation\("AdminAuditLogs"/);
+  assert.match(schema, /@relation\("TargetAuditLogs"/);
+  assert.match(schema, /actorUserIdSnapshot\s+String/);
+  assert.match(schema, /actorNameSnapshot\s+String/);
+  assert.match(schema, /targetUserIdSnapshot\s+String\?/);
+  assert.match(schema, /targetNameSnapshot\s+String\?/);
+  assert.match(schema, /@@index\(\[targetUserId, createdAt\]\)/);
+  assert.match(schema, /@@index\(\[adminId, createdAt\]\)/);
+  assert.match(schema, /model SystemMigration \{/);
+  assert.match(schema, /key\s+String\s+@id/);
+});
+
+test("sessions optionally track their device, channel and last activity", () => {
+  const schema = readFileSync("prisma/schema.prisma", "utf8");
+
+  assert.match(schema, /deviceId\s+String\?/);
+  assert.match(schema, /channel\s+String\?/);
+  assert.match(schema, /lastSeenAt\s+DateTime\?/);
+  assert.match(schema, /device\s+LoginDevice\?\s+@relation\(fields: \[deviceId\], references: \[id\], onDelete: SetNull\)/);
+  assert.match(schema, /@@index\(\[deviceId\]\)/);
+  assert.match(schema, /@@index\(\[userId\]\)/);
+  assert.match(schema, /@@index\(\[expiresAt\]\)/);
+});

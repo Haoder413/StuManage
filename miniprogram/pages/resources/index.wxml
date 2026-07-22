@@ -9,7 +9,9 @@
     <view class="filter-row">
       <picker range="{{courseOptions}}" range-key="name" value="{{courseIndex}}" data-field="course" bindchange="onFilterChange"><view class="filter-chip">{{courseOptions[courseIndex].name}}</view></picker>
       <picker range="{{gradeOptions}}" value="{{gradeIndex}}" data-field="grade" bindchange="onFilterChange"><view class="filter-chip">{{gradeOptions[gradeIndex]}}</view></picker>
-      <picker range="{{yearOptions}}" range-key="name" value="{{yearIndex}}" data-field="year" bindchange="onFilterChange"><view class="filter-chip">{{yearOptions[yearIndex].name}}</view></picker>
+      <input class="year-filter-input" type="number" value="{{yearInput}}" placeholder="{{year === 'unset' ? '未设置年份' : '全部年份'}}" confirm-type="search" bindinput="onYearInput" bindconfirm="applyYearFilter" />
+      <view class="filter-chip" bindtap="applyYearFilter">筛选</view>
+      <view class="filter-chip" bindtap="filterUnsetYear">{{year === 'unset' ? '全部年份' : '未设置年份'}}</view>
       <picker range="{{subjectOptions}}" value="{{subjectIndex}}" data-field="subject" bindchange="onFilterChange"><view class="filter-chip">{{subjectOptions[subjectIndex]}}</view></picker>
       <picker range="{{kindOptions}}" range-key="name" value="{{kindIndex}}" data-field="kind" bindchange="onFilterChange"><view class="filter-chip">{{kindOptions[kindIndex].name}}</view></picker>
     </view>
