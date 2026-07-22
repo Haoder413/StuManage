@@ -3,6 +3,11 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { DeviceLimitError, DeviceSessionValidationError } from "./device-session";
+import {
+  createPrismaWebAuthDatabase,
+  findWebCurrentUser,
+  type WebAuthDatabase,
+} from "./auth";
 import { DUMMY_PASSWORD_HASH, verifyLoginPassword, verifyPassword } from "./password";
 import {
   deviceCookieOptions,
@@ -62,10 +67,11 @@ test("replaces missing or damaged device cookies with a valid random key", () =>
   assert.equal(resolveDeviceKey(valid, () => generated), valid);
 });
 
-test("forces secure cookies in production and trusts only the canonical URL in development", () => {
-  assert.equal(isSecureRequest({ nodeEnv: "production", protocol: "http:" }), true);
-  assert.equal(isSecureRequest({ nodeEnv: "development", protocol: "https:" }), true);
-  assert.equal(isSecureRequest({ nodeEnv: "development", protocol: "http:" }), false);
+test("uses secure cookies only for direct HTTPS or a trusted HTTPS proxy", () => {
+  assert.equal(isSecureRequest({ protocol: "https:", trustProxyHeaders: false }), true);
+  assert.equal(isSecureRequest({ protocol: "http:", trustProxyHeaders: false, forwardedProto: "https" }), false);
+  assert.equal(isSecureRequest({ protocol: "http:", trustProxyHeaders: true, forwardedProto: "https" }), true);
+  assert.equal(isSecureRequest({ protocol: "http:", trustProxyHeaders: true, forwardedProto: "http" }), false);
 });
 
 test("maps known login errors and hides unknown internals", () => {
@@ -107,9 +113,69 @@ test("logout clears only session and role cookies, not the device cookie", () =>
 });
 
 test("auth touches stale activity and uses transactional device logout without logging tokens", () => {
-  assert.match(authSource, /touchSessionActivity\s*\(session\)/);
+  assert.match(authSource, /touchSessionActivity\s*\(session,\s*now\)/);
   assert.match(authSource, /logoutDeviceSession\s*\(hashToken\(token\)\)/);
   assert.doesNotMatch(authSource, /console\.(?:error|log)\([^\n]*(?:token|tokenHash)/i);
+});
+
+test("web authentication rejects legacy and cross-account device sessions", async () => {
+  const now = new Date("2026-07-19T12:00:00Z");
+  const user = { id: "user-1", name: "老师", role: "teacher", workspaceId: "workspace-1" } as any;
+  const baseSession = {
+    id: "session-1",
+    userId: "user-1",
+    channel: "web",
+    deviceId: "device-1",
+    lastSeenAt: new Date("2026-07-19T10:00:00Z"),
+    device: { id: "device-1", userId: "user-1", channel: "web" },
+    user,
+  };
+  const touches: string[] = [];
+  const database: WebAuthDatabase = {
+    findSession: async () => baseSession,
+    touchActivity: async (session) => { touches.push(session.id); },
+  };
+
+  assert.equal((await findWebCurrentUser("raw-token", database, now))?.id, "user-1");
+  assert.deepEqual(touches, ["session-1"]);
+
+  const legacyDatabase: WebAuthDatabase = {
+    ...database,
+    findSession: async () => ({
+      ...baseSession,
+      channel: null,
+      deviceId: null,
+      device: null,
+    }),
+  };
+  assert.equal(await findWebCurrentUser("legacy-token", legacyDatabase, now), null);
+
+  const crossedDatabase: WebAuthDatabase = {
+    ...database,
+    findSession: async () => ({
+      ...baseSession,
+      device: { id: "device-1", userId: "other-user", channel: "web" },
+    }),
+  };
+  assert.equal(await findWebCurrentUser("crossed-token", crossedDatabase, now), null);
+});
+
+test("Prisma web auth query requires an owned web device relation", async () => {
+  let query: any;
+  const client = {
+    session: {
+      findFirst: async (args: unknown) => { query = args; return null; },
+    },
+  };
+  const database = createPrismaWebAuthDatabase(client as never);
+  const now = new Date("2026-07-19T12:00:00Z");
+  await database.findSession("hash", now);
+
+  assert.equal(query.where.channel, "web");
+  assert.deepEqual(query.where.deviceId, { not: null });
+  assert.equal(query.where.device.is.channel, "web");
+  assert.deepEqual(query.where.expiresAt, { gt: now });
+  assert.deepEqual(query.include.device.select, { id: true, userId: true, channel: true });
 });
 
 test("login UI requires consent, explains recorded metadata, and submits consent", () => {

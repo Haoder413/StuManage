@@ -25,7 +25,7 @@ systemctl enable --now cron
 systemctl is-active --quiet cron
 
 cd "$APP_ROOT/current"
-npm run devices:cleanup
+env -u DATABASE_URL npm run devices:cleanup
 
 CRON_FILE="$CRON_DIR/${APP_NAME}-maintenance"
 mkdir -p "$APP_ROOT/backups"
@@ -34,7 +34,7 @@ mkdir -p "$CRON_DIR"
 cat > "$CRON_FILE" <<CRON
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-30 3 * * * root cd $APP_ROOT/current && npm run devices:cleanup >> $APP_ROOT/backups/device-cleanup.log 2>&1
+30 3 * * * root cd $APP_ROOT/current && env -u DATABASE_URL npm run devices:cleanup >> $APP_ROOT/backups/device-cleanup.log 2>&1
 CRON
 
 chmod 0644 "$CRON_FILE"

@@ -53,8 +53,14 @@ export function resolveDeviceKey(
   return isValidDeviceKey(cookieValue) ? cookieValue : generate();
 }
 
-export function isSecureRequest(input: { nodeEnv: string | undefined; protocol: string }): boolean {
-  return input.nodeEnv === "production" || input.protocol === "https:";
+export function isSecureRequest(input: {
+  protocol: string;
+  trustProxyHeaders: boolean;
+  forwardedProto?: string | null;
+}): boolean {
+  if (input.protocol === "https:") return true;
+  if (!input.trustProxyHeaders) return false;
+  return input.forwardedProto?.split(",", 1)[0]?.trim().toLowerCase() === "https";
 }
 
 export function sessionCookieOptions(secure: boolean, expires: Date) {

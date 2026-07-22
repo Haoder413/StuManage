@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createHash, randomBytes } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { logoutDeviceSession, touchSessionActivity } from "@/lib/device-session";
+import { logoutDeviceSession, shouldTouchSession, touchSessionActivity } from "@/lib/device-session";
+import { assertDeviceSessionScope } from "@/lib/device-session-policy";
 
 export const SESSION_COOKIE = "student_management_session";
 export const ROLE_COOKIE = "student_management_role";
@@ -50,23 +52,80 @@ export async function clearSession() {
   cookies().delete(ROLE_COOKIE);
 }
 
+type WebSessionUser = Prisma.UserGetPayload<{ include: { workspace: true } }>;
+
+type WebSessionRecord = {
+  id: string;
+  userId: string;
+  channel: string | null;
+  deviceId: string | null;
+  lastSeenAt: Date | null;
+  device: { id: string; userId: string; channel: string } | null;
+  user: WebSessionUser;
+};
+
+export type WebAuthDatabase = {
+  findSession(tokenHash: string, now: Date): Promise<WebSessionRecord | null>;
+  touchActivity(
+    session: { id: string; deviceId: string | null; lastSeenAt: Date | null },
+    now: Date,
+  ): Promise<unknown>;
+};
+
+export function createPrismaWebAuthDatabase(client: typeof prisma): WebAuthDatabase {
+  return {
+    findSession(tokenHash, now) {
+      return client.session.findFirst({
+        where: {
+          tokenHash,
+          channel: "web",
+          deviceId: { not: null },
+          expiresAt: { gt: now },
+          device: { is: { channel: "web" } },
+        },
+        include: {
+          device: { select: { id: true, userId: true, channel: true } },
+          user: { include: { workspace: true } },
+        },
+      });
+    },
+    touchActivity(session, now) {
+      return touchSessionActivity(session, now);
+    },
+  };
+}
+
+const prismaWebAuthDatabase = createPrismaWebAuthDatabase(prisma);
+
+export async function findWebCurrentUser(
+  token: string,
+  database: WebAuthDatabase = prismaWebAuthDatabase,
+  now = new Date(),
+) {
+  if (!token) return null;
+
+  const session = await database.findSession(hashToken(token), now);
+  if (!session?.device || session.channel !== "web" || !session.deviceId) return null;
+  try {
+    assertDeviceSessionScope(session.device, { userId: session.userId, channel: "web" });
+  } catch {
+    return null;
+  }
+
+  if (shouldTouchSession(session.lastSeenAt, now)) {
+    try {
+      await database.touchActivity(session, now);
+    } catch {
+      console.error("Failed to update authenticated web session activity");
+    }
+  }
+  return session.user;
+}
+
 export async function getCurrentUser() {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return null;
-
-  const session = await prisma.session.findFirst({
-    where: {
-      tokenHash: hashToken(token),
-      expiresAt: { gt: new Date() },
-    },
-    include: { user: { include: { workspace: true } } },
-  });
-
-  if (session) {
-    await touchSessionActivity(session);
-  }
-
-  return session?.user ?? null;
+  return findWebCurrentUser(token);
 }
 
 export async function requireCurrentUser() {

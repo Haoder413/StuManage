@@ -218,6 +218,34 @@ test("mobile authentication accepts only owned mini-program device sessions and 
     }),
   };
   assert.equal(await findMobileCurrentUser("raw-token", crossed, now), null);
+
+  const legacy: MobileAuthDatabase = {
+    ...database,
+    findSession: async () => ({
+      id: "legacy-session",
+      userId: "user-1",
+      channel: null,
+      deviceId: null,
+      lastSeenAt: null,
+      device: null,
+      user: { id: "user-1", name: "家长", role: "parent", workspaceId: "workspace-1" },
+    }),
+  };
+  assert.equal(await findMobileCurrentUser("legacy-token", legacy, now), null);
+
+  const missingDeviceId: MobileAuthDatabase = {
+    ...database,
+    findSession: async () => ({
+      id: "unbound-session",
+      userId: "user-1",
+      channel: "miniProgram",
+      deviceId: null,
+      lastSeenAt: null,
+      device: { id: "device-1", userId: "user-1", channel: "miniProgram" },
+      user: { id: "user-1", name: "家长", role: "parent", workspaceId: "workspace-1" },
+    }),
+  };
+  assert.equal(await findMobileCurrentUser("unbound-token", missingDeviceId, now), null);
 });
 
 test("mini login UI requires privacy consent and persists the server-issued key", () => {
@@ -245,6 +273,7 @@ test("Prisma mobile auth lookup is restricted to owned mini-program device sessi
   const database = createPrismaMobileAuthDatabase(client as never);
   await database.findSession("hash", new Date("2026-07-19T12:00:00Z"));
   assert.equal(query.where.channel, "miniProgram");
+  assert.deepEqual(query.where.deviceId, { not: null });
   assert.equal(query.where.device.is.channel, "miniProgram");
   assert.deepEqual(query.where.expiresAt, { gt: new Date("2026-07-19T12:00:00Z") });
   assert.deepEqual(query.include.device.select, { id: true, userId: true, channel: true });

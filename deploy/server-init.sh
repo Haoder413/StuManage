@@ -44,7 +44,12 @@ NODE_ENV="production"
 PORT="$PORT"
 HIDDEN_LOGIN_PATH="/teacher-login-2026"
 LOGIN_ENABLED="true"
+TRUST_PROXY_HEADERS="true"
 ENV
+fi
+
+if ! grep -q '^TRUST_PROXY_HEADERS=' "$APP_ROOT/shared/.env"; then
+  printf '\nTRUST_PROXY_HEADERS="true"\n' >> "$APP_ROOT/shared/.env"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

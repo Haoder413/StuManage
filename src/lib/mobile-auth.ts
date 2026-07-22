@@ -37,6 +37,7 @@ export function createPrismaMobileAuthDatabase(client: typeof prisma): MobileAut
         where: {
           tokenHash,
           channel: "miniProgram",
+          deviceId: { not: null },
           expiresAt: { gt: now },
           device: { is: { channel: "miniProgram" } },
         },
@@ -107,7 +108,7 @@ export async function findMobileCurrentUser(
   if (!token) return null;
 
   const session = await database.findSession(hashToken(token), now);
-  if (!session?.device || session.channel !== "miniProgram") return null;
+  if (!session?.device || session.channel !== "miniProgram" || !session.deviceId) return null;
   try {
     assertDeviceSessionScope(session.device, { userId: session.userId, channel: "miniProgram" });
   } catch {

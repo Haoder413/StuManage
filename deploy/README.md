@@ -30,7 +30,7 @@
 登录 Ubuntu 22.04 服务器后，先把仓库 clone 到服务器，然后在项目目录执行：
 
 ```bash
-REPO_URL=<REMOTE_URL> BRANCH=main APP_ROOT=/opt/student-management PORT=3001 sudo -E bash deploy/server-init.sh
+sudo env REPO_URL=<REMOTE_URL> BRANCH=main APP_ROOT=/opt/student-management PORT=3001 bash deploy/server-init.sh
 ```
 
 这个脚本会自动完成：
@@ -51,11 +51,22 @@ REPO_URL=<REMOTE_URL> BRANCH=main APP_ROOT=/opt/student-management PORT=3001 sud
 http://你的服务器IP
 ```
 
+初始化脚本配置的 Nginx 会覆盖并转发真实协议和客户端 IP，同时在共享环境文件中写入：
+
+```env
+TRUST_PROXY_HEADERS="true"
+```
+
+因此 HTTP 访问会使用普通 HttpOnly Cookie，配置 HTTPS 证书后会根据 Nginx 转发的 `X-Forwarded-Proto=https` 自动使用 Secure Cookie。生产公网建议启用 HTTPS。
+
 已经部署过旧版本的服务器首次上线设备登录功能时，需要单独安装一次每日维护任务：
 
 ```bash
+sudo grep -q '^TRUST_PROXY_HEADERS=' /opt/student-management/shared/.env || \
+  echo 'TRUST_PROXY_HEADERS="true"' | sudo tee -a /opt/student-management/shared/.env >/dev/null
 cd /opt/student-management/current
 sudo bash deploy/install-maintenance-cron.sh
+sudo pm2 restart student-management --update-env
 ```
 
 检查任务是否已正确写入：
@@ -64,24 +75,24 @@ sudo bash deploy/install-maintenance-cron.sh
 cat /etc/cron.d/student-management-maintenance
 ```
 
-设备历史清理日志位于 `/opt/student-management/backups/device-cleanup.log`。后续常规更新仍使用无需 `sudo` 的 `deploy-update.sh`。
+设备历史清理日志位于 `/opt/student-management/backups/device-cleanup.log`。本项目的 PM2 由 root 统一管理，后续常规更新也必须使用下文的 `sudo env ... deploy-update.sh` 命令。
 
 ## 3. 空数据库初始化
 
 部署脚本默认会执行：
 
 ```bash
-npx prisma db push
+sudo env -u DATABASE_URL bash -lc 'cd /opt/student-management/current && npx prisma db push'
 ```
 
-如果数据库文件不存在，它会创建一个新的 SQLite 空库，并同步当前表结构。
+该命令会清除调用 shell 中的 `DATABASE_URL`，由当前版本链接的共享 `.env` 提供数据库配置。如果数据库文件不存在，它会创建一个新的 SQLite 空库，并同步当前表结构。
 
 默认情况下，部署脚本不会执行 seed，因此不会清空或重建数据。
 
 如果你希望新服务器生成默认演示账号和测试数据，可以只在首次部署后执行一次：
 
 ```bash
-REPO_URL=<REMOTE_URL> RUN_SEED=1 bash /opt/student-management/current/deploy/deploy-update.sh
+sudo env REPO_URL=<REMOTE_URL> RUN_SEED=1 APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
 注意：有真实业务数据后，不要再使用 `RUN_SEED=1`，因为 seed 会重建数据。
@@ -97,7 +108,7 @@ REPO_URL=<REMOTE_URL> RUN_SEED=1 bash /opt/student-management/current/deploy/dep
 然后在服务器执行：
 
 ```bash
-REPO_URL=<REMOTE_URL> BRANCH=main bash /opt/student-management/current/deploy/deploy-update.sh
+sudo env REPO_URL=<REMOTE_URL> BRANCH=main APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
 升级脚本会自动完成：
@@ -115,19 +126,20 @@ REPO_URL=<REMOTE_URL> BRANCH=main bash /opt/student-management/current/deploy/de
 设备登录功能首次上线时，`device-session-v1` 迁移会让全部账号退出一次，以便新会话绑定设备。标记写入成功后，后续更新不会再让用户退出。现有服务器可手动验证幂等性：
 
 ```bash
-cd /opt/student-management/current
-npm run devices:migrate
-npm run devices:migrate
+sudo env -u DATABASE_URL bash -lc 'cd /opt/student-management/current && npm run devices:migrate'
+sudo env -u DATABASE_URL bash -lc 'cd /opt/student-management/current && npm run devices:migrate'
 ```
 
 第二次应输出 `{"clearedSessions":0,"alreadyApplied":true}`。如遇到 Prisma Client 的 `EACCES` 或 SQLite 的 `readonly database`，请按项目根目录 `README.md` 中的“设备登录功能首次上线”命令，将 release 依赖和 shared 数据库权限修正为实际运行 PM2 的用户，不要使用 `chmod 777`。
+
+发布会先完成新 release 的安装和构建，再用 `flock` 保护的短暂停机窗口停止旧 PM2，通过 SQLite `.backup` 备份后执行结构同步和迁移。健康检查失败会自动恢复 `previous` release。迁移标记不随代码回退；如果临时恢复旧版，应修复后尽快重新发布。旧进程在窗口内产生的无设备会话会被新版拒绝，过期后由每日任务清理。
 
 ## 5. 回滚到上一个版本
 
 如果更新后发现问题，可以执行：
 
 ```bash
-bash /opt/student-management/current/deploy/rollback.sh
+sudo env -u DATABASE_URL APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/rollback.sh
 ```
 
 这个脚本会把 `current` 切换回上一个 release，并重启 PM2。
@@ -178,7 +190,7 @@ sudo pm2 restart student-management --update-env
 如果服务器还没有部署包含 `LOGIN_ENABLED` 的最新代码，先执行完整更新：
 
 ```bash
-REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-management/current/deploy/deploy-update.sh
+sudo env REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
 注意：

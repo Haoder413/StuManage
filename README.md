@@ -100,7 +100,7 @@ deploy/README.md
 首次部署大致流程：
 
 ```bash
-REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main APP_ROOT=/opt/student-management PORT=3001 sudo -E bash deploy/server-init.sh
+sudo env REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main APP_ROOT=/opt/student-management PORT=3001 bash deploy/server-init.sh
 ```
 
 现有服务器首次上线设备登录功能时，还需安装每日设备历史清理任务并检查 cron：
@@ -114,7 +114,7 @@ cat /etc/cron.d/student-management-maintenance
 后续更新代码后，在服务器执行：
 
 ```bash
-REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-management/current/deploy/deploy-update.sh
+sudo env REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
 ### 设备登录功能首次上线
@@ -124,48 +124,64 @@ REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-ma
 - 首次执行会让全部账号退出一次，用户需重新登录，不会修改密码、资料或课程数据。
 - 成功写入标记后，后续部署不会再让用户退出。
 - 迁移的“删除旧会话”和“写入标记”在同一个数据库事务中，失败时会整体回滚。
+- 即使旧进程在切换窗口内又产生了无设备绑定的会话，新版网页端和小程序也会拒绝这类旧会话；其过期后会由每日清理任务删除。
+
+更新脚本使用 `flock` 防止两次发布同时运行。它会先在新 release 完成依赖安装和构建，再短暂停止旧 PM2 进程，使用 SQLite `.backup` 创建一致备份，同步结构并执行迁移。新版启动后会请求 `/api/health`；健康检查失败时会恢复 `previous` 指针对应的旧 release。
+
+注意：数据库中已写入的迁移标记不会随代码回退。如果健康检查失败后临时恢复了旧版，旧版在应急运行期间仍可能生成旧会话，应修复新版后尽快重新发布，不要长期停留在回退版本。
 
 已有服务器如果需要手动执行，请先确认当前 release 的 `.env` 仍链接到共享环境文件，然后连续执行两次：
 
 ```bash
 cd /opt/student-management/current
 readlink -f .env
-npm run devices:migrate
-npm run devices:migrate
+sudo env -u DATABASE_URL bash -lc 'cd /opt/student-management/current && npm run devices:migrate'
+sudo env -u DATABASE_URL bash -lc 'cd /opt/student-management/current && npm run devices:migrate'
 ```
 
 第二次应输出 `{"clearedSessions":0,"alreadyApplied":true}`。
 
-如果遇到 `EACCES ... node_modules/.prisma/client`，表示当前 release 的依赖目录不属于实际运行服务的用户。下面以 PM2 由 `ubuntu` 用户运行为例；如果服务由其他用户运行，必须把 `APP_USER` 改成该用户：
+如果遇到 `EACCES ... node_modules/.prisma/client`，表示当前 release 的依赖目录不属于实际运行服务的用户。下面从当前 PM2 进程读取真实运行用户，不要直接照抄一个假定用户名：
 
 ```bash
-APP_USER=ubuntu
+PM2_PID="$(sudo pm2 pid student-management)"
+APP_USER="$(sudo ps -o user= -p "$PM2_PID" | xargs)"
+test -n "$APP_USER" || { echo '无法确认 PM2 运行用户'; exit 1; }
 APP_GROUP="$(id -gn "$APP_USER")"
 CURRENT_RELEASE="$(readlink -f /opt/student-management/current)"
 sudo chown -R "$APP_USER:$APP_GROUP" "$CURRENT_RELEASE/node_modules"
-sudo -u "$APP_USER" bash -lc "cd '$CURRENT_RELEASE' && npx prisma generate"
+sudo -u "$APP_USER" env -u DATABASE_URL bash -lc "cd '$CURRENT_RELEASE' && npx prisma generate"
 ```
 
-如果遇到 `attempt to write a readonly database`，需要同时修正 SQLite 数据库文件和共享目录的写权限（SQLite 会在目录内创建 journal/WAL 文件）：
+如果遇到 `attempt to write a readonly database`，先通过项目的 `.env` 解析器只读取 `DATABASE_URL`，不会输出 DeepSeek 密钥等其他环境变量。然后同时修正真实 SQLite 主库、`-journal`/`-wal`/`-shm` 文件和所在目录的写权限：
 
 ```bash
-APP_USER=ubuntu
+PM2_PID="$(sudo pm2 pid student-management)"
+APP_USER="$(sudo ps -o user= -p "$PM2_PID" | xargs)"
+test -n "$APP_USER" || { echo '无法确认 PM2 运行用户'; exit 1; }
 APP_GROUP="$(id -gn "$APP_USER")"
-sudo chown "$APP_USER:$APP_GROUP" /opt/student-management/shared
-sudo chmod u+rwx /opt/student-management/shared
-sudo find /opt/student-management/shared -maxdepth 1 -type f \
-  \( -name 'dev.db' -o -name 'dev.db-wal' -o -name 'dev.db-shm' \) \
+DB_PATH="$(sudo -u "$APP_USER" env -u DATABASE_URL bash -lc 'cd /opt/student-management/current && node --import tsx scripts/resolve-sqlite-database-path.ts')"
+test -f "$DB_PATH" || { echo "数据库不存在: $DB_PATH"; exit 1; }
+DB_DIR="$(dirname "$DB_PATH")"
+DB_NAME="$(basename "$DB_PATH")"
+sudo chown "$APP_USER:$APP_GROUP" "$DB_DIR"
+sudo chmod u+rwx "$DB_DIR"
+sudo find "$DB_DIR" -maxdepth 1 -type f \
+  \( -name "$DB_NAME" -o -name "$DB_NAME-journal" -o -name "$DB_NAME-wal" -o -name "$DB_NAME-shm" \) \
   -exec chown "$APP_USER:$APP_GROUP" {} +
-sudo chmod u+rw /opt/student-management/shared/dev.db
-sudo -u "$APP_USER" bash -lc 'cd /opt/student-management/current && npm run devices:migrate'
+sudo find "$DB_DIR" -maxdepth 1 -type f \
+  \( -name "$DB_NAME" -o -name "$DB_NAME-journal" -o -name "$DB_NAME-wal" -o -name "$DB_NAME-shm" \) \
+  -exec chmod u+rw {} +
+sudo -u "$APP_USER" sqlite3 "$DB_PATH" 'PRAGMA integrity_check;'
+sudo env -u DATABASE_URL bash -lc 'cd /opt/student-management/current && npm run devices:migrate'
 ```
 
-不要使用 `chmod 777`，也不要把数据库复制进 release 目录。应让实际运行 PM2 服务的用户拥有 `/opt/student-management/shared/dev.db` 及其目录写权限。
+完整性检查应输出 `ok`。不要使用 `chmod 777`，也不要把数据库复制进 release 目录。应让实际运行 PM2 服务的用户拥有 `$DB_PATH` 及 `$DB_DIR` 的写权限。如果服务器缺少 SQLite 命令，先执行 `sudo apt-get install -y sqlite3`。
 
 如果更新后需要回滚：
 
 ```bash
-bash /opt/student-management/current/deploy/rollback.sh
+sudo env -u DATABASE_URL APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/rollback.sh
 ```
 
 ## 登录入口与关闭登录
@@ -205,12 +221,14 @@ sudo pm2 restart student-management --update-env
 如果服务器还没有部署包含 `LOGIN_ENABLED` 的最新代码，先执行完整更新：
 
 ```bash
-REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main bash /opt/student-management/current/deploy/deploy-update.sh
+sudo env REPO_URL=git@github.com:Haoder413/StuManage.git BRANCH=main APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
 注意：
 
 - `.env` 不会推送到远端仓库，也不会被部署脚本覆盖；需要在服务器 `/opt/student-management/shared/.env` 手动修改。
+- Nginx 标准部署应保留 `TRUST_PROXY_HEADERS="true"`，用于记录真实设备 IP，并根据 `X-Forwarded-Proto` 正确设置 Cookie。旧服务器如缺少，可执行 `sudo grep -q '^TRUST_PROXY_HEADERS=' /opt/student-management/shared/.env || echo 'TRUST_PROXY_HEADERS="true"' | sudo tee -a /opt/student-management/shared/.env >/dev/null`，然后使用 `sudo pm2 restart student-management --update-env` 重启。
+- HTTP 访问会使用普通 HttpOnly Cookie；配置 HTTPS 后，Nginx 转发的 `X-Forwarded-Proto=https` 会让登录 Cookie 自动启用 Secure。生产公网建议启用 HTTPS。
 - `HIDDEN_LOGIN_PATH` 只负责修改登录路径，不负责关闭登录。删除或留空 `HIDDEN_LOGIN_PATH` 会回到默认隐藏地址 `/teacher-login-2026`。
 - 首次新增登录开关代码后需要重新部署一次；之后只切换 `LOGIN_ENABLED` 或 `HIDDEN_LOGIN_PATH` 时，一般重启 PM2 即可。如果重启后仍不生效，再执行一次完整更新。
 
@@ -336,8 +354,11 @@ readlink -f /opt/student-management/current/.env
 如果服务器尚未部署新版资料中心，执行：
 
 ```bash
-REPO_URL=git@github.com:Haoder413/StuManage.git \
+sudo env REPO_URL=git@github.com:Haoder413/StuManage.git \
 BRANCH=main \
+APP_ROOT=/opt/student-management \
+APP_NAME=student-management \
+PORT=3001 \
 bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
@@ -359,27 +380,21 @@ sudo tar -czf "/opt/student-management/backups/resources-$(date +%Y%m%d-%H%M%S).
   -C /opt/student-management/shared storage/resources
 ```
 
-同步资料中心数据库结构：
+同步资料中心数据库结构并连续执行两次旧资料迁移：
 
 ```bash
-cd /opt/student-management/current
-npx prisma db push --accept-data-loss
+sudo env -u DATABASE_URL bash -lc '
+  cd /opt/student-management/current &&
+  test "$(readlink -f .env)" = /opt/student-management/shared/.env &&
+  npx prisma db push --accept-data-loss &&
+  npm run resources:migrate &&
+  npm run resources:migrate
+'
 ```
 
-这里的 `--accept-data-loss` 用于确认新增“每套资料只能有一个学生版和一个答案版”的唯一索引。执行前必须保留数据库备份；本次资料中心升级脚本不会主动删除现有资料。
+这组命令会先清除当前 shell 中可能残留的 `DATABASE_URL`，再确认当前版本的 `.env` 连接到 `/opt/student-management/shared/.env`，因此 Prisma 和迁移脚本会使用共享环境文件中的数据库配置，不会打印环境文件内容。`--accept-data-loss` 用于确认新增“每套资料只能有一个学生版和一个答案版”的唯一索引。执行前必须保留数据库备份；本次资料中心升级脚本不会主动删除现有资料。
 
-然后执行旧资料迁移：
-
-```bash
-cd /opt/student-management/current
-npm run resources:migrate
-```
-
-迁移成功后会输出旧资料数、新建资料组数、新建文件数、复制权限数和 `backfilledYears`。其中 `backfilledYears` 表示从历史资料标题或文件名中自动补齐年份的数量；原本已有年份的数据不会被覆盖。建议再执行一次：
-
-```bash
-npm run resources:migrate
-```
+迁移成功后会输出旧资料数、新建资料组数、新建文件数、复制权限数和 `backfilledYears`。其中 `backfilledYears` 表示从历史资料标题或文件名中自动补齐年份的数量；原本已有年份的数据不会被覆盖。命令中已连续执行两次迁移：
 
 第二次执行时，`createdGroups`、`createdFiles` 和 `backfilledYears` 应为 `0`，表示迁移具有幂等性，没有重复创建资料或反复修改年份。
 

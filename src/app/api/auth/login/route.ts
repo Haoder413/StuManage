@@ -14,7 +14,11 @@ import {
 } from "@/lib/web-login";
 
 function getCookieSecure(request: NextRequest) {
-  return isSecureRequest({ nodeEnv: process.env.NODE_ENV, protocol: request.nextUrl.protocol });
+  return isSecureRequest({
+    protocol: request.nextUrl.protocol,
+    trustProxyHeaders: process.env.TRUST_PROXY_HEADERS === "true",
+    forwardedProto: request.headers.get("x-forwarded-proto"),
+  });
 }
 
 export async function POST(request: NextRequest) {

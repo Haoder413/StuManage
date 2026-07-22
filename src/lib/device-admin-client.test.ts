@@ -107,6 +107,11 @@ test("administrator pages wire the device dialog and global policy card", () => 
   const settings = readFileSync("src/components/settings-client.tsx", "utf8");
   assert.match(accounts, /AccountDeviceDialog/);
   assert.match(deviceDialog, /登录设备/);
+  assert.match(deviceDialog, /requestGate\.current\.invalidate\(\)/);
+  assert.match(deviceDialog, /shouldAcceptDeviceDialogOpenChange\(nextOpen, operationLock\.current\.pending\(\)\)/);
+  assert.match(deviceDialog, /操作完成后可关闭/);
+  const restoreHandler = deviceDialog.match(/async function restoreDefaults\(\)[\s\S]*?async function logoutDevice/)?.[0] ?? "";
+  assert.doesNotMatch(restoreHandler, /setDraft\(/);
   assert.doesNotMatch(deviceDialog, /deviceKeyHash|sessionToken|rawDeviceKey/);
   assert.match(settings, /role === "admin"[\s\S]*DevicePolicyCard/);
 });
