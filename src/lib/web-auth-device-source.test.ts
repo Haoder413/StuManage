@@ -185,4 +185,7 @@ test("login UI requires consent, explains recorded metadata, and submits consent
     assert.match(loginUi, new RegExp(phrase));
   }
   assert.match(loginUi, /JSON\.stringify\(\{[^}]*privacyAccepted/);
+  const passwordPosition = loginUi.indexOf('type="password"');
+  const consentPosition = loginUi.indexOf('type="checkbox"');
+  assert.ok(passwordPosition >= 0 && consentPosition > passwordPosition);
 });
