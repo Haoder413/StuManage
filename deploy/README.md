@@ -111,6 +111,14 @@ sudo env REPO_URL=<REMOTE_URL> RUN_SEED=1 APP_ROOT=/opt/student-management APP_N
 sudo env REPO_URL=<REMOTE_URL> BRANCH=main APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 bash /opt/student-management/current/deploy/deploy-update.sh
 ```
 
+如果本次版本明确包含已审核的 Prisma 字段类型迁移（例如课时由整数改为两位小数），首次部署该版本时增加一次性开关：
+
+```bash
+sudo env REPO_URL=<REMOTE_URL> BRANCH=main APP_ROOT=/opt/student-management APP_NAME=student-management PORT=3001 PRISMA_ACCEPT_DATA_LOSS=1 bash /opt/student-management/current/deploy/deploy-update.sh
+```
+
+脚本仍会在同步结构前创建并校验数据库备份。显式字段迁移开始后，如果后续迁移、启动或健康检查失败，脚本会停止失败进程并保留数据库和备份，禁止自动启动可能不兼容的旧版本；此时需根据终端提示人工处理。完成本次迁移后，后续部署不要继续携带 `PRISMA_ACCEPT_DATA_LOSS=1`。
+
 升级脚本会自动完成：
 
 - 备份当前 SQLite 数据库

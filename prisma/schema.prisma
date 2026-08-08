@@ -242,8 +242,8 @@ model Student {
   enrollmentDate       DateTime             @default(now())
   lessonFrequency      String?
   tuition              String?
-  totalLessonHours     Int                  @default(0)
-  remainingLessonHours Int                  @default(0)
+  totalLessonHours     Float                @default(0)
+  remainingLessonHours Float                @default(0)
   notes                String?
   createdById          String?
   createdAt            DateTime             @default(now())
@@ -543,12 +543,12 @@ model LessonHourLog {
   studentId            String
   attendanceId         String?
   type                 String
-  deltaTotalHours      Int         @default(0)
-  deltaRemainingHours  Int         @default(0)
-  beforeTotalHours     Int
-  afterTotalHours      Int
-  beforeRemainingHours Int
-  afterRemainingHours  Int
+  deltaTotalHours      Float       @default(0)
+  deltaRemainingHours  Float       @default(0)
+  beforeTotalHours     Float
+  afterTotalHours      Float
+  beforeRemainingHours Float
+  afterRemainingHours  Float
   note                 String?
   teacherFeedback      String?
   createdAt            DateTime    @default(now())

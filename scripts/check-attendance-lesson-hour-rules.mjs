@@ -19,7 +19,7 @@ if (!route.includes("lessonHourAdjustment")) {
   throw new Error("attendance API should adjust consumed lesson hours by difference");
 }
 
-if (!schedulePage.includes("lessonHourAmount: parseInt(reviewLessonHourAmount)")) {
+if (!schedulePage.includes("lessonHourAmount: Number(reviewLessonHourAmount)")) {
   throw new Error("attendance review should submit selected lesson hour amount");
 }
 
