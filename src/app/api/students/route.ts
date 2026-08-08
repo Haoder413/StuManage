@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { normalizeStudentGrade, rolloverStudentGradesForWorkspace } from "@/lib/student-grades";
+import { parseLessonHours, roundLessonHours } from "@/lib/lesson-hours";
 import { deletableStudentByIdWhere, visibleCourseByIdWhere, visibleStudentByIdWhere, visibleStudentWhere } from "@/lib/teacher-visibility";
 
 const LESSON_HOUR_ACTIONS = ["add", "use"] as const;
@@ -85,10 +86,13 @@ export async function POST(request: NextRequest) {
   const data = await request.json();
   const hasCourse = Boolean(data.courseId);
   const legacyHasSchedule = hasCourse && data.dayOfWeek !== undefined && data.startTime && data.endTime;
-  const totalLessonHours = data.totalLessonHours ? parseInt(data.totalLessonHours) || 0 : 0;
+  const totalLessonHours = data.totalLessonHours ? parseLessonHours(data.totalLessonHours) : 0;
   const remainingLessonHours = data.remainingLessonHours !== undefined
-    ? parseInt(data.remainingLessonHours) || 0
+    ? parseLessonHours(data.remainingLessonHours)
     : totalLessonHours;
+  if (totalLessonHours === null || remainingLessonHours === null) {
+    return NextResponse.json({ error: "invalid lesson hours" }, { status: 400 });
+  }
   const student = await prisma.$transaction(async (tx) => {
     const created = await tx.student.create({
       data: {
@@ -140,6 +144,11 @@ export async function PATCH(request: NextRequest) {
   await rolloverStudentGradesForWorkspace(prisma, user.workspaceId);
   const data = await request.json();
   if (!data.id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+  const totalLessonHours = data.totalLessonHours !== undefined ? parseLessonHours(data.totalLessonHours) : undefined;
+  const remainingLessonHours = data.remainingLessonHours !== undefined ? parseLessonHours(data.remainingLessonHours) : undefined;
+  if (totalLessonHours === null || remainingLessonHours === null) {
+    return NextResponse.json({ error: "invalid lesson hours" }, { status: 400 });
+  }
 
   const student = await prisma.$transaction(async (tx) => {
     const accessibleStudent = await tx.student.findFirst({
@@ -157,8 +166,8 @@ export async function PATCH(request: NextRequest) {
         enrollmentDate: data.enrollmentDate ? new Date(data.enrollmentDate) : undefined,
         lessonFrequency: "lessonFrequency" in data ? data.lessonFrequency || null : undefined,
         tuition: data.tuition ? String(data.tuition).trim() || null : null,
-        totalLessonHours: data.totalLessonHours !== undefined ? parseInt(data.totalLessonHours) || 0 : undefined,
-        remainingLessonHours: data.remainingLessonHours !== undefined ? parseInt(data.remainingLessonHours) || 0 : undefined,
+        totalLessonHours,
+        remainingLessonHours,
         notes: data.notes || null,
       },
     });
@@ -189,7 +198,7 @@ export async function PUT(request: NextRequest) {
   const user = await requireTeacherLike();
   const data = await request.json();
   const action = String(data.action || "");
-  const amount = Number(data.amount);
+  const amount = parseLessonHours(data.amount, { allowZero: false });
   const note = String(data.note || "").trim() || null;
   const requestedOccurredAt = data.occurredAt ? new Date(String(data.occurredAt)) : null;
   const lessonHourOccurredAt = requestedOccurredAt && !Number.isNaN(requestedOccurredAt.getTime())
@@ -200,7 +209,7 @@ export async function PUT(request: NextRequest) {
   if (!LESSON_HOUR_ACTIONS.includes(action as (typeof LESSON_HOUR_ACTIONS)[number])) {
     return NextResponse.json({ error: "invalid action" }, { status: 400 });
   }
-  if (!Number.isInteger(amount) || amount <= 0) {
+  if (amount === null) {
     return NextResponse.json({ error: "invalid amount" }, { status: 400 });
   }
 
@@ -216,11 +225,11 @@ export async function PUT(request: NextRequest) {
 
     const updateData = action === "add"
       ? {
-          totalLessonHours: { increment: amount },
-          remainingLessonHours: { increment: amount },
+          totalLessonHours: roundLessonHours(beforeStudent.totalLessonHours + amount),
+          remainingLessonHours: roundLessonHours(beforeStudent.remainingLessonHours + amount),
         }
       : {
-          remainingLessonHours: { decrement: amount },
+          remainingLessonHours: roundLessonHours(beforeStudent.remainingLessonHours - amount),
         };
 
     await tx.student.update({ where: { id: beforeStudent.id }, data: updateData });
@@ -237,8 +246,8 @@ export async function PUT(request: NextRequest) {
         workspaceId: user.workspaceId,
         studentId: beforeStudent.id,
         type: action === "add" ? "manual_add" : "manual_use",
-        deltaTotalHours: afterStudent.totalLessonHours - beforeStudent.totalLessonHours,
-        deltaRemainingHours: afterStudent.remainingLessonHours - beforeStudent.remainingLessonHours,
+        deltaTotalHours: roundLessonHours(afterStudent.totalLessonHours - beforeStudent.totalLessonHours),
+        deltaRemainingHours: roundLessonHours(afterStudent.remainingLessonHours - beforeStudent.remainingLessonHours),
         beforeTotalHours: beforeStudent.totalLessonHours,
         afterTotalHours: afterStudent.totalLessonHours,
         beforeRemainingHours: beforeStudent.remainingLessonHours,

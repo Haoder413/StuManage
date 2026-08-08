@@ -89,8 +89,8 @@ export function LessonHourHistoryEditor({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: form.type,
-        deltaTotalHours: parseInt(form.deltaTotalHours) || 0,
-        deltaRemainingHours: parseInt(form.deltaRemainingHours) || 0,
+        deltaTotalHours: Number(form.deltaTotalHours) || 0,
+        deltaRemainingHours: Number(form.deltaRemainingHours) || 0,
         occurredAt: form.occurredAt,
         note: form.note,
         teacherFeedback: form.teacherFeedback,
@@ -181,11 +181,11 @@ export function LessonHourHistoryEditor({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-gray-500">总课时变化</Label>
-                <Input type="number" value={form.deltaTotalHours} onChange={e => setForm(prev => ({ ...prev, deltaTotalHours: e.target.value }))} />
+                <Input type="number" step="0.01" value={form.deltaTotalHours} onChange={e => setForm(prev => ({ ...prev, deltaTotalHours: e.target.value }))} />
               </div>
               <div>
                 <Label className="text-xs text-gray-500">剩余课时变化</Label>
-                <Input type="number" value={form.deltaRemainingHours} onChange={e => setForm(prev => ({ ...prev, deltaRemainingHours: e.target.value }))} />
+                <Input type="number" step="0.01" value={form.deltaRemainingHours} onChange={e => setForm(prev => ({ ...prev, deltaRemainingHours: e.target.value }))} />
               </div>
             </div>
             <div>

@@ -7,8 +7,8 @@ const editor = readFileSync("src/app/students/[id]/student-detail-editor.tsx", "
 const route = readFileSync("src/app/api/students/route.ts", "utf8");
 const attendanceRoute = readFileSync("src/app/api/attendance/route.ts", "utf8");
 
-assert.match(schema, /totalLessonHours\s+Int\s+@default\(0\)/, "Student should store editable total lesson hours");
-assert.match(schema, /remainingLessonHours\s+Int\s+@default\(0\)/, "Student should store editable remaining lesson hours");
+assert.match(schema, /totalLessonHours\s+Float\s+@default\(0\)/, "Student should store decimal total lesson hours");
+assert.match(schema, /remainingLessonHours\s+Float\s+@default\(0\)/, "Student should store decimal remaining lesson hours");
 assert.match(route, /totalLessonHours/, "students API should save total lesson hours");
 assert.match(route, /remainingLessonHours/, "students API should save remaining lesson hours");
 assert.match(editor, /总课时/, "student editor should expose total lesson hours");

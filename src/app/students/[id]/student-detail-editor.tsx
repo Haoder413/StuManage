@@ -110,7 +110,7 @@ export function StudentDetailEditor({
       body: JSON.stringify({
         id: student.id,
         action: lessonHourAction,
-        amount: parseInt(lessonHourForm.amount) || 0,
+        amount: Number(lessonHourForm.amount) || 0,
         occurredAt: lessonHourForm.occurredAt,
         note: lessonHourForm.note,
       }),
@@ -211,7 +211,8 @@ export function StudentDetailEditor({
               <Label className="text-xs text-gray-500">数量</Label>
               <Input
                 type="number"
-                min="1"
+                min="0.01"
+                step="0.01"
                 value={lessonHourForm.amount}
                 onChange={e => setLessonHourForm(prev => ({ ...prev, amount: e.target.value }))}
               />
@@ -234,7 +235,7 @@ export function StudentDetailEditor({
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setLessonHourAction(null)}>取消</Button>
-              <Button size="sm" onClick={saveLessonHourAction} disabled={(parseInt(lessonHourForm.amount) || 0) <= 0}>保存</Button>
+              <Button size="sm" onClick={saveLessonHourAction} disabled={(Number(lessonHourForm.amount) || 0) <= 0}>保存</Button>
             </div>
           </div>
         </DialogContent>

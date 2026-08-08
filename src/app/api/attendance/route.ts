@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTeacherLike } from "@/lib/auth";
 import { ensureTeacherCanUseLearningLink, findLearningLinkForTeacherStudent } from "@/lib/learning-links";
+import { parseLessonHours, roundLessonHours } from "@/lib/lesson-hours";
 import { visibleScheduleWhere, visibleStudentByIdWhere } from "@/lib/teacher-visibility";
 
 function formatTeacherFeedback(data: {
@@ -44,16 +45,13 @@ function reusableAttendanceScore(record: {
 }
 
 function currentAttendanceLessonHourDelta(logs: { deltaRemainingHours: number }[] = []) {
-  return logs.reduce((sum, log) => sum + log.deltaRemainingHours, 0);
+  return roundLessonHours(logs.reduce((sum, log) => sum + log.deltaRemainingHours, 0));
 }
 
 function getRequestedLessonHourAmount(data: { status?: string; lessonHourAmount?: unknown }) {
   if (data.status !== "present") return 0;
   if (data.lessonHourAmount === undefined || data.lessonHourAmount === null || data.lessonHourAmount === "") return 1;
-  const requestedLessonHourAmount = Number(data.lessonHourAmount);
-  return Number.isInteger(requestedLessonHourAmount) && requestedLessonHourAmount > 0
-    ? requestedLessonHourAmount
-    : null;
+  return parseLessonHours(data.lessonHourAmount, { allowZero: false });
 }
 
 function normalizeKnowledgePointProgressUpdates(data: { knowledgePointProgressUpdates?: unknown }) {
@@ -180,7 +178,7 @@ export async function POST(request: NextRequest) {
   }
   const currentLessonHourDelta = currentAttendanceLessonHourDelta(existing?.lessonHourLogs || []);
   const desiredLessonHourDelta = isPresentAttendance ? -requestedLessonHourAmount : 0;
-  const lessonHourAdjustment = desiredLessonHourDelta - currentLessonHourDelta;
+  const lessonHourAdjustment = roundLessonHours(desiredLessonHourDelta - currentLessonHourDelta);
 
   const attendance = await prisma.$transaction(async (tx) => {
     const beforeStudent = lessonHourAdjustment !== 0
@@ -191,7 +189,7 @@ export async function POST(request: NextRequest) {
       : null;
 
     if (beforeStudent && lessonHourAdjustment < 0) {
-      const lessonHoursToConsume = Math.abs(lessonHourAdjustment);
+      const lessonHoursToConsume = roundLessonHours(Math.abs(lessonHourAdjustment));
       if (beforeStudent.remainingLessonHours < lessonHoursToConsume) return "insufficient_lesson_hours";
     }
 
@@ -278,7 +276,7 @@ export async function POST(request: NextRequest) {
 
     if (beforeStudent && lessonHourAdjustment !== 0) {
       if (lessonHourAdjustment < 0) {
-        const lessonHoursToConsume = Math.abs(lessonHourAdjustment);
+        const lessonHoursToConsume = roundLessonHours(Math.abs(lessonHourAdjustment));
         const updated = await tx.student.updateMany({
           where: { id: data.studentId, workspaceId: user.workspaceId, remainingLessonHours: { gte: lessonHoursToConsume } },
           data: { remainingLessonHours: { decrement: lessonHoursToConsume } },
@@ -291,10 +289,18 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const afterStudent = await tx.student.findFirstOrThrow({
+      let afterStudent = await tx.student.findFirstOrThrow({
         where: { id: data.studentId, workspaceId: user.workspaceId },
         select: { totalLessonHours: true, remainingLessonHours: true },
       });
+      const normalizedRemainingHours = roundLessonHours(afterStudent.remainingLessonHours);
+      if (normalizedRemainingHours !== afterStudent.remainingLessonHours) {
+        afterStudent = await tx.student.update({
+          where: { id: data.studentId },
+          data: { remainingLessonHours: normalizedRemainingHours },
+          select: { totalLessonHours: true, remainingLessonHours: true },
+        });
+      }
       await tx.lessonHourLog.create({
         data: {
           workspaceId: user.workspaceId,

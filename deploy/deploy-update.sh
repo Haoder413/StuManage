@@ -7,6 +7,7 @@ REPO_URL="${REPO_URL:-}"
 BRANCH="${BRANCH:-main}"
 PORT="${PORT:-3001}"
 RUN_SEED="${RUN_SEED:-0}"
+PRISMA_ACCEPT_DATA_LOSS="${PRISMA_ACCEPT_DATA_LOSS:-0}"
 KEEP_BACKUPS="${KEEP_BACKUPS:-15}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:$PORT/api/health}"
 HEALTHCHECK_ATTEMPTS="${HEALTHCHECK_ATTEMPTS:-30}"
@@ -51,6 +52,7 @@ fi
 
 PREVIOUS_RELEASE="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
 ROLLBACK_REQUIRED=0
+DESTRUCTIVE_SCHEMA_MIGRATION_STARTED=0
 
 restore_previous_release() {
   echo "Deployment failed; restoring the previous release."
@@ -65,6 +67,14 @@ handle_failure() {
   status="$1"
   trap - ERR
   if [ "$ROLLBACK_REQUIRED" = "1" ]; then
+    if [ "$DESTRUCTIVE_SCHEMA_MIGRATION_STARTED" = "1" ]; then
+      if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+        pm2 delete "$APP_NAME" || true
+      fi
+      echo "Database schema migration started. Automatic previous-release recovery is disabled to avoid running old code against the migrated database." >&2
+      echo "Verified database backup: ${BACKUP_FILE:-unavailable}. Manual recovery is required." >&2
+      exit 1
+    fi
     if ! restore_previous_release; then
       echo "Automatic previous-release recovery failed; manual intervention is required." >&2
       exit 1
@@ -113,7 +123,13 @@ if [ -f "$DB_PATH" ]; then
   echo "Consistent database backup created: $BACKUP_FILE"
 fi
 
-npx prisma db push --skip-generate
+PRISMA_PUSH_ARGS=(--skip-generate)
+if [ "$PRISMA_ACCEPT_DATA_LOSS" = "1" ]; then
+  echo "Prisma data-loss confirmation enabled for this deployment."
+  PRISMA_PUSH_ARGS+=(--accept-data-loss)
+  DESTRUCTIVE_SCHEMA_MIGRATION_STARTED=1
+fi
+npx prisma db push "${PRISMA_PUSH_ARGS[@]}"
 npm run devices:migrate
 
 if [ "$RUN_SEED" = "1" ]; then
@@ -150,6 +166,7 @@ if ! pm2 save; then
 fi
 
 ROLLBACK_REQUIRED=0
+DESTRUCTIVE_SCHEMA_MIGRATION_STARTED=0
 trap - ERR
 
 find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -5 | xargs -r rm -rf

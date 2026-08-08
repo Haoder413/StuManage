@@ -14,7 +14,7 @@ assert.match(route, /deltaRemainingHours: lessonHourAdjustment/, "attendance API
 assert.match(schedulesRoute, /lessonHourLogs: true/, "schedules API should return attendance lesson hour logs");
 assert.match(schedulePage, /reviewLessonHourAmount/, "attendance review dialog should track lesson hour amount");
 assert.match(schedulePage, /本次扣课时/, "attendance review dialog should show lesson hour amount input");
-assert.match(schedulePage, /lessonHourAmount: parseInt\(reviewLessonHourAmount\)/, "attendance save should submit selected lesson hour amount");
+assert.match(schedulePage, /lessonHourAmount: Number\(reviewLessonHourAmount\)/, "attendance save should submit selected decimal lesson hour amount");
 assert.match(schedulePage, /getAttendanceLessonHourAmount/, "attendance dialog should prefill existing consumed lesson hours");
 
 console.log("variable attendance lesson hour checks passed");
